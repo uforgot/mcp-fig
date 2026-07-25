@@ -4,10 +4,25 @@ let revision = 1;
 const changes = [];
 let activeCommandMetrics = null;
 const revisionReadCache = new Map();
+const idempotencyResults = new Map();
 
 function cloneData(value) {
   if (value === undefined) return undefined;
   return JSON.parse(JSON.stringify(value));
+}
+
+function canonicalJson(value) {
+  function normalize(input) {
+    if (Array.isArray(input)) return input.map(normalize);
+    if (input && typeof input === "object") {
+      const output = {};
+      for (const key of Object.keys(input).sort())
+        output[key] = normalize(input[key]);
+      return output;
+    }
+    return input;
+  }
+  return JSON.stringify(normalize(value));
 }
 
 function countSceneTraversal(count = 1) {
@@ -1360,23 +1375,73 @@ async function execute(command) {
       true,
     );
   }
+  const idempotencyKey = command.idempotencyKey
+    ? `${identity.key}\u0000${command.idempotencyKey}`
+    : undefined;
+  const fingerprint = idempotencyKey
+    ? canonicalJson({ method: command.method, params: command.params || {} })
+    : undefined;
+  if (idempotencyKey) {
+    const existing = idempotencyResults.get(idempotencyKey);
+    if (existing) {
+      if (existing.fingerprint !== fingerprint) {
+        fail(
+          "INVALID_ARGUMENT",
+          `Idempotency key ${command.idempotencyKey} was reused with a different payload.`,
+        );
+      }
+      return cloneData(existing.data);
+    }
+  }
+  if (
+    command.expectedRevision &&
+    command.expectedRevision !== identity.revision
+  ) {
+    fail(
+      "REVISION_CONFLICT",
+      `Expected revision ${command.expectedRevision}, but file ${identity.key} is at ${identity.revision}.`,
+      true,
+      {
+        fileKey: identity.key,
+        expectedRevision: command.expectedRevision,
+        actualRevision: identity.revision,
+        targetNodeIds: command.targetNodeIds || [],
+      },
+    );
+  }
+
+  let data;
   if (
     command.method.startsWith("document.") ||
     ["selection.get", "changes.get"].includes(command.method) ||
     command.method.startsWith("node.")
   ) {
-    return coreCommand(command.method, command.params || {});
+    data = await coreCommand(command.method, command.params || {});
+  } else if (command.method === "layout") {
+    data = await layoutCommand(command.params || {});
+  } else if (command.method === "component") {
+    data = await componentCommand(command.params || {});
+  } else if (command.method === "instance") {
+    data = await instanceCommand(command.params || {});
+  } else if (command.method === "tokens") {
+    data = await tokensCommand(command.params || {});
+  } else {
+    fail(
+      "UNSUPPORTED_BY_BRIDGE",
+      `Unknown Desktop Plugin method ${command.method}.`,
+    );
   }
-  if (command.method === "layout") return layoutCommand(command.params || {});
-  if (command.method === "component")
-    return componentCommand(command.params || {});
-  if (command.method === "instance")
-    return instanceCommand(command.params || {});
-  if (command.method === "tokens") return tokensCommand(command.params || {});
-  fail(
-    "UNSUPPORTED_BY_BRIDGE",
-    `Unknown Desktop Plugin method ${command.method}.`,
-  );
+  if (idempotencyKey) {
+    idempotencyResults.set(idempotencyKey, {
+      fingerprint,
+      data: cloneData(data),
+    });
+    if (idempotencyResults.size > 1_000) {
+      const oldest = idempotencyResults.keys().next().value;
+      if (oldest) idempotencyResults.delete(oldest);
+    }
+  }
+  return data;
 }
 
 figma.ui.onmessage = async (message) => {

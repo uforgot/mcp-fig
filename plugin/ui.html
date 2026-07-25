@@ -44,6 +44,7 @@
     let bootstrapTimer;
     let reconnectAttempt = 0;
     let lastDisconnectReason = "not-paired";
+    let refreshIdentity = null;
     const pending = new Map();
 
     function setStatus(text, ok) {
@@ -66,6 +67,7 @@
         file = message.file;
         if (bootstrapTimer) clearInterval(bootstrapTimer);
         setStatus(`Ready: ${file.name} (${file.key})`);
+        if (refreshIdentity) void refreshIdentity().catch(() => undefined);
       }
       if (message.type === "bridge-result") {
         const entry = pending.get(message.requestId);
@@ -101,7 +103,15 @@
     }
     async function pair(port, token, signal) {
       const base = `http://localhost:${port}`;
-      const auth = { authorization: `Bearer ${token}`, "content-type": "application/json" };
+      const auth = { authorization: ["Bearer", token].join(" "), "content-type": "application/json" };
+      const publishIdentity = () => request(`${base}/v1/session/handshake`, {
+        method: "POST", headers: auth, signal,
+        body: JSON.stringify({
+          protocol: PROTOCOL, sessionId, clientId: pluginClientId, file,
+          capabilities: CAPABILITIES, sentAt: new Date().toISOString()
+        })
+      });
+      refreshIdentity = publishIdentity;
       let backoff = 250;
       while (!signal.aborted) {
         try {
@@ -112,13 +122,7 @@
               : `Reconnect attempt ${reconnectAttempt}…`,
           );
           if (!file) throw new Error("File identity is not ready.");
-          await request(`${base}/v1/session/handshake`, {
-            method: "POST", headers: auth, signal,
-            body: JSON.stringify({
-              protocol: PROTOCOL, sessionId, clientId: pluginClientId, file,
-              capabilities: CAPABILITIES, sentAt: new Date().toISOString()
-            })
-          });
+          await publishIdentity();
           reconnectAttempt = 0;
           lastDisconnectReason = "none";
           setConnectionState("ready", `Connected: ${file.name}`, true);

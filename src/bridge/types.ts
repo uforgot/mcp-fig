@@ -223,7 +223,21 @@ export interface NodePatch extends NodeProps {
 export interface MutationOptions {
   fileKey?: string;
   dryRun?: boolean;
+  expectedRevision?: string;
+  idempotencyKey?: string;
 }
+
+type WriteControl = Pick<
+  MutationOptions,
+  "expectedRevision" | "idempotencyKey"
+>;
+type AddWriteControl<Input, ReadAction extends string> = Input extends {
+  action: infer Action;
+}
+  ? Action extends ReadAction
+    ? Input
+    : Input & WriteControl
+  : Input;
 
 export interface CreateNodeInput extends MutationOptions {
   parentId: string;
@@ -304,7 +318,7 @@ export interface LayoutRepair {
   changes: LayoutRepairChange[];
 }
 
-export type LayoutActionInput =
+type LayoutAction =
   | { action: "inspect"; nodeIds: string[]; fileKey?: string }
   | {
       action: "apply";
@@ -335,6 +349,11 @@ export type LayoutActionInput =
       fileKey?: string;
     };
 
+export type LayoutActionInput = AddWriteControl<
+  LayoutAction,
+  "inspect" | "validate"
+>;
+
 export interface LayoutSnapshot {
   nodeId: string;
   name: string;
@@ -364,7 +383,7 @@ export interface LayoutSnapshot {
   constraints: LayoutConstraints;
 }
 
-export type ComponentActionInput =
+type ComponentAction =
   | { action: "search"; query?: string; fileKey?: string }
   | {
       action: "inspect";
@@ -434,7 +453,12 @@ export type ComponentActionInput =
       fileKey?: string;
     };
 
-export type InstanceActionInput =
+export type ComponentActionInput = AddWriteControl<
+  ComponentAction,
+  "search" | "inspect" | "library_search" | "library_inspect" | "slots"
+>;
+
+type InstanceAction =
   | {
       action: "create";
       componentId?: string;
@@ -469,6 +493,8 @@ export type InstanceActionInput =
       fileKey?: string;
     };
 
+export type InstanceActionInput = AddWriteControl<InstanceAction, never>;
+
 export type TokenOperation =
   | { op: "bind"; nodeIds: string[]; field: string; variableId: string }
   | {
@@ -496,7 +522,7 @@ export type TokenOperation =
       name: string;
     };
 
-export type TokenActionInput =
+type TokenAction =
   | { action: "inspect"; fileKey?: string }
   | {
       action: "apply";
@@ -517,6 +543,8 @@ export type TokenActionInput =
       dryRun?: boolean;
       fileKey?: string;
     };
+
+export type TokenActionInput = AddWriteControl<TokenAction, "inspect">;
 
 export interface FigmaBridge {
   close?(): Promise<void> | void;

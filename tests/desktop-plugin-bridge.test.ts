@@ -12,6 +12,7 @@ import type {
   PluginHandshake,
   PluginResult,
 } from "../src/bridge/plugin-protocol.js";
+import { PLUGIN_PROTOCOL_V1 } from "../src/bridge/plugin-protocol.js";
 import { createMcpServer } from "../src/server.js";
 
 const hosts: DesktopPluginBridgeHost[] = [];
@@ -54,6 +55,7 @@ function startFakePlugin(
     ],
     sentAt: new Date().toISOString(),
   };
+  let revision = 7;
 
   const loop = (async () => {
     await json(`${baseUrl}/v1/session/handshake`, {
@@ -86,11 +88,13 @@ function startFakePlugin(
           { id: "2:1", type: "RECTANGLE", name: "Live node", parentId: "1:0" },
         ];
       } else if (command.method === "node.update") {
+        revision += 1;
+        const params = command.params as { patch?: { name?: string } };
         data = [
           {
             id: "2:1",
             type: "RECTANGLE",
-            name: "Updated live node",
+            name: params.patch?.name ?? "Updated live node",
             parentId: "1:0",
           },
         ];
@@ -105,7 +109,7 @@ function startFakePlugin(
         sessionId: command.sessionId,
         fileKey: command.fileKey,
         ok: true,
-        revision: command.method === "node.update" ? "8" : "7",
+        revision: String(revision),
         data,
         pluginReceivedAt: command.dispatchedAt,
         figmaApiCompletedAt: new Date().toISOString(),
@@ -223,6 +227,71 @@ describe("Desktop Plugin bridge", () => {
     await expect(pending).resolves.toEqual(["2:1"]);
   });
 
+  it("shares one broker across hosts that bind the same port", async () => {
+    const primary = new DesktopPluginBridgeHost({
+      token: "pair-secret",
+      port: 0,
+    });
+    hosts.push(primary);
+    const address = await primary.listen();
+    startFakePlugin(address.url, "pair-secret");
+    await primary.waitForSession("file-live", 1_000);
+
+    const secondary = new DesktopPluginBridgeHost({
+      token: "pair-secret",
+      port: address.port,
+    });
+    const tertiary = new DesktopPluginBridgeHost({
+      token: "pair-secret",
+      port: address.port,
+    });
+    hosts.push(secondary, tertiary);
+    await Promise.all([secondary.listen(), tertiary.listen()]);
+
+    const secondaryBridge = new DesktopPluginFigmaBridge(secondary, {
+      clientId: "secondary-process",
+    });
+    await expect(secondaryBridge.status()).resolves.toMatchObject({
+      connected: true,
+      fileKey: "file-live",
+    });
+    await expect(secondaryBridge.listFiles()).resolves.toContainEqual({
+      key: "file-live",
+      name: "Live file",
+      revision: "7",
+    });
+
+    const params = {
+      nodeIds: ["2:1"],
+      patch: { name: "Shared broker" },
+      idempotencyKey: "shared-broker-nonce",
+    };
+    const [left, right] = await Promise.all([
+      secondary.request("secondary-process", "node.update", params, {
+        fileKey: "file-live",
+      }),
+      tertiary.request("tertiary-process", "node.update", params, {
+        fileKey: "file-live",
+      }),
+    ]);
+    expect(left).toEqual(right);
+    expect(
+      primary.metrics().filter((metric) => metric.method === "node.update"),
+    ).toHaveLength(1);
+
+    await secondary.close();
+    await expect(
+      primary.request(
+        "primary-process",
+        "selection.get",
+        {},
+        {
+          fileKey: "file-live",
+        },
+      ),
+    ).resolves.toEqual(["2:1"]);
+  });
+
   it("round-trips typed MCP selection, node write, and layout repair through localhost", async () => {
     const host = new DesktopPluginBridgeHost({ token: "pair-secret", port: 0 });
     hosts.push(host);
@@ -272,6 +341,20 @@ describe("Desktop Plugin bridge", () => {
       key: "file-live",
       name: "Live file",
       revision: "8",
+    });
+
+    const staleUpdate = await call(client, "figma_node", {
+      action: "update",
+      nodeIds: ["2:1"],
+      patch: { name: "Must not overwrite" },
+      fileKey: "file-live",
+      expectedRevision: "7",
+      idempotencyKey: "stale-mcp-write",
+    });
+    expect(staleUpdate.result.isError).toBe(true);
+    expect(staleUpdate.payload.error).toMatchObject({
+      code: "REVISION_CONFLICT",
+      retryable: true,
     });
 
     const repaired = await call(client, "figma_layout", {
@@ -386,6 +469,191 @@ describe("Desktop Plugin bridge", () => {
       details: { dispatched: true },
     });
   });
+
+  it("rejects the loser when concurrent writes share an expected revision", async () => {
+    const host = new DesktopPluginBridgeHost({ token: "pair-secret", port: 0 });
+    hosts.push(host);
+    const address = await host.listen();
+    startFakePlugin(address.url, "pair-secret");
+    await host.waitForSession("file-live", 1_000);
+
+    const writes = ["agent-a", "agent-b"].map((clientId) =>
+      host.request(
+        clientId,
+        "node.update",
+        {
+          nodeIds: ["2:1"],
+          patch: { name: clientId },
+          expectedRevision: "7",
+          idempotencyKey: `write-${clientId}`,
+        },
+        { fileKey: "file-live" },
+      ),
+    );
+    const results = await Promise.allSettled(writes);
+
+    expect(
+      results.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    expect(
+      results.find((result) => result.status === "rejected"),
+    ).toMatchObject({
+      reason: { code: "REVISION_CONFLICT", retryable: true },
+    });
+  });
+
+  it("deduplicates concurrent retries with the same idempotency key", async () => {
+    const host = new DesktopPluginBridgeHost({ token: "pair-secret", port: 0 });
+    hosts.push(host);
+    const address = await host.listen();
+    startFakePlugin(address.url, "pair-secret");
+    await host.waitForSession("file-live", 1_000);
+    const params = {
+      nodeIds: ["2:1"],
+      patch: { name: "once" },
+      idempotencyKey: "same-write",
+    };
+
+    const [first, retry] = await Promise.all([
+      host.request("agent-a", "node.update", params, { fileKey: "file-live" }),
+      host.request("agent-a", "node.update", params, { fileKey: "file-live" }),
+    ]);
+
+    expect(retry).toEqual(first);
+    expect(
+      host
+        .metrics()
+        .filter(
+          (metric) =>
+            metric.clientId === "agent-a" && metric.method === "node.update",
+        ),
+    ).toHaveLength(1);
+  });
+
+  it("deduplicates equivalent retries despite object key order", async () => {
+    const host = new DesktopPluginBridgeHost({ token: "pair-secret", port: 0 });
+    hosts.push(host);
+    const address = await host.listen();
+    startFakePlugin(address.url, "pair-secret");
+    await host.waitForSession("file-live", 1_000);
+
+    const first = await host.request(
+      "client-a",
+      "node.update",
+      {
+        nodeIds: ["2:1"],
+        patch: { name: "Canonical" },
+        idempotencyKey: "canonical-retry",
+      },
+      { fileKey: "file-live" },
+    );
+    const second = await host.request(
+      "client-b",
+      "node.update",
+      {
+        idempotencyKey: "canonical-retry",
+        patch: { name: "Canonical" },
+        nodeIds: ["2:1"],
+      },
+      { fileKey: "file-live" },
+    );
+
+    expect(second).toEqual(first);
+    expect(
+      host.metrics().filter((metric) => metric.method === "node.update"),
+    ).toHaveLength(1);
+  });
+
+  it("returns BUSY when the per-file write queue is full", async () => {
+    const host = new DesktopPluginBridgeHost({
+      token: "pair-secret",
+      port: 0,
+      requestTimeoutMs: 30,
+      maxWriteQueue: 1,
+    });
+    hosts.push(host);
+    const address = await host.listen();
+    const paired = await fetch(`${address.url}/v1/session/handshake`, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer pair-secret",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        protocol: PLUGIN_PROTOCOL_V1,
+        pluginVersion: "0.0.0-test",
+        sessionId: "busy-session",
+        clientId: "busy-plugin",
+        file: { key: "file-busy", name: "Busy file", revision: "1" },
+        capabilities: ["node.write"],
+        sentAt: new Date().toISOString(),
+      }),
+    });
+    expect(paired.status).toBe(200);
+
+    const first = host.request(
+      "client-a",
+      "node.update",
+      { nodeIds: ["2:1"], patch: { name: "Queued" } },
+      { fileKey: "file-busy" },
+    );
+    await expect(
+      host.request(
+        "client-b",
+        "node.update",
+        { nodeIds: ["2:1"], patch: { name: "Overflow" } },
+        { fileKey: "file-busy" },
+      ),
+    ).rejects.toMatchObject({ code: "BUSY", retryable: true });
+    await expect(first).rejects.toMatchObject({ code: "NOT_CONNECTED" });
+  });
+
+  it.each([2, 5, 10])(
+    "keeps %i concurrent agent responses isolated",
+    async (agentCount) => {
+      const host = new DesktopPluginBridgeHost({
+        token: "pair-secret",
+        port: 0,
+      });
+      hosts.push(host);
+      const address = await host.listen();
+      startFakePlugin(address.url, "pair-secret");
+      await host.waitForSession("file-live", 1_000);
+
+      const results = await Promise.all(
+        Array.from({ length: agentCount }, (_, index) => {
+          const clientId = `agent-${index}`;
+          return host.request(
+            clientId,
+            "node.update",
+            {
+              nodeIds: [`2:${index + 1}`],
+              patch: { name: clientId },
+              idempotencyKey: `isolated-${agentCount}-${index}`,
+            },
+            { fileKey: "file-live" },
+          );
+        }),
+      );
+
+      expect(results).toHaveLength(agentCount);
+      results.forEach((result, index) => {
+        expect(result).toEqual([
+          expect.objectContaining({ name: `agent-${index}` }),
+        ]);
+      });
+      const metrics = host
+        .metrics()
+        .filter((metric) => metric.method === "node.update")
+        .slice(-agentCount);
+      expect(new Set(metrics.map((metric) => metric.requestId)).size).toBe(
+        agentCount,
+      );
+      expect(new Set(metrics.map((metric) => metric.clientId)).size).toBe(
+        agentCount,
+      );
+    },
+  );
 
   it("returns a structured NOT_CONNECTED error instead of fake success", async () => {
     const host = new DesktopPluginBridgeHost({ token: "pair-secret", port: 0 });

@@ -4,6 +4,7 @@ import type { FigmaBridge, LayoutActionInput } from "../bridge/types.js";
 import { LAYOUT_ISSUE_CODES } from "../bridge/types.js";
 import { exposeMcpInputSchema } from "../mcp-schema.js";
 import { handleToolCall, success } from "../tool-result.js";
+import { writeControlSchema } from "./write-control.js";
 
 const fileKey = z.string().min(1).optional();
 const dryRun = z.boolean().default(false);
@@ -70,6 +71,7 @@ const inputSchema = z.union([
   z
     .object({
       action: z.literal("apply"),
+      ...writeControlSchema,
       nodeIds,
       layout,
       dryRun,
@@ -79,6 +81,7 @@ const inputSchema = z.union([
   z
     .object({
       action: z.literal("sizing"),
+      ...writeControlSchema,
       nodeIds,
       sizing,
       dryRun,
@@ -88,6 +91,7 @@ const inputSchema = z.union([
   z
     .object({
       action: z.literal("batch"),
+      ...writeControlSchema,
       operations: z.array(operation).min(1).max(200),
       dryRun,
       fileKey,
@@ -97,6 +101,7 @@ const inputSchema = z.union([
   z
     .object({
       action: z.literal("repair"),
+      ...writeControlSchema,
       nodeIds,
       issueCodes: z.array(z.enum(LAYOUT_ISSUE_CODES)).min(1).max(8),
       dryRun,

@@ -14,6 +14,69 @@ function pluginUiScript() {
 }
 
 describe("Figma Plugin UI", () => {
+  it("refreshes the host handshake when the Plugin revision changes", async () => {
+    const handshakes: Array<Record<string, unknown>> = [];
+    const elements = new Map<string, Record<string, unknown>>([
+      ["#status", { textContent: "", className: "", dataset: {} }],
+      ["#pair-form", {}],
+      ["#port", { value: "3847" }],
+      ["#token", { value: "pair-secret" }],
+    ]);
+    const window: { onmessage?: (event: unknown) => void } = {};
+    runInNewContext(pluginUiScript(), {
+      AbortController,
+      console,
+      crypto: {},
+      document: {
+        querySelector(selector: string) {
+          return elements.get(selector);
+        },
+      },
+      fetch: async (url: string, options: { body?: string } = {}) => {
+        if (url.endsWith("/v1/session/handshake")) {
+          handshakes.push(JSON.parse(options.body ?? "{}"));
+          return { ok: true, status: 200, text: async () => "" };
+        }
+        return new Promise(() => undefined);
+      },
+      parent: { postMessage() {} },
+      window,
+      setInterval: () => 1,
+      clearInterval: () => {},
+      setTimeout,
+      clearTimeout,
+    });
+
+    window.onmessage?.({
+      data: {
+        pluginMessage: {
+          type: "bridge-bootstrap",
+          file: { key: "test-file", name: "Test", revision: "1" },
+        },
+      },
+    });
+    const form = elements.get("#pair-form") as {
+      onsubmit?: (event: { preventDefault(): void }) => void;
+    };
+    form.onsubmit?.({ preventDefault() {} });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    window.onmessage?.({
+      data: {
+        pluginMessage: {
+          type: "bridge-bootstrap",
+          file: { key: "test-file", name: "Test", revision: "2" },
+        },
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(handshakes.map((entry) => entry.file)).toEqual([
+      { key: "test-file", name: "Test", revision: "1" },
+      { key: "test-file", name: "Test", revision: "2" },
+    ]);
+  });
+
   it("boots when crypto.randomUUID is unavailable", () => {
     const messages: unknown[] = [];
     const elements = new Map<string, Record<string, unknown>>([

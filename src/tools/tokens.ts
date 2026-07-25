@@ -6,6 +6,7 @@ import type { ConfirmationStore } from "../confirmations.js";
 import { McpFigError } from "../errors.js";
 import { exposeMcpInputSchema } from "../mcp-schema.js";
 import { handleToolCall, success } from "../tool-result.js";
+import { writeControlSchema } from "./write-control.js";
 
 const fileKey = z.string().min(1).optional();
 const dryRun = z.boolean().default(false);
@@ -61,6 +62,7 @@ const inputSchema = z.union([
   z
     .object({
       action: z.literal("apply"),
+      ...writeControlSchema,
       operations: z.array(operation).min(1).max(200),
       dryRun,
       fileKey,
@@ -69,6 +71,7 @@ const inputSchema = z.union([
   z
     .object({
       action: z.literal("collection_create"),
+      ...writeControlSchema,
       name: z.string().min(1),
       initialModeName: z.string().min(1).optional(),
       dryRun,
@@ -78,6 +81,7 @@ const inputSchema = z.union([
   z
     .object({
       action: z.literal("collection_delete"),
+      ...writeControlSchema,
       collectionId: z.string().min(1),
       dryRun,
       confirm: z.string().uuid().optional(),

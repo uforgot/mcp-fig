@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { FigmaBridge, InstanceActionInput } from "../bridge/types.js";
 import { exposeMcpInputSchema } from "../mcp-schema.js";
 import { handleToolCall, success } from "../tool-result.js";
+import { writeControlSchema } from "./write-control.js";
 
 const fileKey = z.string().min(1).optional();
 const dryRun = z.boolean().default(false);
@@ -16,6 +17,7 @@ const inputSchema = z.union([
   z
     .object({
       action: z.literal("create"),
+      ...writeControlSchema,
       componentId: z.string().min(1).optional(),
       componentKey: z.string().min(1).optional(),
       parentId: z.string().min(1),
@@ -34,6 +36,7 @@ const inputSchema = z.union([
   z
     .object({
       action: z.literal("update"),
+      ...writeControlSchema,
       instanceIds: z.array(z.string().min(1)).min(1).max(200),
       properties: properties.refine((value) => Object.keys(value).length > 0),
       dryRun,
@@ -43,6 +46,7 @@ const inputSchema = z.union([
   z
     .object({
       action: z.literal("slot_append"),
+      ...writeControlSchema,
       instanceId: z.string().min(1),
       slotName: z.string().min(1),
       componentKey: z.string().min(1),
@@ -53,6 +57,7 @@ const inputSchema = z.union([
   z
     .object({
       action: z.literal("slot_reset"),
+      ...writeControlSchema,
       instanceId: z.string().min(1),
       slotName: z.string().min(1),
       dryRun,

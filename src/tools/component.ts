@@ -7,6 +7,7 @@ import type { ConfirmationStore } from "../confirmations.js";
 import { McpFigError } from "../errors.js";
 import { exposeMcpInputSchema } from "../mcp-schema.js";
 import { handleToolCall, success } from "../tool-result.js";
+import { writeControlSchema } from "./write-control.js";
 
 const fileKey = z.string().min(1).optional();
 const dryRun = z.boolean().default(false);
@@ -42,6 +43,7 @@ const coreSchemas = [
   z
     .object({
       action: z.literal("create_set"),
+      ...writeControlSchema,
       parentId: z.string().min(1),
       name: z.string().min(1),
       axes: z.record(z.string().min(1), z.array(z.string().min(1)).min(1)),
@@ -52,6 +54,7 @@ const coreSchemas = [
   z
     .object({
       action: z.literal("arrange_set"),
+      ...writeControlSchema,
       componentSetId: z.string().min(1),
       columns: z.number().int().positive().optional(),
       gap: z.number().nonnegative().optional(),
@@ -62,6 +65,7 @@ const coreSchemas = [
   z
     .object({
       action: z.literal("set_description"),
+      ...writeControlSchema,
       componentId: z.string().min(1),
       description: z.string(),
       dryRun,
@@ -71,6 +75,7 @@ const coreSchemas = [
   z
     .object({
       action: z.literal("property_add"),
+      ...writeControlSchema,
       componentId: z.string().min(1),
       propertyName: z.string().min(1),
       property,
@@ -81,6 +86,7 @@ const coreSchemas = [
   z
     .object({
       action: z.literal("property_update"),
+      ...writeControlSchema,
       componentId: z.string().min(1),
       propertyName: z.string().min(1),
       patch: property
@@ -93,6 +99,7 @@ const coreSchemas = [
   z
     .object({
       action: z.literal("property_delete"),
+      ...writeControlSchema,
       componentId: z.string().min(1),
       propertyName: z.string().min(1),
       dryRun,
@@ -110,6 +117,7 @@ const coreSchemas = [
   z
     .object({
       action: z.literal("slot_create"),
+      ...writeControlSchema,
       componentId: z.string().min(1),
       slotName: z.string().min(1),
       allowedComponentKeys: z.array(z.string().min(1)).optional(),

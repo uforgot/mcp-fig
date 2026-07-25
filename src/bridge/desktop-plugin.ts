@@ -41,6 +41,7 @@ interface HostOptions {
   port?: number;
   requestTimeoutMs?: number;
   sessionTtlMs?: number;
+  maxWriteQueue?: number;
 }
 
 interface HostAddress {
@@ -68,6 +69,18 @@ interface PendingRequest {
   readOnly: boolean;
 }
 
+interface WriteMetadata {
+  expectedRevision?: string;
+  idempotencyKey?: string;
+  targetNodeIds: string[];
+}
+
+interface IdempotencyEntry {
+  fingerprint: string;
+  promise: Promise<unknown>;
+  settled: boolean;
+}
+
 const ERROR_CODES = new Set<ErrorCode>([
   "INVALID_ARGUMENT",
   "NOT_CONNECTED",
@@ -76,6 +89,7 @@ const ERROR_CODES = new Set<ErrorCode>([
   "FILE_NOT_FOUND",
   "NODE_NOT_FOUND",
   "REVISION_CONFLICT",
+  "BUSY",
   "CONFIRMATION_REQUIRED",
   "UNSUPPORTED_BY_BRIDGE",
   "INTERNAL_ERROR",
@@ -161,13 +175,93 @@ function isReadOnlyRequest(method: string, params: unknown): boolean {
   return ["inspect", "search", "validate"].includes(String(action));
 }
 
+function canonicalJson(value: unknown): string {
+  const normalize = (input: unknown): unknown => {
+    if (Array.isArray(input)) return input.map(normalize);
+    if (input && typeof input === "object") {
+      return Object.fromEntries(
+        Object.entries(input as Record<string, unknown>)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([key, item]) => [key, normalize(item)]),
+      );
+    }
+    return input;
+  };
+  return JSON.stringify(normalize(value));
+}
+
+function latestRevision(current: string, incoming: string): string {
+  if (/^\d+$/.test(current) && /^\d+$/.test(incoming)) {
+    return BigInt(incoming) >= BigInt(current) ? incoming : current;
+  }
+  return incoming;
+}
+
+function targetNodeIds(params: unknown): string[] {
+  const ids = new Set<string>();
+  const pluralKeys = new Set(["nodeIds", "instanceIds"]);
+  const singularKeys = new Set([
+    "nodeId",
+    "instanceId",
+    "parentId",
+    "componentId",
+    "componentSetId",
+  ]);
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    for (const [key, item] of Object.entries(
+      value as Record<string, unknown>,
+    )) {
+      if (pluralKeys.has(key) && Array.isArray(item)) {
+        for (const id of item) if (typeof id === "string") ids.add(id);
+      } else if (singularKeys.has(key) && typeof item === "string")
+        ids.add(item);
+      visit(item);
+    }
+  };
+  visit(params);
+  return [...ids].sort();
+}
+
+function writeMetadata(params: unknown): WriteMetadata {
+  const input =
+    params && typeof params === "object"
+      ? (params as Record<string, unknown>)
+      : {};
+  const expectedRevision = input.expectedRevision;
+  const idempotencyKey = input.idempotencyKey;
+  if (expectedRevision !== undefined && typeof expectedRevision !== "string")
+    throw new McpFigError(
+      "INVALID_ARGUMENT",
+      "expectedRevision must be a string.",
+    );
+  if (idempotencyKey !== undefined && typeof idempotencyKey !== "string")
+    throw new McpFigError(
+      "INVALID_ARGUMENT",
+      "idempotencyKey must be a string.",
+    );
+  return {
+    ...(expectedRevision ? { expectedRevision } : {}),
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+    targetNodeIds: targetNodeIds(params),
+  };
+}
+
 export class DesktopPluginBridgeHost {
   readonly #options: Required<HostOptions>;
   readonly #sessions = new Map<string, SessionState>();
   readonly #pending = new Map<string, PendingRequest>();
   readonly #metrics: PluginMetric[] = [];
+  readonly #writeTails = new Map<string, Promise<void>>();
+  readonly #writeQueueDepth = new Map<string, number>();
+  readonly #idempotency = new Map<string, IdempotencyEntry>();
   #server: Server | undefined;
   #address: HostAddress | undefined;
+  #proxyAddress: HostAddress | undefined;
   #listenPromise: Promise<HostAddress> | undefined;
   #closing = false;
 
@@ -179,6 +273,7 @@ export class DesktopPluginBridgeHost {
       port: options.port ?? 3847,
       requestTimeoutMs: options.requestTimeoutMs ?? 5_000,
       sessionTtlMs: options.sessionTtlMs ?? 30_000,
+      maxWriteQueue: options.maxWriteQueue ?? 100,
     };
   }
 
@@ -202,6 +297,31 @@ export class DesktopPluginBridgeHost {
       });
     } catch (error) {
       server.removeAllListeners();
+      if (
+        this.#options.port > 0 &&
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "EADDRINUSE"
+      ) {
+        const proxyAddress: HostAddress = {
+          host: "127.0.0.1",
+          port: this.#options.port,
+          url: `http://127.0.0.1:${this.#options.port}`,
+        };
+        try {
+          const health = await this.#proxyJson<{ protocol: string }>(
+            proxyAddress,
+            "/v1/broker/health",
+          );
+          if (health.protocol !== PLUGIN_PROTOCOL_V1) throw error;
+        } catch {
+          throw error;
+        }
+        this.#proxyAddress = proxyAddress;
+        this.#address = proxyAddress;
+        return proxyAddress;
+      }
       throw error;
     }
     const address = server.address();
@@ -225,13 +345,29 @@ export class DesktopPluginBridgeHost {
     await this.#listenPromise?.catch(() => undefined);
     for (const pending of this.#pending.values()) {
       clearTimeout(pending.timeout);
+      const unknownWriteOutcome = pending.dispatched && !pending.readOnly;
       pending.reject(
-        new McpFigError("NOT_CONNECTED", "Desktop Plugin bridge closed.", {
-          retryable: true,
-        }),
+        new McpFigError(
+          unknownWriteOutcome ? "UNKNOWN_OUTCOME" : "NOT_CONNECTED",
+          unknownWriteOutcome
+            ? "Desktop Plugin bridge closed after a write was dispatched; its outcome is unknown."
+            : "Desktop Plugin bridge closed.",
+          {
+            retryable: !unknownWriteOutcome,
+            details: {
+              requestId: pending.command.requestId,
+              sessionId: pending.command.sessionId,
+              fileKey: pending.command.fileKey,
+              dispatched: pending.dispatched,
+            },
+          },
+        ),
       );
     }
     this.#pending.clear();
+    this.#writeTails.clear();
+    this.#writeQueueDepth.clear();
+    this.#idempotency.clear();
     for (const session of this.#sessions.values()) {
       for (const waiter of session.waiters) {
         if (!waiter.writableEnded) waiter.end();
@@ -241,6 +377,7 @@ export class DesktopPluginBridgeHost {
     const server = this.#server;
     this.#server = undefined;
     this.#address = undefined;
+    this.#proxyAddress = undefined;
     if (!server?.listening) return;
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
@@ -256,6 +393,16 @@ export class DesktopPluginBridgeHost {
     return [...this.#sessions.values()]
       .filter((session) => session.state === "ready")
       .map((session) => structuredClone(session.handshake));
+  }
+
+  async sessionsAsync(): Promise<PluginHandshake[]> {
+    await this.listen();
+    if (!this.#proxyAddress) return this.sessions();
+    const payload = await this.#proxyJson<{ sessions: PluginHandshake[] }>(
+      this.#proxyAddress,
+      "/v1/broker/sessions",
+    );
+    return payload.sessions;
   }
 
   async waitForSession(
@@ -302,12 +449,35 @@ export class DesktopPluginBridgeHost {
     };
   }
 
+  async statusAsync(fileKey?: string): Promise<BridgeStatus> {
+    await this.listen();
+    if (!this.#proxyAddress) return this.status(fileKey);
+    const query = fileKey ? `?fileKey=${encodeURIComponent(fileKey)}` : "";
+    const payload = await this.#proxyJson<{ status: BridgeStatus }>(
+      this.#proxyAddress,
+      `/v1/broker/status${query}`,
+    );
+    return payload.status;
+  }
+
   async request(
     clientId: string,
     method: string,
     params: unknown,
     options: { fileKey?: string; timeoutMs?: number } = {},
   ): Promise<unknown> {
+    await this.listen();
+    if (this.#proxyAddress) {
+      const payload = await this.#proxyJson<{ data: unknown }>(
+        this.#proxyAddress,
+        "/v1/broker/request",
+        {
+          method: "POST",
+          body: JSON.stringify({ clientId, method, params, options }),
+        },
+      );
+      return payload.data;
+    }
     this.#expireSessions();
     const session = options.fileKey
       ? this.#sessionForFile(options.fileKey)
@@ -340,6 +510,161 @@ export class DesktopPluginBridgeHost {
         },
       );
     }
+    const readOnly = isReadOnlyRequest(method, params);
+    if (readOnly) {
+      return this.#dispatchRequest(
+        session,
+        clientId,
+        method,
+        params,
+        true,
+        {},
+        options,
+      );
+    }
+
+    const metadata = writeMetadata(params);
+    const fingerprint = canonicalJson({ method, params });
+    const idempotencyMapKey = metadata.idempotencyKey
+      ? `${session.handshake.file.key}\u0000${metadata.idempotencyKey}`
+      : undefined;
+    if (idempotencyMapKey) {
+      const existing = this.#idempotency.get(idempotencyMapKey);
+      if (existing) {
+        if (existing.fingerprint !== fingerprint) {
+          throw new McpFigError(
+            "INVALID_ARGUMENT",
+            "An idempotency key cannot be reused with a different write payload.",
+            { details: { idempotencyKey: metadata.idempotencyKey } },
+          );
+        }
+        return existing.promise;
+      }
+    }
+
+    const fileKey = session.handshake.file.key;
+    const deadline =
+      Date.now() + (options.timeoutMs ?? this.#options.requestTimeoutMs);
+    const operation = this.#enqueueWrite(fileKey, async () => {
+      const remainingTimeoutMs = deadline - Date.now();
+      if (remainingTimeoutMs <= 0) {
+        throw new McpFigError(
+          "BUSY",
+          `Write expired while waiting in the queue for file ${fileKey}.`,
+          { retryable: true, details: { fileKey } },
+        );
+      }
+      const activeSession = this.#sessionForFile(fileKey);
+      if (!activeSession) {
+        throw new McpFigError(
+          "NOT_CONNECTED",
+          `No active Desktop Plugin session targets file ${fileKey}.`,
+          { retryable: true, details: { fileKey } },
+        );
+      }
+      if (
+        metadata.expectedRevision &&
+        metadata.expectedRevision !== activeSession.handshake.file.revision
+      ) {
+        throw new McpFigError(
+          "REVISION_CONFLICT",
+          `Expected revision ${metadata.expectedRevision}, but file ${fileKey} is at ${activeSession.handshake.file.revision}.`,
+          {
+            retryable: true,
+            details: {
+              fileKey,
+              expectedRevision: metadata.expectedRevision,
+              actualRevision: activeSession.handshake.file.revision,
+              targetNodeIds: metadata.targetNodeIds,
+            },
+          },
+        );
+      }
+      return this.#dispatchRequest(
+        activeSession,
+        clientId,
+        method,
+        params,
+        false,
+        metadata,
+        { ...options, timeoutMs: remainingTimeoutMs },
+      );
+    });
+    if (idempotencyMapKey) {
+      const entry: IdempotencyEntry = {
+        fingerprint,
+        promise: operation,
+        settled: false,
+      };
+      this.#idempotency.set(idempotencyMapKey, entry);
+      void operation.then(
+        () => {
+          entry.settled = true;
+        },
+        (error: unknown) => {
+          entry.settled = true;
+          if (
+            error instanceof McpFigError &&
+            ["BUSY", "NOT_CONNECTED"].includes(error.code) &&
+            this.#idempotency.get(idempotencyMapKey) === entry
+          ) {
+            this.#idempotency.delete(idempotencyMapKey);
+          }
+        },
+      );
+      if (this.#idempotency.size > 1_000) {
+        const settled = [...this.#idempotency.entries()].find(
+          ([, candidate]) => candidate.settled,
+        );
+        if (settled) this.#idempotency.delete(settled[0]);
+      }
+    }
+    return operation;
+  }
+
+  #enqueueWrite(
+    fileKey: string,
+    run: () => Promise<unknown>,
+  ): Promise<unknown> {
+    const depth = this.#writeQueueDepth.get(fileKey) ?? 0;
+    if (depth >= this.#options.maxWriteQueue) {
+      return Promise.reject(
+        new McpFigError("BUSY", `Write queue for file ${fileKey} is full.`, {
+          retryable: true,
+          details: { fileKey, queueDepth: depth },
+        }),
+      );
+    }
+    this.#writeQueueDepth.set(fileKey, depth + 1);
+    const previous = this.#writeTails.get(fileKey) ?? Promise.resolve();
+    const operation = previous.catch(() => undefined).then(run);
+    const tail = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.#writeTails.set(fileKey, tail);
+    void tail.finally(() => {
+      const remaining = Math.max(
+        0,
+        (this.#writeQueueDepth.get(fileKey) ?? 1) - 1,
+      );
+      if (remaining === 0) this.#writeQueueDepth.delete(fileKey);
+      else this.#writeQueueDepth.set(fileKey, remaining);
+      if (this.#writeTails.get(fileKey) === tail)
+        this.#writeTails.delete(fileKey);
+    });
+    return operation;
+  }
+
+  #dispatchRequest(
+    session: SessionState,
+    clientId: string,
+    method: string,
+    params: unknown,
+    readOnly: boolean,
+    metadata: Partial<WriteMetadata>,
+    options: { fileKey?: string; timeoutMs?: number },
+  ): Promise<unknown> {
     const now = new Date().toISOString();
     const command: PluginCommand = {
       protocol: PLUGIN_PROTOCOL_V1,
@@ -349,10 +674,18 @@ export class DesktopPluginBridgeHost {
       fileKey: session.handshake.file.key,
       method,
       params,
+      ...(metadata.expectedRevision
+        ? { expectedRevision: metadata.expectedRevision }
+        : {}),
+      ...(metadata.idempotencyKey
+        ? { idempotencyKey: metadata.idempotencyKey }
+        : {}),
+      ...(metadata.targetNodeIds?.length
+        ? { targetNodeIds: metadata.targetNodeIds }
+        : {}),
       createdAt: now,
       dispatchedAt: now,
     };
-    const readOnly = isReadOnlyRequest(method, params);
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         const pending = this.#pending.get(command.requestId);
@@ -420,6 +753,55 @@ export class DesktopPluginBridgeHost {
         });
         return;
       }
+      if (request.method === "GET" && url.pathname === "/v1/broker/health") {
+        writeJson(response, 200, { protocol: PLUGIN_PROTOCOL_V1, ready: true });
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/v1/broker/sessions") {
+        writeJson(response, 200, { sessions: this.sessions() });
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/v1/broker/status") {
+        writeJson(response, 200, {
+          status: this.status(url.searchParams.get("fileKey") ?? undefined),
+        });
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/v1/broker/request") {
+        const body = (await readJson(request)) as {
+          clientId?: unknown;
+          method?: unknown;
+          params?: unknown;
+          options?: { fileKey?: unknown; timeoutMs?: unknown };
+        };
+        if (
+          typeof body.clientId !== "string" ||
+          typeof body.method !== "string"
+        )
+          throw new McpFigError(
+            "INVALID_ARGUMENT",
+            "Broker request requires clientId and method strings.",
+          );
+        const options = body.options ?? {};
+        if (
+          (options.fileKey !== undefined &&
+            typeof options.fileKey !== "string") ||
+          (options.timeoutMs !== undefined &&
+            typeof options.timeoutMs !== "number")
+        )
+          throw new McpFigError(
+            "INVALID_ARGUMENT",
+            "Broker request options are invalid.",
+          );
+        const data = await this.request(
+          body.clientId,
+          body.method,
+          body.params,
+          options as { fileKey?: string; timeoutMs?: number },
+        );
+        writeJson(response, 200, { data });
+        return;
+      }
       if (request.method === "GET" && url.pathname === "/v1/metrics") {
         writeJson(response, 200, {
           protocol: PLUGIN_PROTOCOL_V1,
@@ -445,6 +827,12 @@ export class DesktopPluginBridgeHost {
             },
           });
           return;
+        }
+        if (existing) {
+          handshake.file.revision = latestRevision(
+            existing.handshake.file.revision,
+            handshake.file.revision,
+          );
         }
         const now = new Date().toISOString();
         this.#sessions.set(handshake.sessionId, {
@@ -536,7 +924,12 @@ export class DesktopPluginBridgeHost {
         }
         this.#pending.delete(result.requestId);
         clearTimeout(pending.timeout);
-        if (result.revision) session.handshake.file.revision = result.revision;
+        if (result.revision) {
+          session.handshake.file.revision = latestRevision(
+            session.handshake.file.revision,
+            result.revision,
+          );
+        }
         this.#recordMetric(pending.command, result, responseCompletedAt);
         if (result.ok) pending.resolve(result.data);
         else {
@@ -577,9 +970,60 @@ export class DesktopPluginBridgeHost {
           ? error
           : new McpFigError("INTERNAL_ERROR", String(error));
       writeJson(response, figmaError.code === "INVALID_ARGUMENT" ? 400 : 500, {
-        error: { code: figmaError.code, message: figmaError.message },
+        error: {
+          code: figmaError.code,
+          message: figmaError.message,
+          retryable: figmaError.retryable,
+          details: figmaError.details,
+        },
       });
     }
+  }
+
+  async #proxyJson<Value>(
+    address: HostAddress,
+    path: string,
+    options: RequestInit = {},
+  ): Promise<Value> {
+    let response: globalThis.Response;
+    try {
+      response = await fetch(`${address.url}${path}`, {
+        ...options,
+        headers: {
+          authorization: `Bearer ${this.#options.token}`,
+          "content-type": "application/json",
+          ...(options.headers ?? {}),
+        },
+      });
+    } catch (error) {
+      throw new McpFigError(
+        "NOT_CONNECTED",
+        `Desktop Plugin broker at ${address.url} is unavailable.`,
+        { retryable: true, details: { cause: String(error) } },
+      );
+    }
+    const payload = (await response.json()) as {
+      error?: {
+        code?: ErrorCode;
+        message?: string;
+        retryable?: boolean;
+        details?: Record<string, unknown>;
+      };
+    } & Value;
+    if (!response.ok) {
+      throw new McpFigError(
+        payload.error?.code ?? "INTERNAL_ERROR",
+        payload.error?.message ??
+          `Broker request failed with ${response.status}.`,
+        {
+          ...(payload.error?.retryable !== undefined
+            ? { retryable: payload.error.retryable }
+            : {}),
+          ...(payload.error?.details ? { details: payload.error.details } : {}),
+        },
+      );
+    }
+    return payload;
   }
 
   #authorized(request: IncomingMessage, _url: URL): boolean {
@@ -676,11 +1120,23 @@ export class DesktopPluginFigmaBridge implements FigmaBridge {
   }
 
   async status(): Promise<BridgeStatus> {
-    return this.#host.status(this.#targetFileKey);
+    const status = await this.#host.statusAsync(this.#targetFileKey);
+    if (!status.connected || !status.fileKey) return status;
+    try {
+      await this.#host.request(
+        this.#clientId,
+        "selection.get",
+        {},
+        { fileKey: status.fileKey },
+      );
+    } catch {
+      return status;
+    }
+    return this.#host.statusAsync(this.#targetFileKey);
   }
 
   async listFiles(): Promise<FigmaFileSummary[]> {
-    return this.#host.sessions().map((session) => ({
+    return (await this.#host.sessionsAsync()).map((session) => ({
       key: session.file.key,
       name: session.file.name,
       revision: session.file.revision,

@@ -171,7 +171,11 @@ function createHarness() {
     console,
   });
 
-  async function command(method: string, params: Record<string, unknown>) {
+  async function command(
+    method: string,
+    params: Record<string, unknown>,
+    controls: Record<string, unknown> = {},
+  ) {
     const requestId = `request-${messages.length + 1}`;
     await figma.ui.onmessage?.({
       type: "bridge-command",
@@ -180,6 +184,7 @@ function createHarness() {
         fileKey: "test-file",
         method,
         params,
+        ...controls,
       },
     });
     return [...messages]
@@ -213,6 +218,72 @@ describe("Figma Plugin main bridge", () => {
 
     expect(handlers.selectionchange).toBeTypeOf("function");
     expect(handlers.documentchange).toBeTypeOf("function");
+  });
+
+  it("rejects a stale revision in the Plugin immediately before mutation", async () => {
+    const { command, child, handlers } = createHarness();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    handlers.documentchange?.();
+
+    const result = await command(
+      "node.update",
+      { nodeIds: ["2:1"], patch: { name: "Must not apply" } },
+      {
+        expectedRevision: "1",
+        targetNodeIds: ["2:1"],
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "REVISION_CONFLICT",
+        retryable: true,
+        details: {
+          expectedRevision: "1",
+          actualRevision: "2",
+          targetNodeIds: ["2:1"],
+        },
+      },
+      revision: "2",
+    });
+    expect(child.name).toBe("Child");
+  });
+
+  it("replays a successful nonce before checking its now-stale revision", async () => {
+    const { command, child } = createHarness();
+    const params = { nodeIds: ["2:1"], patch: { name: "Applied once" } };
+    const first = await command("node.update", params, {
+      expectedRevision: "1",
+      idempotencyKey: "plugin-restart-retry",
+    });
+    expect(first).toMatchObject({ ok: true, revision: "2" });
+
+    child.name = "External marker";
+    const replay = await command(
+      "node.update",
+      { patch: { name: "Applied once" }, nodeIds: ["2:1"] },
+      {
+        expectedRevision: "1",
+        idempotencyKey: "plugin-restart-retry",
+      },
+    );
+    expect(replay).toMatchObject({ ok: true, data: first?.data });
+    expect(child.name).toBe("External marker");
+
+    const conflict = await command(
+      "node.update",
+      { nodeIds: ["2:1"], patch: { name: "Different payload" } },
+      {
+        expectedRevision: "1",
+        idempotencyKey: "plugin-restart-retry",
+      },
+    );
+    expect(conflict).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ARGUMENT" },
+    });
+    expect(child.name).toBe("External marker");
   });
 
   it("returns a predicted core node dry-run without mutating Figma", async () => {

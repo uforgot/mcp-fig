@@ -93,6 +93,15 @@
           "type": "string",
           "minLength": 1
         },
+        "expectedRevision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
         "parentId": {
           "type": "string",
           "minLength": 1
@@ -347,6 +356,15 @@
             }
           ]
         },
+        "expectedRevision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
         "componentId": {
           "type": "string",
           "minLength": 1
@@ -510,6 +528,15 @@
         "fileKey": {
           "type": "string",
           "minLength": 1
+        },
+        "expectedRevision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
         },
         "layout": {
           "type": "object",
@@ -989,6 +1016,15 @@
         "dryRun": {
           "type": "boolean"
         },
+        "expectedRevision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
         "patch": {
           "type": "object",
           "properties": {
@@ -1163,6 +1199,15 @@
         "fileKey": {
           "type": "string",
           "minLength": 1
+        },
+        "expectedRevision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
         },
         "operations": {
           "minItems": 1,

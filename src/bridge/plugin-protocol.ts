@@ -38,6 +38,9 @@ export interface PluginCommand {
   fileKey: string;
   method: string;
   params: unknown;
+  expectedRevision?: string;
+  idempotencyKey?: string;
+  targetNodeIds?: string[];
   createdAt: string;
   dispatchedAt: string;
 }

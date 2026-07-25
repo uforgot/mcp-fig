@@ -6,6 +6,7 @@ import type { ConfirmationStore } from "../confirmations.js";
 import { McpFigError } from "../errors.js";
 import { exposeMcpInputSchema } from "../mcp-schema.js";
 import { handleToolCall, success } from "../tool-result.js";
+import { writeControlSchema } from "./write-control.js";
 
 const fileKey = z.string().min(1).optional();
 const dryRun = z.boolean().default(false);
@@ -39,6 +40,7 @@ const inputSchema = z.discriminatedUnion("action", [
       name: z.string().min(1).optional(),
       props: nodeProps.optional(),
       dryRun,
+      ...writeControlSchema,
     })
     .strict(),
   z
@@ -48,6 +50,7 @@ const inputSchema = z.discriminatedUnion("action", [
       nodeIds,
       patch: nodePatch,
       dryRun,
+      ...writeControlSchema,
     })
     .strict(),
   z
@@ -60,6 +63,7 @@ const inputSchema = z.discriminatedUnion("action", [
       x: z.number().finite().optional(),
       y: z.number().finite().optional(),
       dryRun,
+      ...writeControlSchema,
     })
     .strict()
     .refine(
@@ -76,6 +80,7 @@ const inputSchema = z.discriminatedUnion("action", [
         .object({ width: z.number().positive(), height: z.number().positive() })
         .strict(),
       dryRun,
+      ...writeControlSchema,
     })
     .strict(),
   z
@@ -89,6 +94,7 @@ const inputSchema = z.discriminatedUnion("action", [
         .strict()
         .optional(),
       dryRun,
+      ...writeControlSchema,
     })
     .strict(),
   z
@@ -98,12 +104,25 @@ const inputSchema = z.discriminatedUnion("action", [
       nodeIds,
       dryRun,
       confirm: z.string().uuid().optional(),
+      ...writeControlSchema,
     })
     .strict(),
 ]);
 
 function optionalFileKey(fileKeyValue: string | undefined) {
   return fileKeyValue ? { fileKey: fileKeyValue } : {};
+}
+
+function writeControl(input: {
+  expectedRevision?: string | undefined;
+  idempotencyKey?: string | undefined;
+}) {
+  return {
+    ...(input.expectedRevision
+      ? { expectedRevision: input.expectedRevision }
+      : {}),
+    ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
+  };
 }
 
 export function registerNodeTool(
@@ -136,6 +155,7 @@ export function registerNodeTool(
           case "create": {
             const nodes = await bridge.createNode({
               ...scope,
+              ...writeControl(input),
               parentId: input.parentId,
               nodeType: input.nodeType,
               ...(input.name ? { name: input.name } : {}),
@@ -150,6 +170,7 @@ export function registerNodeTool(
           case "update": {
             const nodes = await bridge.updateNodes({
               ...scope,
+              ...writeControl(input),
               nodeIds: input.nodeIds,
               patch: input.patch,
               dryRun: input.dryRun,
@@ -162,6 +183,7 @@ export function registerNodeTool(
           case "move": {
             const nodes = await bridge.moveNodes({
               ...scope,
+              ...writeControl(input),
               nodeIds: input.nodeIds,
               ...(input.parentId ? { parentId: input.parentId } : {}),
               ...(input.index !== undefined ? { index: input.index } : {}),
@@ -177,6 +199,7 @@ export function registerNodeTool(
           case "resize": {
             const nodes = await bridge.resizeNodes({
               ...scope,
+              ...writeControl(input),
               nodeIds: input.nodeIds,
               size: input.size,
               dryRun: input.dryRun,
@@ -189,6 +212,7 @@ export function registerNodeTool(
           case "clone": {
             const nodes = await bridge.cloneNodes({
               ...scope,
+              ...writeControl(input),
               nodeIds: input.nodeIds,
               ...(input.parentId ? { parentId: input.parentId } : {}),
               ...(input.offset ? { offset: input.offset } : {}),
@@ -231,6 +255,7 @@ export function registerNodeTool(
             return success("figma_node", input.action, {
               deletedNodeIds: await bridge.deleteNodes({
                 ...scope,
+                ...writeControl(input),
                 nodeIds: input.nodeIds,
               }),
             });
