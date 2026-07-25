@@ -281,6 +281,83 @@ describe("Desktop Plugin protocol v1", () => {
     });
   });
 
+  it("drops 100 timed-out queued writes before a reconnect can execute them", async () => {
+    const host = new DesktopPluginBridgeHost({
+      token: "pair-secret",
+      port: 0,
+      requestTimeoutMs: 5,
+    });
+    hosts.push(host);
+    const address = await host.listen();
+    await json(`${address.url}/v1/session/handshake`, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer pair-secret",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        protocol: "mcp-fig-plugin/v1",
+        sessionId: "session-a",
+        clientId: "figma-plugin-ui",
+        file: { key: "file-live", name: "Live file", revision: "7" },
+        capabilities: ["node.write"],
+        sentAt: new Date().toISOString(),
+      }),
+    });
+
+    for (let index = 0; index < 100; index += 1) {
+      await expect(
+        host.request("agent-a", "node.update", {
+          nodeIds: ["2:1"],
+          patch: { name: `write-${index}` },
+        }),
+      ).rejects.toMatchObject({ code: "NOT_CONNECTED", retryable: true });
+    }
+
+    const next = await fetch(`${address.url}/v1/session/session-a/next`, {
+      headers: { authorization: "Bearer pair-secret" },
+    });
+    expect(next.status).toBe(204);
+  });
+
+  it("reports UNKNOWN_OUTCOME without retrying a dispatched write", async () => {
+    const host = new DesktopPluginBridgeHost({
+      token: "pair-secret",
+      port: 0,
+      requestTimeoutMs: 20,
+    });
+    hosts.push(host);
+    const address = await host.listen();
+    await json(`${address.url}/v1/session/handshake`, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer pair-secret",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        protocol: "mcp-fig-plugin/v1",
+        sessionId: "session-a",
+        clientId: "figma-plugin-ui",
+        file: { key: "file-live", name: "Live file", revision: "7" },
+        capabilities: ["node.write"],
+        sentAt: new Date().toISOString(),
+      }),
+    });
+    const next = fetch(`${address.url}/v1/session/session-a/next`, {
+      headers: { authorization: "Bearer pair-secret" },
+    });
+    const write = host.request("agent-a", "node.update", {
+      nodeIds: ["2:1"],
+      patch: { name: "possibly-applied" },
+    });
+    expect((await next).status).toBe(200);
+    await expect(write).rejects.toMatchObject({
+      code: "UNKNOWN_OUTCOME",
+      retryable: false,
+      details: { dispatched: true },
+    });
+  });
+
   it("returns a structured NOT_CONNECTED error instead of fake success", async () => {
     const host = new DesktopPluginBridgeHost({ token: "pair-secret", port: 0 });
     hosts.push(host);

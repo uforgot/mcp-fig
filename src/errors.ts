@@ -1,6 +1,7 @@
 export type ErrorCode =
   | "INVALID_ARGUMENT"
   | "NOT_CONNECTED"
+  | "UNKNOWN_OUTCOME"
   | "FILE_NOT_TARGETED"
   | "FILE_NOT_FOUND"
   | "NODE_NOT_FOUND"

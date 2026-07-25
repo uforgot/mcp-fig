@@ -54,7 +54,7 @@ interface SessionState {
   connectedAt: string;
   lastSeenAt: string;
   lastSeenMs: number;
-  state: "connected" | "reconnecting" | "disconnected";
+  state: "ready" | "reconnecting" | "disconnected";
   queue: PluginCommand[];
   waiters: ServerResponse[];
 }
@@ -64,11 +64,14 @@ interface PendingRequest {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timeout: NodeJS.Timeout;
+  dispatched: boolean;
+  readOnly: boolean;
 }
 
 const ERROR_CODES = new Set<ErrorCode>([
   "INVALID_ARGUMENT",
   "NOT_CONNECTED",
+  "UNKNOWN_OUTCOME",
   "FILE_NOT_TARGETED",
   "FILE_NOT_FOUND",
   "NODE_NOT_FOUND",
@@ -143,6 +146,21 @@ function requiredCapability(method: string): PluginCapability {
   );
 }
 
+function isReadOnlyRequest(method: string, params: unknown): boolean {
+  if (
+    method.startsWith("document.") ||
+    method === "selection.get" ||
+    method === "changes.get" ||
+    method === "node.get"
+  )
+    return true;
+  const action =
+    params && typeof params === "object" && "action" in params
+      ? (params as { action?: unknown }).action
+      : undefined;
+  return ["inspect", "search", "validate"].includes(String(action));
+}
+
 export class DesktopPluginBridgeHost {
   readonly #options: Required<HostOptions>;
   readonly #sessions = new Map<string, SessionState>();
@@ -214,7 +232,7 @@ export class DesktopPluginBridgeHost {
   sessions(): PluginHandshake[] {
     this.#expireSessions();
     return [...this.#sessions.values()]
-      .filter((session) => session.state === "connected")
+      .filter((session) => session.state === "ready")
       .map((session) => structuredClone(session.handshake));
   }
 
@@ -243,6 +261,7 @@ export class DesktopPluginBridgeHost {
     if (!session) {
       return {
         connected: false,
+        connectionState: "disconnected",
         mode: "desktop-plugin",
         readSource: "none",
         writeSource: "none",
@@ -250,6 +269,8 @@ export class DesktopPluginBridgeHost {
     }
     return {
       connected: true,
+      connectionState: session.state,
+      lastHeartbeatAt: session.lastSeenAt,
       mode: "desktop-plugin",
       fileKey: session.handshake.file.key,
       fileName: session.handshake.file.name,
@@ -309,19 +330,29 @@ export class DesktopPluginBridgeHost {
       createdAt: now,
       dispatchedAt: now,
     };
+    const readOnly = isReadOnlyRequest(method, params);
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
+        const pending = this.#pending.get(command.requestId);
         this.#pending.delete(command.requestId);
+        const queuedIndex = session.queue.findIndex(
+          (queued) => queued.requestId === command.requestId,
+        );
+        if (queuedIndex >= 0) session.queue.splice(queuedIndex, 1);
+        const unknownWriteOutcome = pending?.dispatched && !pending.readOnly;
         reject(
           new McpFigError(
-            "NOT_CONNECTED",
-            `Desktop Plugin request ${command.requestId} timed out.`,
+            unknownWriteOutcome ? "UNKNOWN_OUTCOME" : "NOT_CONNECTED",
+            unknownWriteOutcome
+              ? `Desktop Plugin write ${command.requestId} timed out after dispatch; its outcome is unknown and it was not retried.`
+              : `Desktop Plugin request ${command.requestId} timed out before completion.`,
             {
-              retryable: true,
+              retryable: !unknownWriteOutcome,
               details: {
                 requestId: command.requestId,
                 sessionId: command.sessionId,
                 fileKey: command.fileKey,
+                dispatched: pending?.dispatched ?? false,
               },
             },
           ),
@@ -332,10 +363,15 @@ export class DesktopPluginBridgeHost {
         resolve,
         reject,
         timeout,
+        dispatched: false,
+        readOnly,
       });
       const waiter = session.waiters.shift();
-      if (waiter && !waiter.writableEnded) writeJson(waiter, 200, command);
-      else session.queue.push(command);
+      if (waiter && !waiter.writableEnded) {
+        const pending = this.#pending.get(command.requestId);
+        if (pending) pending.dispatched = true;
+        writeJson(waiter, 200, command);
+      } else session.queue.push(command);
     });
   }
 
@@ -394,7 +430,7 @@ export class DesktopPluginBridgeHost {
           connectedAt: existing?.connectedAt ?? now,
           lastSeenAt: now,
           lastSeenMs: Date.now(),
-          state: "connected",
+          state: "ready",
           queue: existing?.queue ?? [],
           waiters: existing?.waiters ?? [],
         });
@@ -427,11 +463,13 @@ export class DesktopPluginBridgeHost {
       }
       session.lastSeenAt = new Date().toISOString();
       session.lastSeenMs = Date.now();
-      session.state = "connected";
+      session.state = "ready";
       if (request.method === "GET" && action === "next") {
         const command = session.queue.shift();
         if (command) {
           command.dispatchedAt = new Date().toISOString();
+          const pending = this.#pending.get(command.requestId);
+          if (pending) pending.dispatched = true;
           writeJson(response, 200, command);
           return;
         }
@@ -580,15 +618,14 @@ export class DesktopPluginBridgeHost {
     return [...this.#sessions.values()]
       .filter(
         (session) =>
-          session.state === "connected" &&
-          session.handshake.file.key === fileKey,
+          session.state === "ready" && session.handshake.file.key === fileKey,
       )
       .sort((a, b) => b.lastSeenMs - a.lastSeenMs)[0];
   }
 
   #latestSession(): SessionState | undefined {
     return [...this.#sessions.values()]
-      .filter((session) => session.state === "connected")
+      .filter((session) => session.state === "ready")
       .sort((a, b) => b.lastSeenMs - a.lastSeenMs)[0];
   }
 }
@@ -725,11 +762,29 @@ export class DesktopPluginFigmaBridge implements FigmaBridge {
     >;
   }
 
-  #rpc(method: string, params: unknown, fileKey?: string): Promise<unknown> {
+  async #rpc(
+    method: string,
+    params: unknown,
+    fileKey?: string,
+  ): Promise<unknown> {
     const resolvedFileKey = fileKey ?? this.#targetFileKey;
-    return this.#host.request(this.#clientId, method, params, {
-      ...(resolvedFileKey ? { fileKey: resolvedFileKey } : {}),
-      timeoutMs: this.#requestTimeoutMs,
-    });
+    const request = () =>
+      this.#host.request(this.#clientId, method, params, {
+        ...(resolvedFileKey ? { fileKey: resolvedFileKey } : {}),
+        timeoutMs: this.#requestTimeoutMs,
+      });
+    try {
+      return await request();
+    } catch (error) {
+      if (
+        !isReadOnlyRequest(method, params) ||
+        !resolvedFileKey ||
+        !(error instanceof McpFigError) ||
+        error.code !== "NOT_CONNECTED"
+      )
+        throw error;
+      await this.#host.waitForSession(resolvedFileKey, 3_000);
+      return request();
+    }
   }
 }

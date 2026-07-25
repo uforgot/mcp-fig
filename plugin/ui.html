@@ -42,11 +42,19 @@
     let file = null;
     let controller = null;
     let bootstrapTimer;
+    let reconnectAttempt = 0;
+    let lastDisconnectReason = "not-paired";
     const pending = new Map();
 
     function setStatus(text, ok) {
       statusNode.textContent = text;
       statusNode.className = ok === true ? "ok" : ok === false ? "bad" : "";
+    }
+    function setConnectionState(state, text, ok) {
+      statusNode.dataset.state = state;
+      statusNode.dataset.reconnectAttempt = String(reconnectAttempt);
+      statusNode.dataset.lastDisconnectReason = lastDisconnectReason;
+      setStatus(text, ok);
     }
     function pluginMessage(message) {
       parent.postMessage({ pluginMessage: message }, "*");
@@ -97,6 +105,12 @@
       let backoff = 250;
       while (!signal.aborted) {
         try {
+          setConnectionState(
+            reconnectAttempt === 0 ? "connecting" : "reconnecting",
+            reconnectAttempt === 0
+              ? "Connecting…"
+              : `Reconnect attempt ${reconnectAttempt}…`,
+          );
           if (!file) throw new Error("File identity is not ready.");
           await request(`${base}/v1/session/handshake`, {
             method: "POST", headers: auth, signal,
@@ -105,7 +119,9 @@
               capabilities: CAPABILITIES, sentAt: new Date().toISOString()
             })
           });
-          setStatus(`Connected: ${file.name}`, true);
+          reconnectAttempt = 0;
+          lastDisconnectReason = "none";
+          setConnectionState("ready", `Connected: ${file.name}`, true);
           backoff = 250;
           while (!signal.aborted) {
             const response = await request(
@@ -152,8 +168,18 @@
           }
         } catch (error) {
           if (signal.aborted) return;
-          setStatus(`Reconnecting in ${backoff}ms: ${error.message}`, false);
-          await new Promise((resolve) => setTimeout(resolve, backoff));
+          reconnectAttempt += 1;
+          lastDisconnectReason = error.message || String(error);
+          const delay = Math.min(
+            5000,
+            backoff + Math.floor(Math.random() * Math.max(1, backoff * 0.25)),
+          );
+          setConnectionState(
+            "reconnecting",
+            `Reconnecting in ${delay}ms: ${lastDisconnectReason}`,
+            false,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
           backoff = Math.min(backoff * 2, 5000);
         }
       }

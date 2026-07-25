@@ -181,6 +181,14 @@ export interface FigmaDocumentSummary {
 
 export interface BridgeStatus {
   connected: boolean;
+  connectionState?:
+    | "disconnected"
+    | "connecting"
+    | "paired"
+    | "ready"
+    | "degraded"
+    | "reconnecting";
+  lastHeartbeatAt?: string;
   mode: BridgeMode;
   fileKey?: string;
   fileName?: string;
