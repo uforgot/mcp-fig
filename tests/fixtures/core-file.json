@@ -53,6 +53,35 @@
                 "defaultValue": "Continue"
               }
             }
+          },
+          {
+            "id": "4:0",
+            "type": "FRAME",
+            "name": "Layout root",
+            "parentId": "1:0",
+            "width": 360,
+            "height": 240,
+            "children": [
+              {
+                "id": "4:1",
+                "type": "FRAME",
+                "name": "Card",
+                "parentId": "4:0",
+                "width": 320,
+                "height": 80,
+                "children": [
+                  {
+                    "id": "4:2",
+                    "type": "TEXT",
+                    "name": "Card label",
+                    "parentId": "4:1",
+                    "width": 120,
+                    "height": 24,
+                    "text": "Nested Auto Layout"
+                  }
+                ]
+              }
+            ]
           }
         ]
       }

@@ -1,4 +1,5 @@
 import { McpFigError } from "../errors.js";
+import { inspectLayoutNode } from "./layout.js";
 import type {
   BridgeStatus,
   ChangeRecord,
@@ -11,6 +12,7 @@ import type {
   FigmaFileSummary,
   FigmaNode,
   InstanceActionInput,
+  LayoutActionInput,
   MoveNodesInput,
   ResizeNodesInput,
   TokenActionInput,
@@ -49,6 +51,15 @@ function toPaints(value: unknown): Record<string, unknown>[] | undefined {
   return value.map(toRecord).filter((paint) => paint !== undefined);
 }
 
+function toEnum<const Values extends readonly string[]>(
+  value: unknown,
+  values: Values,
+): Values[number] | undefined {
+  return typeof value === "string" && values.includes(value)
+    ? value
+    : undefined;
+}
+
 function toNode(raw: Record<string, unknown>, parentId?: string): FigmaNode {
   const box = toRecord(raw.absoluteBoundingBox);
   const id = typeof raw.id === "string" ? raw.id : "unknown";
@@ -59,6 +70,58 @@ function toNode(raw: Record<string, unknown>, parentId?: string): FigmaNode {
         .filter((child) => child !== undefined)
         .map((child) => toNode(child, id))
     : undefined;
+  const layoutMode = toEnum(raw.layoutMode, [
+    "NONE",
+    "HORIZONTAL",
+    "VERTICAL",
+  ] as const);
+  const primaryAxisAlignItems = toEnum(raw.primaryAxisAlignItems, [
+    "MIN",
+    "CENTER",
+    "MAX",
+    "SPACE_BETWEEN",
+  ] as const);
+  const counterAxisAlignItems = toEnum(raw.counterAxisAlignItems, [
+    "MIN",
+    "CENTER",
+    "MAX",
+    "BASELINE",
+  ] as const);
+  const layoutWrap = toEnum(raw.layoutWrap, ["NO_WRAP", "WRAP"] as const);
+  const primaryAxisSizingMode = toEnum(raw.primaryAxisSizingMode, [
+    "FIXED",
+    "AUTO",
+  ] as const);
+  const counterAxisSizingMode = toEnum(raw.counterAxisSizingMode, [
+    "FIXED",
+    "AUTO",
+  ] as const);
+  const layoutSizingHorizontal = toEnum(raw.layoutSizingHorizontal, [
+    "FIXED",
+    "HUG",
+    "FILL",
+  ] as const);
+  const layoutSizingVertical = toEnum(raw.layoutSizingVertical, [
+    "FIXED",
+    "HUG",
+    "FILL",
+  ] as const);
+  const layoutAlign = toEnum(raw.layoutAlign, ["INHERIT", "STRETCH"] as const);
+  const rawConstraints = toRecord(raw.constraints);
+  const horizontalConstraint = toEnum(rawConstraints?.horizontal, [
+    "LEFT",
+    "RIGHT",
+    "CENTER",
+    "LEFT_RIGHT",
+    "SCALE",
+  ] as const);
+  const verticalConstraint = toEnum(rawConstraints?.vertical, [
+    "TOP",
+    "BOTTOM",
+    "CENTER",
+    "TOP_BOTTOM",
+    "SCALE",
+  ] as const);
   return {
     id,
     type,
@@ -73,6 +136,42 @@ function toNode(raw: Record<string, unknown>, parentId?: string): FigmaNode {
     ...(typeof raw.characters === "string" ? { text: raw.characters } : {}),
     ...(toPaints(raw.fills) ? { fills: toPaints(raw.fills) } : {}),
     ...(toPaints(raw.strokes) ? { strokes: toPaints(raw.strokes) } : {}),
+    ...(layoutMode ? { layoutMode } : {}),
+    ...(typeof raw.itemSpacing === "number"
+      ? { itemSpacing: raw.itemSpacing }
+      : {}),
+    ...(typeof raw.paddingTop === "number"
+      ? { paddingTop: raw.paddingTop }
+      : {}),
+    ...(typeof raw.paddingRight === "number"
+      ? { paddingRight: raw.paddingRight }
+      : {}),
+    ...(typeof raw.paddingBottom === "number"
+      ? { paddingBottom: raw.paddingBottom }
+      : {}),
+    ...(typeof raw.paddingLeft === "number"
+      ? { paddingLeft: raw.paddingLeft }
+      : {}),
+    ...(primaryAxisAlignItems ? { primaryAxisAlignItems } : {}),
+    ...(counterAxisAlignItems ? { counterAxisAlignItems } : {}),
+    ...(layoutWrap ? { layoutWrap } : {}),
+    ...(primaryAxisSizingMode ? { primaryAxisSizingMode } : {}),
+    ...(counterAxisSizingMode ? { counterAxisSizingMode } : {}),
+    ...(layoutSizingHorizontal ? { layoutSizingHorizontal } : {}),
+    ...(layoutSizingVertical ? { layoutSizingVertical } : {}),
+    ...(typeof raw.minWidth === "number" ? { minWidth: raw.minWidth } : {}),
+    ...(typeof raw.maxWidth === "number" ? { maxWidth: raw.maxWidth } : {}),
+    ...(typeof raw.minHeight === "number" ? { minHeight: raw.minHeight } : {}),
+    ...(typeof raw.maxHeight === "number" ? { maxHeight: raw.maxHeight } : {}),
+    ...(layoutAlign ? { layoutAlign } : {}),
+    ...(horizontalConstraint && verticalConstraint
+      ? {
+          constraints: {
+            horizontal: horizontalConstraint,
+            vertical: verticalConstraint,
+          },
+        }
+      : {}),
     ...(children ? { children } : {}),
   };
 }
@@ -220,6 +319,17 @@ export class RestFigmaBridge implements FigmaBridge {
 
   async deleteNodes(_input: DeleteNodesInput): Promise<string[]> {
     return unsupported("node.delete");
+  }
+
+  async layout(input: LayoutActionInput): Promise<Record<string, unknown>> {
+    if (input.action === "inspect") {
+      return {
+        layouts: (await this.getNodes(input.nodeIds, input.fileKey)).map(
+          inspectLayoutNode,
+        ),
+      };
+    }
+    return unsupported(`layout.${input.action}`);
   }
 
   async component(

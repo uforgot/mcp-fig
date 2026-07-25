@@ -64,6 +64,7 @@ describe("Core Figma facade", () => {
       "figma_document",
       "figma_selection",
       "figma_node",
+      "figma_layout",
       "figma_component",
       "figma_instance",
       "figma_tokens",

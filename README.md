@@ -68,18 +68,21 @@ The final API will be defined after auditing real Figma workflows and measuring 
 
 ## Auto Layout Direction
 
-Auto Layout will be treated as a first-class domain rather than a collection of low-level property edits.
+Auto Layout is treated as a first-class domain rather than a collection of low-level property edits.
 
-Planned layout operations include:
+Implemented layout operations:
 
 - `inspect` — describe the current layout hierarchy and sizing rules.
 - `apply` — set direction, spacing, padding, alignment, and wrapping.
 - `sizing` — manage `HUG`, `FILL`, and `FIXED` behavior for parents and children.
-- `batch` — apply related layout changes as one operation.
+- `batch` — atomically apply related layout changes in dependency order.
+
+Reserved follow-up operations:
+
 - `validate` — detect overflow, invalid sizing combinations, and conflicting constraints.
 - `repair` — fix safe and deterministic layout problems.
 
-Layout changes should be applied in dependency order: parent layout, parent dimensions, child sizing, constraints, then validation.
+Layout changes are applied in dependency order: parent layout, child sizing, then constraints. See [`docs/auto-layout-contract.md`](docs/auto-layout-contract.md) for the typed schema, preview, and rollback contract.
 
 ## Tool Profiles
 

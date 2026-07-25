@@ -10,6 +10,7 @@ import type {
   FigmaFileSummary,
   FigmaNode,
   InstanceActionInput,
+  LayoutActionInput,
   MoveNodesInput,
   ResizeNodesInput,
   TokenActionInput,
@@ -83,6 +84,10 @@ export class DisconnectedFigmaBridge implements FigmaBridge {
   }
 
   async deleteNodes(_input: DeleteNodesInput): Promise<string[]> {
+    return notConnected();
+  }
+
+  async layout(_input: LayoutActionInput): Promise<Record<string, unknown>> {
     return notConnected();
   }
 

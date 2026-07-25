@@ -35,8 +35,17 @@ describe("RestFigmaBridge", () => {
               "2:1": {
                 document: {
                   id: "2:1",
-                  type: "RECTANGLE",
-                  name: "Remote rectangle",
+                  type: "FRAME",
+                  name: "Remote frame",
+                  layoutMode: "HORIZONTAL",
+                  itemSpacing: 12,
+                  paddingTop: 8,
+                  paddingRight: 16,
+                  paddingBottom: 8,
+                  paddingLeft: 16,
+                  primaryAxisAlignItems: "MIN",
+                  counterAxisAlignItems: "CENTER",
+                  layoutWrap: "NO_WRAP",
                   absoluteBoundingBox: {
                     x: 10,
                     y: 20,
@@ -74,13 +83,27 @@ describe("RestFigmaBridge", () => {
     expect(await bridge.getNodes(["2:1"])).toEqual([
       expect.objectContaining({
         id: "2:1",
-        name: "Remote rectangle",
+        name: "Remote frame",
         x: 10,
         y: 20,
         width: 80,
         height: 40,
       }),
     ]);
+    expect(
+      await bridge.layout({ action: "inspect", nodeIds: ["2:1"] }),
+    ).toMatchObject({
+      layouts: [
+        {
+          nodeId: "2:1",
+          layout: {
+            layoutMode: "HORIZONTAL",
+            itemSpacing: 12,
+            padding: { top: 8, right: 16, bottom: 8, left: 16 },
+          },
+        },
+      ],
+    });
   });
 
   it("rejects selection and writes instead of pretending REST supports them", async () => {
@@ -98,5 +121,12 @@ describe("RestFigmaBridge", () => {
     ).rejects.toMatchObject({
       code: "UNSUPPORTED_BY_BRIDGE",
     });
+    await expect(
+      bridge.layout({
+        action: "apply",
+        nodeIds: ["2:1"],
+        layout: { layoutMode: "HORIZONTAL" },
+      }),
+    ).rejects.toMatchObject({ code: "UNSUPPORTED_BY_BRIDGE" });
   });
 });

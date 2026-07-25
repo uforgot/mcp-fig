@@ -8,6 +8,7 @@ import { registerComponentTool } from "./tools/component.js";
 import { registerConnectionTool } from "./tools/connection.js";
 import { registerDocumentTool } from "./tools/document.js";
 import { registerInstanceTool } from "./tools/instance.js";
+import { registerLayoutTool } from "./tools/layout.js";
 import { registerNodeTool } from "./tools/node.js";
 import { registerSelectionTool } from "./tools/selection.js";
 import { registerTokensTool } from "./tools/tokens.js";
@@ -32,6 +33,7 @@ export function createMcpServer(
   registerDocumentTool(server, bridge);
   registerSelectionTool(server, bridge);
   registerNodeTool(server, bridge, confirmations);
+  registerLayoutTool(server, bridge);
   registerComponentTool(server, bridge, config.profiles, confirmations);
   registerInstanceTool(server, bridge);
   registerTokensTool(server, bridge, confirmations);

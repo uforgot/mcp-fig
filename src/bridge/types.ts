@@ -43,6 +43,73 @@ export interface FigmaNode {
   mainComponentKey?: string | undefined;
   instanceProperties?: Record<string, string | boolean> | undefined;
   boundVariables?: Record<string, string> | undefined;
+  layoutMode?: LayoutMode | undefined;
+  itemSpacing?: number | undefined;
+  paddingTop?: number | undefined;
+  paddingRight?: number | undefined;
+  paddingBottom?: number | undefined;
+  paddingLeft?: number | undefined;
+  primaryAxisAlignItems?: PrimaryAxisAlignment | undefined;
+  counterAxisAlignItems?: CounterAxisAlignment | undefined;
+  layoutWrap?: LayoutWrap | undefined;
+  primaryAxisSizingMode?: AxisSizingMode | undefined;
+  counterAxisSizingMode?: AxisSizingMode | undefined;
+  layoutSizingHorizontal?: LayoutSizing | undefined;
+  layoutSizingVertical?: LayoutSizing | undefined;
+  minWidth?: number | undefined;
+  maxWidth?: number | undefined;
+  minHeight?: number | undefined;
+  maxHeight?: number | undefined;
+  layoutAlign?: "INHERIT" | "STRETCH" | undefined;
+  constraints?: LayoutConstraints | undefined;
+}
+
+export type LayoutMode = "NONE" | "HORIZONTAL" | "VERTICAL";
+export type LayoutWrap = "NO_WRAP" | "WRAP";
+export type PrimaryAxisAlignment = "MIN" | "CENTER" | "MAX" | "SPACE_BETWEEN";
+export type CounterAxisAlignment = "MIN" | "CENTER" | "MAX" | "BASELINE";
+export type AxisSizingMode = "FIXED" | "AUTO";
+export type LayoutSizing = "FIXED" | "HUG" | "FILL";
+export type HorizontalConstraint =
+  | "LEFT"
+  | "RIGHT"
+  | "CENTER"
+  | "LEFT_RIGHT"
+  | "SCALE";
+export type VerticalConstraint =
+  | "TOP"
+  | "BOTTOM"
+  | "CENTER"
+  | "TOP_BOTTOM"
+  | "SCALE";
+
+export interface LayoutConstraints {
+  horizontal: HorizontalConstraint;
+  vertical: VerticalConstraint;
+}
+
+export interface LayoutConfig {
+  layoutMode: Exclude<LayoutMode, "NONE">;
+  gap?: number;
+  itemSpacing?: number;
+  padding?:
+    | number
+    | { top: number; right: number; bottom: number; left: number };
+  primaryAxisAlignItems?: PrimaryAxisAlignment;
+  counterAxisAlignItems?: CounterAxisAlignment;
+  layoutWrap?: LayoutWrap;
+  primaryAxisSizingMode?: AxisSizingMode;
+  counterAxisSizingMode?: AxisSizingMode;
+}
+
+export interface LayoutSizingConfig {
+  horizontal: LayoutSizing;
+  vertical: LayoutSizing;
+  minWidth?: number;
+  maxWidth?: number;
+  minHeight?: number;
+  maxHeight?: number;
+  layoutAlign?: "INHERIT" | "STRETCH";
 }
 
 export interface ComponentPropertyDefinition {
@@ -176,6 +243,66 @@ export interface CloneNodesInput extends MutationOptions {
 
 export interface DeleteNodesInput extends MutationOptions {
   nodeIds: string[];
+}
+
+export type LayoutOperation =
+  | { op: "apply"; nodeIds: string[]; layout: LayoutConfig }
+  | { op: "sizing"; nodeIds: string[]; sizing: LayoutSizingConfig }
+  | {
+      op: "constraints";
+      nodeIds: string[];
+      constraints: LayoutConstraints;
+    };
+
+export type LayoutActionInput =
+  | { action: "inspect"; nodeIds: string[]; fileKey?: string }
+  | {
+      action: "apply";
+      nodeIds: string[];
+      layout: LayoutConfig;
+      dryRun?: boolean;
+      fileKey?: string;
+    }
+  | {
+      action: "sizing";
+      nodeIds: string[];
+      sizing: LayoutSizingConfig;
+      dryRun?: boolean;
+      fileKey?: string;
+    }
+  | {
+      action: "batch";
+      operations: LayoutOperation[];
+      dryRun?: boolean;
+      fileKey?: string;
+    };
+
+export interface LayoutSnapshot {
+  nodeId: string;
+  name: string;
+  parentId?: string;
+  childIds: string[];
+  layout: {
+    layoutMode: LayoutMode;
+    gap: number;
+    itemSpacing: number;
+    padding: { top: number; right: number; bottom: number; left: number };
+    primaryAxisAlignItems: PrimaryAxisAlignment;
+    counterAxisAlignItems: CounterAxisAlignment;
+    layoutWrap: LayoutWrap;
+    primaryAxisSizingMode: AxisSizingMode;
+    counterAxisSizingMode: AxisSizingMode;
+  };
+  sizing: {
+    horizontal: LayoutSizing;
+    vertical: LayoutSizing;
+    minWidth?: number;
+    maxWidth?: number;
+    minHeight?: number;
+    maxHeight?: number;
+    layoutAlign?: "INHERIT" | "STRETCH";
+  };
+  constraints: LayoutConstraints;
 }
 
 export type ComponentActionInput =
@@ -347,6 +474,7 @@ export interface FigmaBridge {
   resizeNodes(input: ResizeNodesInput): Promise<FigmaNode[]>;
   cloneNodes(input: CloneNodesInput): Promise<FigmaNode[]>;
   deleteNodes(input: DeleteNodesInput): Promise<string[]>;
+  layout(input: LayoutActionInput): Promise<Record<string, unknown>>;
   component(input: ComponentActionInput): Promise<Record<string, unknown>>;
   instance(input: InstanceActionInput): Promise<Record<string, unknown>>;
   tokens(input: TokenActionInput): Promise<Record<string, unknown>>;
