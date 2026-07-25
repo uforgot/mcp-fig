@@ -13,12 +13,14 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "npm run build:plugin && tsc -p tsconfig.build.json",
+    "build:plugin": "node scripts/build-plugin.mjs",
+    "check:plugin-bundle": "node scripts/build-plugin.mjs --check",
     "typecheck": "tsc --noEmit",
     "typecheck:plugin": "tsc -p plugin/tsconfig.json",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "test": "vitest run",
+    "test": "npm run check:plugin-bundle && vitest run",
     "test:watch": "vitest",
     "quality": "vitest run tests/quality-gates.test.ts",
     "snapshots:update": "npm run build && node scripts/update-quality-snapshots.mjs && biome format --write tests/snapshots",

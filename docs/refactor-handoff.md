@@ -85,16 +85,24 @@ Compatibility entry points stay in place. New internal files are implementation 
 
 ```text
 plugin/
-  main.js                              # generated/single-file Figma sandbox entry; manifest path stays fixed
+  main.js                              # generated single-file Figma sandbox artifact; manifest path stays fixed
   src/
-    main.js                            # composition only; wires runtime and domain handlers
-    core.js                            # shared state, identity, errors, serialization, node lookup, revision/change primitives
-    node.js                            # document/selection/change reads and generic node lifecycle
+    main.js                            # bootstrap, dependency injection, command dispatch, UI message lifecycle
+  runtime/
+    identity.js                        # file key/name/revision projection
+    revision.js                        # revision, change log, revision-keyed read cache, external-change tracking
+    errors.js                          # structured bridge errors and explicit node-ID validation
+    metrics.js                         # per-command scene traversal counter
+    idempotency.js                     # canonical fingerprint, replay, conflict, bounded result cache
+  domains/
+    core-node.js                       # document/selection/change reads and generic node lifecycle
     layout.js                          # Auto Layout inspect/apply/sizing/batch/validate/repair
-    component.js                       # component search/inspect/set/property/slot operations
+    component.js                       # component search/inspect/set/property/slot operations and resolver
     instance.js                        # instance create/update/slot operations
-    tokens.js                         # collections, variables, modes, aliases, values, bindings
-    runtime.js                         # command envelope, dispatch, idempotency cache, timing, UI message lifecycle
+    tokens.js                          # collections, variables, modes, aliases, values, bindings
+  shared/
+    data.js                            # structured-clone-safe copy and canonical JSON
+    node.js                            # node lookup/serialization/property validation/construction helpers
 
 src/bridge/
   desktop-plugin.ts                    # compatibility re-export only
@@ -113,7 +121,7 @@ src/bridge/
     facade.ts                          # composes and exports InMemoryFigmaBridge
 ```
 
-`plugin/main.js` must remain a self-contained Figma sandbox artifact because the current manifest/runtime does not establish an ES-module contract. The extraction item must add a deterministic bundle/assembly step and prove that tests execute the shipped `plugin/main.js`; it must not change the manifest to point at an unverified module graph.
+`plugin/main.js` remains a self-contained Figma sandbox artifact because the current manifest/runtime does not establish an ES-module contract. `scripts/build-plugin.mjs` assembles the ordered source modules above without runtime imports or new dependencies. `npm run build:plugin` writes the artifact and `npm run check:plugin-bundle` rejects source/artifact drift. Tests continue to execute the shipped `plugin/main.js`; the manifest path is unchanged.
 
 ## Dependency direction
 
@@ -131,12 +139,15 @@ MCP tool schemas/handlers
 Plugin rules:
 
 ```text
-plugin/src/main.js -> runtime.js -> {node, layout, component, instance, tokens}.js -> core.js
+plugin/src/main.js
+  -> runtime/{identity, revision, errors, metrics, idempotency}.js
+  -> domains/{core-node, layout, component, instance, tokens}.js
+  -> shared/{data, node}.js
 ```
 
-- Domain modules do not import one another. Shared lookup/serialization/revision primitives move to `core.js` or are injected by `main.js`.
-- `runtime.js` dispatches but contains no domain mutation rules.
-- `core.js` knows neither action names nor UI transport.
+- Domain modules do not import one another. The component resolver is injected into the instance domain by `plugin/src/main.js`.
+- Runtime and shared modules know neither public command dispatch nor UI transport.
+- `plugin/src/main.js` dispatches but contains no domain mutation rules.
 
 Desktop rules:
 
@@ -164,6 +175,36 @@ core.ts -> ../types.ts + errors.ts only
 ```
 
 `layout.ts` and `design-system.ts` may mutate fixture state only through explicit core primitives. They do not import each other or reach into private maps.
+
+## Plugin extraction checkpoint
+
+Item `1101` implements the Plugin boundary without changing `plugin/manifest.json`, `plugin/ui.html`, protocol capabilities, command names, or error strings.
+
+| File | Owned responsibility |
+| --- | --- |
+| `plugin/runtime/identity.js` | Current file identity projected from Figma plus the revision runtime. |
+| `plugin/runtime/revision.js` | Revision number, bounded change history, revision-keyed read cache, mutation/external-change invalidation. |
+| `plugin/runtime/errors.js` | Structured bridge error creation and `nodeIds` assertion. |
+| `plugin/runtime/metrics.js` | Active-command scene traversal count lifecycle. |
+| `plugin/runtime/idempotency.js` | Canonical request fingerprint, replay-before-revision behavior, conflicting-key rejection, 1,000-entry eviction. |
+| `plugin/shared/data.js` | Clone-safe serialization and canonical JSON normalization. |
+| `plugin/shared/node.js` | Figma node lookup, serialization, property validation/application, supported node construction. |
+| `plugin/domains/core-node.js` | Document, selection, change, and generic node commands. |
+| `plugin/domains/layout.js` | Auto Layout inspect, validate, repair, preview, ordered batch, rollback. |
+| `plugin/domains/component.js` | Component inventory and mutations; exports the resolver injected into the instance domain. |
+| `plugin/domains/instance.js` | Instance create/update/reset and unsupported slot-append behavior. |
+| `plugin/domains/tokens.js` | Variable collection, mode, value, alias, and binding commands. |
+| `plugin/src/main.js` | Factory composition, command dispatch, result envelope, UI bootstrap/message handler, document/selection event wiring. |
+| `scripts/build-plugin.mjs` | Fixed-order, dependency-free assembly into manifest-loaded `plugin/main.js`. |
+
+Verification completed during extraction: generated-bundle drift check passed; Plugin checkJs passed; `tests/plugin-main.test.ts` and `tests/plugin-ui.test.ts` passed with 9/9 tests; Biome passed on 79 files.
+
+Remaining risks:
+
+- `plugin/main.js` is generated and committed. Every source edit must run `npm run build:plugin`; CI/review should also run `npm run check:plugin-bundle` so a stale artifact cannot ship.
+- Source modules intentionally use injected factory dependencies rather than runtime imports. `plugin/main.js` is the only checkJs target because it is the executable global-script scope; isolated source files are linted and the assembled artifact is type checked.
+- Layout remains the largest domain because validation, preview, dependency ordering, mutation, and rollback are one atomic behavior boundary. Splitting it further requires a separate item with targeted rollback/order tests.
+- Live Desktop acceptance still depends on an explicit token and a paired disposable Figma file. Do not infer live success from the VM harness.
 
 ## Forbidden rules
 
@@ -211,10 +252,10 @@ Live canaries were **not rerun while capturing this document**: the shell had no
 
 Execute one boundary at a time; do not split all three large files in one commit.
 
-1. **Plugin extraction**
-   - Add the deterministic assembly/bundle path first while keeping `plugin/main.js` as the shipped artifact.
-   - Move `core` + `node`, run `tests/plugin-main.test.ts`, then move one remaining domain at a time.
-   - Verify that tests load the built/shipped artifact, not only source modules.
+1. **Plugin extraction — completed by item `1101`**
+   - `plugin/runtime`, `plugin/domains`, and `plugin/shared` own the extracted behavior; `plugin/src/main.js` owns composition/dispatch/UI lifecycle.
+   - `scripts/build-plugin.mjs` keeps `plugin/main.js` as the deterministic shipped artifact, and Plugin tests execute that artifact.
+   - Any follow-up must preserve the checkpoint and remaining-risk notes above.
 2. **Desktop host extraction**
    - Preserve `src/bridge/desktop-plugin.ts` as the compatibility entry.
    - Extract pure metrics/write metadata first, then session, coordinator, broker, and HTTP transport; move facade composition last.
