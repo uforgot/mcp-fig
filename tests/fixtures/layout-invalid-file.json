@@ -1,0 +1,141 @@
+{
+  "key": "layout-invalid-file",
+  "name": "Invalid Auto Layout fixture",
+  "document": {
+    "id": "0:0",
+    "type": "DOCUMENT",
+    "name": "Invalid Auto Layout fixture",
+    "children": [
+      {
+        "id": "1:0",
+        "type": "PAGE",
+        "name": "Page 1",
+        "parentId": "0:0",
+        "children": [
+          {
+            "id": "10:0",
+            "type": "FRAME",
+            "name": "Overflow row",
+            "parentId": "1:0",
+            "width": 200,
+            "height": 120,
+            "layoutMode": "HORIZONTAL",
+            "itemSpacing": 20,
+            "paddingTop": 16,
+            "paddingRight": 16,
+            "paddingBottom": 16,
+            "paddingLeft": 16,
+            "primaryAxisSizingMode": "FIXED",
+            "counterAxisSizingMode": "FIXED",
+            "children": [
+              {
+                "id": "10:1",
+                "type": "RECTANGLE",
+                "name": "Wide A",
+                "parentId": "10:0",
+                "width": 120,
+                "height": 60,
+                "layoutSizingHorizontal": "FIXED",
+                "layoutSizingVertical": "FIXED"
+              },
+              {
+                "id": "10:2",
+                "type": "RECTANGLE",
+                "name": "Wide B",
+                "parentId": "10:0",
+                "width": 100,
+                "height": 60,
+                "layoutSizingHorizontal": "FIXED",
+                "layoutSizingVertical": "FIXED"
+              }
+            ]
+          },
+          {
+            "id": "11:0",
+            "type": "FRAME",
+            "name": "Hug row",
+            "parentId": "1:0",
+            "width": 200,
+            "height": 80,
+            "layoutMode": "HORIZONTAL",
+            "primaryAxisSizingMode": "AUTO",
+            "counterAxisSizingMode": "FIXED",
+            "children": [
+              {
+                "id": "11:1",
+                "type": "RECTANGLE",
+                "name": "Circular fill child",
+                "parentId": "11:0",
+                "width": 120,
+                "height": 40,
+                "layoutSizingHorizontal": "FILL",
+                "layoutSizingVertical": "FIXED"
+              }
+            ]
+          },
+          {
+            "id": "12:0",
+            "type": "FRAME",
+            "name": "Orphan automatic sizing",
+            "parentId": "1:0",
+            "width": 100,
+            "height": 60,
+            "layoutSizingHorizontal": "HUG",
+            "layoutSizingVertical": "FILL"
+          },
+          {
+            "id": "13:0",
+            "type": "FRAME",
+            "name": "Conflicting bounds",
+            "parentId": "1:0",
+            "width": 240,
+            "height": 100,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "minWidth": 300,
+            "maxWidth": 200
+          },
+          {
+            "id": "14:0",
+            "type": "FRAME",
+            "name": "Valid column",
+            "parentId": "1:0",
+            "width": 240,
+            "height": 180,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 12,
+            "paddingTop": 16,
+            "paddingRight": 16,
+            "paddingBottom": 16,
+            "paddingLeft": 16,
+            "primaryAxisSizingMode": "FIXED",
+            "counterAxisSizingMode": "FIXED",
+            "children": [
+              {
+                "id": "14:1",
+                "type": "RECTANGLE",
+                "name": "Valid child",
+                "parentId": "14:0",
+                "width": 120,
+                "height": 60,
+                "layoutSizingHorizontal": "FIXED",
+                "layoutSizingVertical": "FIXED"
+              },
+              {
+                "id": "14:2",
+                "type": "RECTANGLE",
+                "name": "Absolute decoration",
+                "parentId": "14:0",
+                "width": 1000,
+                "height": 1000,
+                "layoutPositioning": "ABSOLUTE",
+                "layoutSizingHorizontal": "FILL",
+                "layoutSizingVertical": "FILL"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

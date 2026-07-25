@@ -1,5 +1,5 @@
 import { McpFigError } from "../errors.js";
-import { inspectLayoutNode } from "./layout.js";
+import { inspectLayoutNode, validateLayoutScope } from "./layout.js";
 import type {
   BridgeStatus,
   ChangeRecord,
@@ -107,6 +107,10 @@ function toNode(raw: Record<string, unknown>, parentId?: string): FigmaNode {
     "FILL",
   ] as const);
   const layoutAlign = toEnum(raw.layoutAlign, ["INHERIT", "STRETCH"] as const);
+  const layoutPositioning = toEnum(raw.layoutPositioning, [
+    "AUTO",
+    "ABSOLUTE",
+  ] as const);
   const rawConstraints = toRecord(raw.constraints);
   const horizontalConstraint = toEnum(rawConstraints?.horizontal, [
     "LEFT",
@@ -164,6 +168,7 @@ function toNode(raw: Record<string, unknown>, parentId?: string): FigmaNode {
     ...(typeof raw.minHeight === "number" ? { minHeight: raw.minHeight } : {}),
     ...(typeof raw.maxHeight === "number" ? { maxHeight: raw.maxHeight } : {}),
     ...(layoutAlign ? { layoutAlign } : {}),
+    ...(layoutPositioning ? { layoutPositioning } : {}),
     ...(horizontalConstraint && verticalConstraint
       ? {
           constraints: {
@@ -328,6 +333,12 @@ export class RestFigmaBridge implements FigmaBridge {
           inspectLayoutNode,
         ),
       };
+    }
+    if (input.action === "validate") {
+      return validateLayoutScope(
+        await this.getDocument(input.fileKey),
+        input.nodeIds,
+      );
     }
     return unsupported(`layout.${input.action}`);
   }

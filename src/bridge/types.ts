@@ -61,6 +61,7 @@ export interface FigmaNode {
   minHeight?: number | undefined;
   maxHeight?: number | undefined;
   layoutAlign?: "INHERIT" | "STRETCH" | undefined;
+  layoutPositioning?: "AUTO" | "ABSOLUTE" | undefined;
   constraints?: LayoutConstraints | undefined;
 }
 
@@ -254,6 +255,41 @@ export type LayoutOperation =
       constraints: LayoutConstraints;
     };
 
+export const LAYOUT_ISSUE_CODES = [
+  "AUTO_LAYOUT_OVERFLOW_HORIZONTAL",
+  "AUTO_LAYOUT_OVERFLOW_VERTICAL",
+  "FILL_IN_HUG_PARENT_HORIZONTAL",
+  "FILL_IN_HUG_PARENT_VERTICAL",
+  "HUG_WITHOUT_AUTO_LAYOUT_PARENT",
+  "FILL_WITHOUT_AUTO_LAYOUT_PARENT",
+  "MIN_MAX_CONFLICT_WIDTH",
+  "MIN_MAX_CONFLICT_HEIGHT",
+] as const;
+
+export type LayoutIssueCode = (typeof LAYOUT_ISSUE_CODES)[number];
+
+export interface LayoutIssue {
+  code: LayoutIssueCode;
+  nodeId: string;
+  message: string;
+  repairable: boolean;
+  axis?: "horizontal" | "vertical";
+  details: Record<string, unknown>;
+}
+
+export interface LayoutRepairChange {
+  property: "layoutSizingHorizontal" | "layoutSizingVertical";
+  from: LayoutSizing;
+  to: "FIXED";
+}
+
+export interface LayoutRepair {
+  issueCode: LayoutIssueCode;
+  nodeId: string;
+  reason: string;
+  changes: LayoutRepairChange[];
+}
+
 export type LayoutActionInput =
   | { action: "inspect"; nodeIds: string[]; fileKey?: string }
   | {
@@ -273,6 +309,14 @@ export type LayoutActionInput =
   | {
       action: "batch";
       operations: LayoutOperation[];
+      dryRun?: boolean;
+      fileKey?: string;
+    }
+  | { action: "validate"; nodeIds: string[]; fileKey?: string }
+  | {
+      action: "repair";
+      nodeIds: string[];
+      issueCodes: LayoutIssueCode[];
       dryRun?: boolean;
       fileKey?: string;
     };
@@ -301,6 +345,7 @@ export interface LayoutSnapshot {
     minHeight?: number;
     maxHeight?: number;
     layoutAlign?: "INHERIT" | "STRETCH";
+    layoutPositioning?: "AUTO" | "ABSOLUTE";
   };
   constraints: LayoutConstraints;
 }

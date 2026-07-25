@@ -76,13 +76,10 @@ Implemented layout operations:
 - `apply` — set direction, spacing, padding, alignment, and wrapping.
 - `sizing` — manage `HUG`, `FILL`, and `FIXED` behavior for parents and children.
 - `batch` — atomically apply related layout changes in dependency order.
+- `validate` — detect overflow, invalid sizing combinations, and conflicting bounds.
+- `repair` — change only safe HUG/FILL conflicts to `FIXED`, with dry-run and post-repair validation.
 
-Reserved follow-up operations:
-
-- `validate` — detect overflow, invalid sizing combinations, and conflicting constraints.
-- `repair` — fix safe and deterministic layout problems.
-
-Layout changes are applied in dependency order: parent layout, child sizing, then constraints. See [`docs/auto-layout-contract.md`](docs/auto-layout-contract.md) for the typed schema, preview, and rollback contract.
+Layout changes are applied in dependency order: parent layout, child sizing, then constraints. Repairs reject any issue that requires design intent and commit only after revalidation. See [`docs/auto-layout-contract.md`](docs/auto-layout-contract.md) for the typed schema, diagnostics, preview, and rollback contract.
 
 ## Tool Profiles
 

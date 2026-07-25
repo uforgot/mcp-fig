@@ -4,6 +4,8 @@ import {
   applyLayoutConstraints,
   applyLayoutSizing,
   inspectLayoutNode,
+  repairLayoutScope,
+  validateLayoutScope,
 } from "./layout.js";
 import type {
   BridgeStatus,
@@ -321,6 +323,49 @@ export class InMemoryFigmaBridge implements FigmaBridge {
         layouts: input.nodeIds.map((nodeId) =>
           inspectLayoutNode(this.#requireNode(original, nodeId)),
         ),
+      };
+    }
+    if (input.action === "validate") {
+      return validateLayoutScope(original.document, input.nodeIds);
+    }
+    if (input.action === "repair") {
+      const beforeValidation = validateLayoutScope(
+        original.document,
+        input.nodeIds,
+      );
+      const working = clone(original);
+      const repairs = repairLayoutScope(
+        working.document,
+        input.nodeIds,
+        input.issueCodes,
+      );
+      const afterValidation = validateLayoutScope(
+        working.document,
+        input.nodeIds,
+      );
+      const selectedIssueCodes = new Set(input.issueCodes);
+      const unresolvedIssues = afterValidation.issues.filter((issue) =>
+        selectedIssueCodes.has(issue.code),
+      );
+      if (repairs.length > 0 && unresolvedIssues.length > 0) {
+        throw new McpFigError(
+          "INTERNAL_ERROR",
+          "Auto Layout repair did not clear every selected issue.",
+          { details: { unresolvedIssues } },
+        );
+      }
+      if (repairs.length > 0) {
+        const repairedNodeIds = [
+          ...new Set(repairs.map((repair) => repair.nodeId)),
+        ];
+        this.#record(working, "layout.repair", repairedNodeIds, input.dryRun);
+        if (!input.dryRun) this.#files.set(working.key, working);
+      }
+      return {
+        beforeValidation,
+        repairs,
+        afterValidation,
+        dryRun: input.dryRun ?? false,
       };
     }
 

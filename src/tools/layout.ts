@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-
 import type { FigmaBridge, LayoutActionInput } from "../bridge/types.js";
+import { LAYOUT_ISSUE_CODES } from "../bridge/types.js";
 import { handleToolCall, success } from "../tool-result.js";
 
 const fileKey = z.string().min(1).optional();
@@ -88,6 +88,16 @@ const inputSchema = z.union([
     .object({
       action: z.literal("batch"),
       operations: z.array(operation).min(1).max(200),
+      dryRun,
+      fileKey,
+    })
+    .strict(),
+  z.object({ action: z.literal("validate"), nodeIds, fileKey }).strict(),
+  z
+    .object({
+      action: z.literal("repair"),
+      nodeIds,
+      issueCodes: z.array(z.enum(LAYOUT_ISSUE_CODES)).min(1).max(8),
       dryRun,
       fileKey,
     })

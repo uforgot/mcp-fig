@@ -25,7 +25,17 @@ describe("RestFigmaBridge", () => {
               id: "0:0",
               type: "DOCUMENT",
               name: "REST fixture",
-              children: [],
+              children: [
+                {
+                  id: "2:1",
+                  type: "FRAME",
+                  name: "Remote frame",
+                  layoutMode: "HORIZONTAL",
+                  width: 80,
+                  height: 40,
+                  children: [],
+                },
+              ],
             },
           });
         }
@@ -104,6 +114,9 @@ describe("RestFigmaBridge", () => {
         },
       ],
     });
+    expect(
+      await bridge.layout({ action: "validate", nodeIds: ["2:1"] }),
+    ).toEqual({ valid: true, issues: [] });
   });
 
   it("rejects selection and writes instead of pretending REST supports them", async () => {
