@@ -2,6 +2,27 @@ figma.showUI(__html__, { width: 360, height: 300, themeColors: true });
 
 let revision = 1;
 const changes = [];
+let activeCommandMetrics = null;
+const revisionReadCache = new Map();
+
+function cloneData(value) {
+  if (value === undefined) return undefined;
+  return JSON.parse(JSON.stringify(value));
+}
+
+function countSceneTraversal(count = 1) {
+  if (activeCommandMetrics)
+    activeCommandMetrics.sceneTraversalNodeCount += count;
+}
+
+async function revisionCached(key, loader) {
+  const cacheKey = `${revision}:${key}`;
+  if (revisionReadCache.has(cacheKey))
+    return cloneData(revisionReadCache.get(cacheKey));
+  const value = await loader();
+  revisionReadCache.set(cacheKey, cloneData(value));
+  return value;
+}
 
 function fileIdentity() {
   return {
@@ -67,6 +88,7 @@ function serializePaints(paints) {
 }
 
 async function serializeNode(node, deep = false) {
+  countSceneTraversal();
   const output = { id: node.id, type: node.type, name: node.name };
   const parent = parentId(node);
   if (parent) output.parentId = parent;
@@ -136,6 +158,7 @@ async function serializeNode(node, deep = false) {
 
 function recordChange(action, nodeIds) {
   revision += 1;
+  revisionReadCache.clear();
   changes.push({
     revision: String(revision),
     action,
@@ -218,13 +241,36 @@ function createByType(type) {
 }
 
 async function coreCommand(method, input) {
+  if (method === "document.summary") {
+    return revisionCached("document.summary", async () => {
+      await figma.loadAllPagesAsync();
+      const byType = {};
+      let nodeCount = 0;
+      const visit = (node) => {
+        nodeCount += 1;
+        countSceneTraversal();
+        byType[node.type] = (byType[node.type] || 0) + 1;
+        if (hasChildren(node)) node.children.forEach(visit);
+      };
+      visit(figma.root);
+      return {
+        document: {
+          id: figma.root.id,
+          name: figma.root.name,
+          type: figma.root.type,
+        },
+        nodeCount,
+        byType,
+      };
+    });
+  }
   if (method === "document.get") {
     await figma.loadAllPagesAsync();
     return serializeNode(figma.root, true);
   }
   if (method === "selection.get")
     return figma.currentPage.selection.map((node) => node.id);
-  if (method === "changes.get") return structuredClone(changes);
+  if (method === "changes.get") return cloneData(changes);
   if (method === "node.get") {
     assertNodeIds(input.nodeIds);
     return Promise.all(
@@ -271,7 +317,7 @@ async function coreCommand(method, input) {
       return Promise.all(
         nodes.map(async (node) => ({
           ...(await serializeNode(node)),
-          ...structuredClone(input.patch),
+          ...cloneData(input.patch),
         })),
       );
     }
@@ -688,6 +734,7 @@ function collectLayoutScope(nodes) {
   const visit = (node) => {
     if (visited.has(node.id)) return;
     visited.add(node.id);
+    countSceneTraversal();
     result.push(node);
     if (hasChildren(node)) node.children.forEach(visit);
   };
@@ -801,7 +848,7 @@ function captureLayoutState(node) {
     "layoutAlign",
     "constraints",
   ])
-    if (key in node) state[key] = structuredClone(node[key]);
+    if (key in node) state[key] = cloneData(node[key]);
   return state;
 }
 
@@ -957,7 +1004,7 @@ async function layoutCommand(input) {
 
   if (input.dryRun) {
     const previews = new Map(
-      before.map((snapshot) => [snapshot.nodeId, structuredClone(snapshot)]),
+      before.map((snapshot) => [snapshot.nodeId, cloneData(snapshot)]),
     );
     for (const { operation, node } of units) {
       const snapshot = previews.get(node.id);
@@ -1014,19 +1061,27 @@ function componentRecord(node) {
 }
 
 async function componentCommand(input) {
-  const components = await localComponents();
   if (input.action === "search") {
     const query = (input.query || "").toLowerCase();
+    const inventory = await revisionCached("component.inventory", async () => {
+      const components = await localComponents();
+      countSceneTraversal(components.length);
+      return components.map(componentRecord);
+    });
     return {
-      components: components
-        .filter((node) => node.name.toLowerCase().includes(query))
-        .map(componentRecord),
+      components: inventory.filter((component) =>
+        component.name.toLowerCase().includes(query),
+      ),
     };
   }
   if (input.action === "inspect") {
-    const node = input.componentId
-      ? await nodeById(input.componentId)
-      : components.find((item) => item.key === input.componentKey);
+    let node;
+    if (input.componentId) node = await nodeById(input.componentId);
+    else {
+      const components = await localComponents();
+      countSceneTraversal(components.length);
+      node = components.find((item) => item.key === input.componentKey);
+    }
     if (node?.type !== "COMPONENT")
       fail("NODE_NOT_FOUND", "Component was not found.");
     return {
@@ -1187,25 +1242,28 @@ async function instanceCommand(input) {
 
 async function tokensCommand(input) {
   if (input.action === "inspect") {
-    const collections =
-      await figma.variables.getLocalVariableCollectionsAsync();
-    const variables = await figma.variables.getLocalVariablesAsync();
-    return {
-      collections: collections.map((item) => ({
-        id: item.id,
-        name: item.name,
-        defaultModeId: item.defaultModeId,
-        modes: item.modes,
-      })),
-      variables: variables.map((item) => ({
-        id: item.id,
-        key: item.key,
-        name: item.name,
-        resolvedType: item.resolvedType,
-        collectionId: item.variableCollectionId,
-        valuesByMode: item.valuesByMode,
-      })),
-    };
+    return revisionCached("tokens.inventory", async () => {
+      const collections =
+        await figma.variables.getLocalVariableCollectionsAsync();
+      const variables = await figma.variables.getLocalVariablesAsync();
+      countSceneTraversal(collections.length + variables.length);
+      return {
+        collections: collections.map((item) => ({
+          id: item.id,
+          name: item.name,
+          defaultModeId: item.defaultModeId,
+          modes: item.modes,
+        })),
+        variables: variables.map((item) => ({
+          id: item.id,
+          key: item.key,
+          name: item.name,
+          resolvedType: item.resolvedType,
+          collectionId: item.variableCollectionId,
+          valuesByMode: item.valuesByMode,
+        })),
+      };
+    });
   }
   if (input.dryRun)
     return {
@@ -1303,7 +1361,8 @@ async function execute(command) {
     );
   }
   if (
-    ["document.get", "selection.get", "changes.get"].includes(command.method) ||
+    command.method.startsWith("document.") ||
+    ["selection.get", "changes.get"].includes(command.method) ||
     command.method.startsWith("node.")
   ) {
     return coreCommand(command.method, command.params || {});
@@ -1327,16 +1386,23 @@ figma.ui.onmessage = async (message) => {
   }
   if (message?.type !== "bridge-command" || !message.command) return;
   const requestId = message.command.requestId;
+  activeCommandMetrics = { sceneTraversalNodeCount: 0 };
+  const figmaApiStartedAt = new Date().toISOString();
   try {
     const data = await execute(message.command);
+    const figmaApiCompletedAt = new Date().toISOString();
     figma.ui.postMessage({
       type: "bridge-result",
       requestId,
       ok: true,
       data,
       revision: String(revision),
+      figmaApiStartedAt,
+      figmaApiCompletedAt,
+      sceneTraversalNodeCount: activeCommandMetrics.sceneTraversalNodeCount,
     });
   } catch (error) {
+    const figmaApiCompletedAt = new Date().toISOString();
     const bridge = error?.bridge || {
       code: "INTERNAL_ERROR",
       message: error instanceof Error ? error.message : String(error),
@@ -1348,11 +1414,28 @@ figma.ui.onmessage = async (message) => {
       ok: false,
       error: bridge,
       revision: String(revision),
+      figmaApiStartedAt,
+      figmaApiCompletedAt,
+      sceneTraversalNodeCount: activeCommandMetrics.sceneTraversalNodeCount,
     });
+  } finally {
+    activeCommandMetrics = null;
   }
 };
 
+figma.ui.postMessage({ type: "bridge-bootstrap", file: fileIdentity() });
+
 figma.on("selectionchange", () => {
-  revision += 1;
   figma.ui.postMessage({ type: "bridge-bootstrap", file: fileIdentity() });
 });
+
+async function initializeDocumentChangeTracking() {
+  await figma.loadAllPagesAsync();
+  figma.on("documentchange", () => {
+    revision += 1;
+    revisionReadCache.clear();
+    figma.ui.postMessage({ type: "bridge-bootstrap", file: fileIdentity() });
+  });
+}
+
+void initializeDocumentChangeTracking();

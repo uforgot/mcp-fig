@@ -15,6 +15,7 @@ interface MockNode {
 function createHarness() {
   const messages: Record<string, unknown>[] = [];
   const handlers: Record<string, (...args: unknown[]) => unknown> = {};
+  let allPagesLoaded = false;
 
   const root: MockNode = {
     id: "0:0",
@@ -143,9 +144,16 @@ function createHarness() {
     },
     showUI() {},
     on(event: string, handler: (...args: unknown[]) => unknown) {
+      if (event === "documentchange" && !allPagesLoaded) {
+        throw new Error(
+          "Cannot register documentchange before loadAllPagesAsync.",
+        );
+      }
       handlers[event] = handler;
     },
-    async loadAllPagesAsync() {},
+    async loadAllPagesAsync() {
+      allPagesLoaded = true;
+    },
     async getNodeByIdAsync(id: string) {
       return nodes.get(id) ?? null;
     },
@@ -158,7 +166,6 @@ function createHarness() {
   runInNewContext(source, {
     __html__: "",
     figma,
-    structuredClone,
     setTimeout,
     clearTimeout,
     console,
@@ -183,10 +190,31 @@ function createHarness() {
       );
   }
 
-  return { command, frame, child };
+  return { command, frame, child, handlers, messages };
 }
 
 describe("Figma Plugin main bridge", () => {
+  it("proactively sends file identity after installing the UI handler", () => {
+    const { messages } = createHarness();
+
+    expect(messages).toContainEqual({
+      type: "bridge-bootstrap",
+      file: {
+        key: "test-file",
+        name: "Plugin test",
+        revision: "1",
+      },
+    });
+  });
+
+  it("loads all pages before registering documentchange", async () => {
+    const { handlers } = createHarness();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(handlers.selectionchange).toBeTypeOf("function");
+    expect(handlers.documentchange).toBeTypeOf("function");
+  });
+
   it("returns a predicted core node dry-run without mutating Figma", async () => {
     const { command, child } = createHarness();
     const preview = await command("node.update", {

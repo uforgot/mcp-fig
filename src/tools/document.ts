@@ -49,6 +49,11 @@ export function registerDocumentTool(
             changes: await bridge.getChanges(requestedFileKey),
           });
         }
+        if (action === "summary" && bridge.getDocumentSummary) {
+          return success("figma_document", action, {
+            ...(await bridge.getDocumentSummary(requestedFileKey)),
+          });
+        }
         const document = await bridge.getDocument(requestedFileKey);
         if (action === "summary") {
           return success("figma_document", action, {

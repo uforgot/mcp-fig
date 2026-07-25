@@ -74,7 +74,13 @@ function startFakePlugin(
       if (response.status === 204) continue;
       const command = (await response.json()) as PluginCommand;
       let data: unknown;
-      if (command.method === "selection.get") data = ["2:1"];
+      if (command.method === "document.summary") {
+        data = {
+          document: { id: "0:0", name: "Live file", type: "DOCUMENT" },
+          nodeCount: 2,
+          byType: { DOCUMENT: 1, RECTANGLE: 1 },
+        };
+      } else if (command.method === "selection.get") data = ["2:1"];
       else if (command.method === "node.get") {
         data = [
           { id: "2:1", type: "RECTANGLE", name: "Live node", parentId: "1:0" },
@@ -101,6 +107,9 @@ function startFakePlugin(
         ok: true,
         revision: command.method === "node.update" ? "8" : "7",
         data,
+        pluginReceivedAt: command.dispatchedAt,
+        figmaApiCompletedAt: new Date().toISOString(),
+        sceneTraversalNodeCount: command.method === "node.get" ? 1 : 0,
         receivedAt: new Date().toISOString(),
         completedAt: new Date().toISOString(),
       };
@@ -215,6 +224,14 @@ describe("Desktop Plugin protocol v1", () => {
       name: "Live node",
     });
 
+    const summary = await call(client, "figma_document", {
+      action: "summary",
+    });
+    expect(summary.payload.data).toMatchObject({
+      nodeCount: 2,
+      byType: { DOCUMENT: 1, RECTANGLE: 1 },
+    });
+
     const update = await call(client, "figma_node", {
       action: "update",
       nodeIds: ["2:1"],
@@ -242,9 +259,26 @@ describe("Desktop Plugin protocol v1", () => {
           clientId: "mcp-client-a",
           sessionId: "session-a",
           fileKey: "file-live",
+          serverReceivedAt: expect.any(String),
+          bridgeSentAt: expect.any(String),
+          pluginReceivedAt: expect.any(String),
+          figmaApiCompletedAt: expect.any(String),
+          responseCompletedAt: expect.any(String),
+          requestBytes: expect.any(Number),
+          responseBytes: expect.any(Number),
+          sceneTraversalNodeCount: expect.any(Number),
         }),
       ]),
     );
+    const metricResponse = await json<{
+      metrics: Array<{ requestBytes: number; responseBytes: number }>;
+    }>(`${address.url}/v1/metrics`, {
+      headers: { authorization: "Bearer pair-secret" },
+    });
+    expect(metricResponse.metrics.at(-1)).toMatchObject({
+      requestBytes: expect.any(Number),
+      responseBytes: expect.any(Number),
+    });
   });
 
   it("returns a structured NOT_CONNECTED error instead of fake success", async () => {

@@ -59,6 +59,10 @@ export interface PluginResult {
   };
   receivedAt: string;
   completedAt: string;
+  pluginReceivedAt?: string;
+  figmaApiStartedAt?: string;
+  figmaApiCompletedAt?: string;
+  sceneTraversalNodeCount?: number;
 }
 
 export interface PluginMetric {
@@ -71,9 +75,21 @@ export interface PluginMetric {
   dispatchedAt: string;
   receivedAt: string;
   completedAt: string;
+  serverReceivedAt: string;
+  bridgeSentAt: string;
+  pluginReceivedAt: string;
+  figmaApiStartedAt: string;
+  figmaApiCompletedAt: string;
+  responseCompletedAt: string;
   queueMs: number;
+  requestTransportMs: number;
+  figmaApiMs: number;
+  responseTransportMs: number;
   pluginMs: number;
   totalMs: number;
+  requestBytes: number;
+  responseBytes: number;
+  sceneTraversalNodeCount: number;
   ok: boolean;
 }
 
@@ -162,6 +178,18 @@ export function parseResult(value: unknown): PluginResult {
       : {}),
     receivedAt: stringField(input, "receivedAt"),
     completedAt: stringField(input, "completedAt"),
+    ...(typeof input.pluginReceivedAt === "string"
+      ? { pluginReceivedAt: input.pluginReceivedAt }
+      : {}),
+    ...(typeof input.figmaApiStartedAt === "string"
+      ? { figmaApiStartedAt: input.figmaApiStartedAt }
+      : {}),
+    ...(typeof input.figmaApiCompletedAt === "string"
+      ? { figmaApiCompletedAt: input.figmaApiCompletedAt }
+      : {}),
+    ...(typeof input.sceneTraversalNodeCount === "number"
+      ? { sceneTraversalNodeCount: input.sceneTraversalNodeCount }
+      : {}),
   };
   if (input.ok) return { ...base, data: input.data };
   const rawError = record(input.error);

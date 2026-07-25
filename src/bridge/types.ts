@@ -173,6 +173,12 @@ export interface FigmaFileSummary {
   revision: string;
 }
 
+export interface FigmaDocumentSummary {
+  document: Pick<FigmaNode, "id" | "name" | "type">;
+  nodeCount: number;
+  byType: Record<string, number>;
+}
+
 export interface BridgeStatus {
   connected: boolean;
   mode: BridgeMode;
@@ -510,6 +516,7 @@ export interface FigmaBridge {
   targetFile(fileKey: string): Promise<BridgeStatus>;
   reconnect(): Promise<BridgeStatus>;
   getDocument(fileKey?: string): Promise<FigmaNode>;
+  getDocumentSummary?(fileKey?: string): Promise<FigmaDocumentSummary>;
   getSelection(fileKey?: string): Promise<string[]>;
   getChanges(fileKey?: string): Promise<ChangeRecord[]>;
   getNodes(nodeIds: string[], fileKey?: string): Promise<FigmaNode[]>;

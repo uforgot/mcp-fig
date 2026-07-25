@@ -25,6 +25,7 @@ import type {
   CreateNodeInput,
   DeleteNodesInput,
   FigmaBridge,
+  FigmaDocumentSummary,
   FigmaFileSummary,
   FigmaNode,
   InstanceActionInput,
@@ -127,7 +128,7 @@ function duration(start: string, end: string): number {
 }
 
 function requiredCapability(method: string): PluginCapability {
-  if (method === "document.get" || method === "changes.get")
+  if (method.startsWith("document.") || method === "changes.get")
     return "document.read";
   if (method === "selection.get") return "selection.read";
   if (method === "node.get") return "node.read";
@@ -361,6 +362,13 @@ export class DesktopPluginBridgeHost {
         });
         return;
       }
+      if (request.method === "GET" && url.pathname === "/v1/metrics") {
+        writeJson(response, 200, {
+          protocol: PLUGIN_PROTOCOL_V1,
+          metrics: this.metrics(),
+        });
+        return;
+      }
       if (
         request.method === "POST" &&
         url.pathname === "/v1/session/handshake"
@@ -449,6 +457,7 @@ export class DesktopPluginBridgeHost {
       }
       if (request.method === "POST" && action === "result") {
         const result = parseResult(await readJson(request));
+        const responseCompletedAt = new Date().toISOString();
         const pending = this.#pending.get(result.requestId);
         if (
           !pending ||
@@ -468,7 +477,7 @@ export class DesktopPluginBridgeHost {
         this.#pending.delete(result.requestId);
         clearTimeout(pending.timeout);
         if (result.revision) session.handshake.file.revision = result.revision;
-        this.#recordMetric(pending.command, result);
+        this.#recordMetric(pending.command, result, responseCompletedAt);
         if (result.ok) pending.resolve(result.data);
         else {
           const code =
@@ -519,7 +528,15 @@ export class DesktopPluginBridgeHost {
     return equalToken(bearer, this.#options.token);
   }
 
-  #recordMetric(command: PluginCommand, result: PluginResult): void {
+  #recordMetric(
+    command: PluginCommand,
+    result: PluginResult,
+    responseCompletedAt: string,
+  ): void {
+    const pluginReceivedAt = result.pluginReceivedAt ?? result.receivedAt;
+    const figmaApiStartedAt = result.figmaApiStartedAt ?? pluginReceivedAt;
+    const figmaApiCompletedAt =
+      result.figmaApiCompletedAt ?? result.completedAt;
     this.#metrics.push({
       requestId: command.requestId,
       clientId: command.clientId,
@@ -530,9 +547,21 @@ export class DesktopPluginBridgeHost {
       dispatchedAt: command.dispatchedAt,
       receivedAt: result.receivedAt,
       completedAt: result.completedAt,
+      serverReceivedAt: command.createdAt,
+      bridgeSentAt: command.dispatchedAt,
+      pluginReceivedAt,
+      figmaApiStartedAt,
+      figmaApiCompletedAt,
+      responseCompletedAt,
       queueMs: duration(command.createdAt, command.dispatchedAt),
+      requestTransportMs: duration(command.dispatchedAt, pluginReceivedAt),
+      figmaApiMs: duration(figmaApiStartedAt, figmaApiCompletedAt),
+      responseTransportMs: duration(figmaApiCompletedAt, responseCompletedAt),
       pluginMs: duration(result.receivedAt, result.completedAt),
-      totalMs: duration(command.createdAt, result.completedAt),
+      totalMs: duration(command.createdAt, responseCompletedAt),
+      requestBytes: Buffer.byteLength(JSON.stringify(command)),
+      responseBytes: Buffer.byteLength(JSON.stringify(result)),
+      sceneTraversalNodeCount: result.sceneTraversalNodeCount ?? 0,
       ok: result.ok,
     });
     if (this.#metrics.length > 1_000)
@@ -616,6 +645,14 @@ export class DesktopPluginFigmaBridge implements FigmaBridge {
 
   async getDocument(fileKey?: string): Promise<FigmaNode> {
     return this.#rpc("document.get", {}, fileKey) as Promise<FigmaNode>;
+  }
+
+  async getDocumentSummary(fileKey?: string): Promise<FigmaDocumentSummary> {
+    return this.#rpc(
+      "document.summary",
+      {},
+      fileKey,
+    ) as Promise<FigmaDocumentSummary>;
   }
 
   async getSelection(fileKey?: string): Promise<string[]> {
