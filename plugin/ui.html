@@ -27,11 +27,21 @@
       "document.read", "selection.read", "node.read", "node.write",
       "layout.write", "component.write", "instance.write", "tokens.write"
     ];
-    const sessionId = crypto.randomUUID();
+    function randomId() {
+      if (
+        typeof crypto !== "undefined" &&
+        typeof crypto.randomUUID === "function"
+      ) {
+        return crypto.randomUUID();
+      }
+      return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    }
+    const sessionId = randomId();
     const pluginClientId = `figma-plugin-ui:${sessionId}`;
     const statusNode = document.querySelector("#status");
     let file = null;
     let controller = null;
+    let bootstrapTimer;
     const pending = new Map();
 
     function setStatus(text, ok) {
@@ -46,6 +56,7 @@
       if (!message) return;
       if (message.type === "bridge-bootstrap") {
         file = message.file;
+        if (bootstrapTimer) clearInterval(bootstrapTimer);
         setStatus(`Ready: ${file.name} (${file.key})`);
       }
       if (message.type === "bridge-result") {
@@ -57,6 +68,10 @@
         }
       }
     };
+    bootstrapTimer = setInterval(() => {
+      if (file) return clearInterval(bootstrapTimer);
+      pluginMessage({ type: "bridge-bootstrap" });
+    }, 250);
     pluginMessage({ type: "bridge-bootstrap" });
 
     async function sendToMain(command) {
