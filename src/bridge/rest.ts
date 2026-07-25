@@ -3,13 +3,17 @@ import type {
   BridgeStatus,
   ChangeRecord,
   CloneNodesInput,
+  ComponentActionInput,
+  ComponentRecord,
   CreateNodeInput,
   DeleteNodesInput,
   FigmaBridge,
   FigmaFileSummary,
   FigmaNode,
+  InstanceActionInput,
   MoveNodesInput,
   ResizeNodesInput,
+  TokenActionInput,
   UpdateNodesInput,
 } from "./types.js";
 
@@ -71,6 +75,26 @@ function toNode(raw: Record<string, unknown>, parentId?: string): FigmaNode {
     ...(toPaints(raw.strokes) ? { strokes: toPaints(raw.strokes) } : {}),
     ...(children ? { children } : {}),
   };
+}
+
+function localComponents(root: FigmaNode): ComponentRecord[] {
+  const records: ComponentRecord[] = [];
+  if (root.type === "COMPONENT" || root.type === "COMPONENT_SET") {
+    records.push({
+      source: "local",
+      nodeId: root.id,
+      name: root.name,
+      ...(root.componentKey ? { key: root.componentKey } : {}),
+      ...(root.description ? { description: root.description } : {}),
+      ...(root.componentProperties
+        ? { properties: root.componentProperties }
+        : {}),
+    });
+  }
+  for (const child of root.children ?? []) {
+    records.push(...localComponents(child));
+  }
+  return records;
 }
 
 export class RestFigmaBridge implements FigmaBridge {
@@ -196,6 +220,45 @@ export class RestFigmaBridge implements FigmaBridge {
 
   async deleteNodes(_input: DeleteNodesInput): Promise<string[]> {
     return unsupported("node.delete");
+  }
+
+  async component(
+    input: ComponentActionInput,
+  ): Promise<Record<string, unknown>> {
+    if (input.action === "search" || input.action === "inspect") {
+      const components = localComponents(await this.getDocument(input.fileKey));
+      if (input.action === "search") {
+        const query = input.query?.toLowerCase();
+        return {
+          components: query
+            ? components.filter((component) =>
+                component.name.toLowerCase().includes(query),
+              )
+            : components,
+        };
+      }
+      const component = components.find(
+        (candidate) =>
+          candidate.nodeId === input.componentId ||
+          candidate.key === input.componentKey,
+      );
+      if (!component) {
+        throw new McpFigError(
+          "NODE_NOT_FOUND",
+          "Figma component was not found.",
+        );
+      }
+      return { component };
+    }
+    return unsupported(`component.${input.action}`);
+  }
+
+  async instance(input: InstanceActionInput): Promise<Record<string, unknown>> {
+    return unsupported(`instance.${input.action}`);
+  }
+
+  async tokens(input: TokenActionInput): Promise<Record<string, unknown>> {
+    return unsupported(`tokens.${input.action}`);
   }
 
   async #loadFile(fileKey: string): Promise<RestFileResponse> {

@@ -3,13 +3,16 @@ import type {
   BridgeStatus,
   ChangeRecord,
   CloneNodesInput,
+  ComponentActionInput,
   CreateNodeInput,
   DeleteNodesInput,
   FigmaBridge,
   FigmaFileSummary,
   FigmaNode,
+  InstanceActionInput,
   MoveNodesInput,
   ResizeNodesInput,
+  TokenActionInput,
   UpdateNodesInput,
 } from "./types.js";
 
@@ -80,6 +83,22 @@ export class DisconnectedFigmaBridge implements FigmaBridge {
   }
 
   async deleteNodes(_input: DeleteNodesInput): Promise<string[]> {
+    return notConnected();
+  }
+
+  async component(
+    _input: ComponentActionInput,
+  ): Promise<Record<string, unknown>> {
+    return notConnected();
+  }
+
+  async instance(
+    _input: InstanceActionInput,
+  ): Promise<Record<string, unknown>> {
+    return notConnected();
+  }
+
+  async tokens(_input: TokenActionInput): Promise<Record<string, unknown>> {
     return notConnected();
   }
 }

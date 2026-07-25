@@ -139,6 +139,8 @@ Copy `.env.example` when you need local profile configuration. With no credentia
 
 The fixture adapter and `tests/fixtures/core-file.json` exercise create, update, move, resize, clone, delete preview, confirmation, and deletion through the same `FigmaBridge` contract. See [`docs/bridge-contract.md`](docs/bridge-contract.md).
 
+Component, instance, and variable workflows are exposed through three additional facade tools. Local components remain node-addressed, library components remain key-addressed, and token aliases/modes are explicit. The required search → instance → property → binding flow is covered in five MCP calls. See [`docs/design-system-contract.md`](docs/design-system-contract.md).
+
 ## Contributing
 
 The architecture and implementation tasks are tracked in the MCP Fig project backlog. Contribution guidelines will be added before the first public release.

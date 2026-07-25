@@ -20,7 +20,10 @@ const REGISTERED_CORE_TOOLS = [
   "figma_document",
   "figma_selection",
   "figma_node",
-];
+  "figma_component",
+  "figma_instance",
+  "figma_tokens",
+] as const;
 
 export function registerConnectionTool(
   server: McpServer,

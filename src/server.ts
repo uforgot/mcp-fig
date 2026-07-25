@@ -4,10 +4,13 @@ import { createDefaultBridge } from "./bridge/factory.js";
 import type { FigmaBridge } from "./bridge/types.js";
 import type { ServerConfig } from "./config.js";
 import { ConfirmationStore } from "./confirmations.js";
+import { registerComponentTool } from "./tools/component.js";
 import { registerConnectionTool } from "./tools/connection.js";
 import { registerDocumentTool } from "./tools/document.js";
+import { registerInstanceTool } from "./tools/instance.js";
 import { registerNodeTool } from "./tools/node.js";
 import { registerSelectionTool } from "./tools/selection.js";
+import { registerTokensTool } from "./tools/tokens.js";
 
 export interface ServerOptions {
   bridge?: FigmaBridge;
@@ -29,5 +32,8 @@ export function createMcpServer(
   registerDocumentTool(server, bridge);
   registerSelectionTool(server, bridge);
   registerNodeTool(server, bridge, confirmations);
+  registerComponentTool(server, bridge, config.profiles, confirmations);
+  registerInstanceTool(server, bridge);
+  registerTokensTool(server, bridge, confirmations);
   return server;
 }

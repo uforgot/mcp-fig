@@ -33,9 +33,70 @@
             "y": 8,
             "width": 80,
             "height": 40
+          },
+          {
+            "id": "3:0",
+            "type": "COMPONENT",
+            "name": "Button",
+            "parentId": "1:0",
+            "width": 120,
+            "height": 40,
+            "componentKey": "local-button-key",
+            "componentProperties": {
+              "State": {
+                "type": "VARIANT",
+                "defaultValue": "Default",
+                "options": ["Default", "Hover"]
+              },
+              "Label": {
+                "type": "TEXT",
+                "defaultValue": "Continue"
+              }
+            }
           }
         ]
       }
     ]
-  }
+  },
+  "libraryComponents": [
+    {
+      "source": "library",
+      "key": "library-card-key",
+      "name": "Card",
+      "libraryName": "Product UI"
+    }
+  ],
+  "variableCollections": [
+    {
+      "id": "collection:color",
+      "name": "Color",
+      "defaultModeId": "mode:light",
+      "modes": [{ "id": "mode:light", "name": "Light" }]
+    }
+  ],
+  "variables": [
+    {
+      "id": "variable:brand",
+      "key": "color/brand",
+      "name": "color/brand",
+      "resolvedType": "COLOR",
+      "collectionId": "collection:color",
+      "valuesByMode": {
+        "mode:light": "#0057FF"
+      }
+    },
+    {
+      "id": "variable:accent",
+      "key": "color/accent",
+      "name": "color/accent",
+      "resolvedType": "COLOR",
+      "collectionId": "collection:color",
+      "valuesByMode": {
+        "mode:light": {
+          "type": "VARIABLE_ALIAS",
+          "id": "variable:brand"
+        }
+      }
+    }
+  ]
 }
