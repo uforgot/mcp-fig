@@ -17,7 +17,7 @@ describe("Figma Plugin manifest", () => {
     expect(manifest.networkAccess.devAllowedDomains).toEqual([
       "http://localhost:3847",
     ]);
-    expect(pluginUi).toContain("http://localhost:${port}");
-    expect(pluginUi).not.toContain("http://127.0.0.1:${port}");
+    expect(pluginUi).toMatch(/http:\/\/localhost:\$\{port\}/);
+    expect(pluginUi).not.toMatch(/http:\/\/127\.0\.0\.1:\$\{port\}/);
   });
 });
