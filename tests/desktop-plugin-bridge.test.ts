@@ -144,7 +144,36 @@ async function call(
   };
 }
 
-describe("Desktop Plugin protocol v1", () => {
+describe("Desktop Plugin bridge", () => {
+  it("closes safely after a failed bind", async () => {
+    const owner = new DesktopPluginBridgeHost({ token: "owner", port: 0 });
+    hosts.push(owner);
+    const address = await owner.listen();
+    const blocked = new DesktopPluginBridgeHost({
+      token: "blocked",
+      port: address.port,
+    });
+    hosts.push(blocked);
+
+    await expect(blocked.listen()).rejects.toMatchObject({
+      code: "EADDRINUSE",
+    });
+    await expect(blocked.close()).resolves.toBeUndefined();
+  });
+
+  it("does not finish binding after close races listen", async () => {
+    const host = new DesktopPluginBridgeHost({ token: "race", port: 0 });
+    hosts.push(host);
+    const listening = host.listen().then(
+      () => "listened",
+      () => "closed",
+    );
+
+    await host.close();
+
+    expect(await listening).toBe("closed");
+  });
+
   it("rejects a wrong token, target file, and mismatched result correlation", async () => {
     const host = new DesktopPluginBridgeHost({ token: "pair-secret", port: 0 });
     hosts.push(host);

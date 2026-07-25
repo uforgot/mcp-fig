@@ -16,11 +16,28 @@ async function main(): Promise<void> {
   const shutdown = async (): Promise<void> => {
     if (shuttingDown) return;
     shuttingDown = true;
-    await server.close();
-    await bridge.close?.();
+    let failure: unknown;
+    try {
+      await server.close();
+    } catch (error) {
+      failure = error;
+    }
+    try {
+      await bridge.close?.();
+    } catch (error) {
+      failure ??= error;
+    }
+    if (failure) throw failure;
   };
-  process.stdin.once("end", () => void shutdown());
-  process.stdin.once("close", () => void shutdown());
+  const requestShutdown = (): void => {
+    void shutdown().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[mcp-fig] Failed to shut down: ${message}`);
+      process.exitCode = 1;
+    });
+  };
+  process.stdin.once("end", requestShutdown);
+  process.stdin.once("close", requestShutdown);
 
   await server.connect(transport);
 }

@@ -463,7 +463,6 @@ for (let index = 0; index < startupSamples; index += 1) {
   if (index === startupSamples - 1) active = launched;
   else {
     await launched.client.close();
-    await new Promise((resolve) => setTimeout(resolve, 1500));
   }
 }
 

@@ -168,6 +168,8 @@ export class DesktopPluginBridgeHost {
   readonly #metrics: PluginMetric[] = [];
   #server: Server | undefined;
   #address: HostAddress | undefined;
+  #listenPromise: Promise<HostAddress> | undefined;
+  #closing = false;
 
   constructor(options: HostOptions) {
     if (!options.token)
@@ -180,18 +182,36 @@ export class DesktopPluginBridgeHost {
     };
   }
 
-  async listen(): Promise<HostAddress> {
+  listen(): Promise<HostAddress> {
+    if (this.#address) return Promise.resolve(this.#address);
+    if (this.#closing)
+      return Promise.reject(new Error("Desktop Plugin host is closing."));
+    this.#listenPromise ??= this.#startListening();
+    return this.#listenPromise;
+  }
+
+  async #startListening(): Promise<HostAddress> {
     if (this.#address) return this.#address;
-    this.#server = createServer((request, response) => {
+    const server = createServer((request, response) => {
       void this.#route(request, response);
     });
-    await new Promise<void>((resolve, reject) => {
-      this.#server?.once("error", reject);
-      this.#server?.listen(this.#options.port, "127.0.0.1", () => resolve());
-    });
-    const address = this.#server.address();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(this.#options.port, "127.0.0.1", () => resolve());
+      });
+    } catch (error) {
+      server.removeAllListeners();
+      throw error;
+    }
+    const address = server.address();
     if (!address || typeof address === "string")
       throw new Error("Desktop Plugin host did not bind a TCP port.");
+    if (this.#closing) {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      throw new Error("Desktop Plugin host closed while binding.");
+    }
+    this.#server = server;
     this.#address = {
       host: "127.0.0.1",
       port: address.port,
@@ -201,6 +221,8 @@ export class DesktopPluginBridgeHost {
   }
 
   async close(): Promise<void> {
+    this.#closing = true;
+    await this.#listenPromise?.catch(() => undefined);
     for (const pending of this.#pending.values()) {
       clearTimeout(pending.timeout);
       pending.reject(
@@ -216,13 +238,13 @@ export class DesktopPluginBridgeHost {
       }
     }
     this.#sessions.clear();
-    if (this.#server) {
-      await new Promise<void>((resolve, reject) =>
-        this.#server?.close((error) => (error ? reject(error) : resolve())),
-      );
-    }
+    const server = this.#server;
     this.#server = undefined;
     this.#address = undefined;
+    if (!server?.listening) return;
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
   }
 
   metrics(): PluginMetric[] {

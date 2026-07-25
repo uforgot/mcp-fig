@@ -59,4 +59,4 @@ MCP Fig's confirmed performance advantage is the smaller MCP surface and faster 
 
 The legacy MCP must remain installed until reconnect/session recovery, multi-agent routing, and fresh-session validation pass.
 
-The cold-start harness waits for the previous stdio process to drain before relaunching. Stdio shutdown also closes the localhost bridge host, and `smoke:plugin` asserts that its port can be rebound, preventing stale hosts from contaminating restart measurements.
+The cold-start harness waits for each previous stdio client to close before relaunching, without a fixed sleep. Stdio shutdown also closes the localhost bridge host. `smoke:plugin` directly spawns `dist/index.js`, closes stdin, and asserts exit code 0 with no signal before checking that the port can be rebound; SDK kill fallback cannot satisfy this check.
