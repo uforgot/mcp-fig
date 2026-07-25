@@ -24,6 +24,19 @@ async function freePort() {
   return address.port;
 }
 
+async function waitForPortRelease(port) {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const probe = createServer();
+    const released = await new Promise((resolve) => {
+      probe.once("error", () => resolve(false));
+      probe.listen(port, "127.0.0.1", () => probe.close(() => resolve(true)));
+    });
+    if (released) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(`Desktop plugin host did not release port ${port}.`);
+}
+
 async function fetchOk(url, init) {
   const response = await fetch(url, init);
   if (!response.ok && response.status !== 204) {
@@ -221,4 +234,5 @@ try {
   controller.abort();
   await client.close();
   await plugin;
+  await waitForPortRelease(port);
 }

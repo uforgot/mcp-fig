@@ -649,6 +649,10 @@ export class DesktopPluginFigmaBridge implements FigmaBridge {
     this.#targetFileKey = options.fileKey;
   }
 
+  async close(): Promise<void> {
+    await this.#host.close();
+  }
+
   async status(): Promise<BridgeStatus> {
     return this.#host.status(this.#targetFileKey);
   }

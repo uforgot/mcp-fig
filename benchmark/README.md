@@ -18,6 +18,12 @@ Raw results:
 - [`raw/mcp-fig-after.json`](raw/mcp-fig-after.json)
 - [`raw/legacy-after.json`](raw/legacy-after.json)
 
+## Acceptance limitation
+
+The two runs used the same Mac, Figma Desktop file, node types, and operations, but the raw fixture IDs differ (`7:17`/`7:18` versus `7:43`/`7:44`). The operation table is therefore a workload-level diagnostic, not proof of the stricter same-node requirement. A fresh paired run against one preserved fixture is still required for that criterion.
+
+MCP Fig was faster in **0 of 8 operation p50 cases** in this run, so the “lower p50 in a majority of cases” product criterion is not met. The legacy MCP must remain installed.
+
 ## Startup and surface
 
 | Metric | MCP Fig | Legacy | MCP Fig / Legacy |
@@ -52,3 +58,5 @@ Values are `p50 / p95` in milliseconds.
 MCP Fig's confirmed performance advantage is the smaller MCP surface and faster median startup/handshake. Steady-state operations remain in the low-millisecond range for both implementations. MCP Fig is not universally faster: selection, layout, token, and instance paths have higher tails and should be profiled after reconnect and multi-agent isolation are complete.
 
 The legacy MCP must remain installed until reconnect/session recovery, multi-agent routing, and fresh-session validation pass.
+
+The cold-start harness waits for the previous stdio process to drain before relaunching. Stdio shutdown also closes the localhost bridge host, and `smoke:plugin` asserts that its port can be rebound, preventing stale hosts from contaminating restart measurements.

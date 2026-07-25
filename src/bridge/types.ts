@@ -519,6 +519,7 @@ export type TokenActionInput =
     };
 
 export interface FigmaBridge {
+  close?(): Promise<void> | void;
   status(): Promise<BridgeStatus>;
   listFiles(): Promise<FigmaFileSummary[]>;
   targetFile(fileKey: string): Promise<BridgeStatus>;
