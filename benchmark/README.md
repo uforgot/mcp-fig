@@ -15,28 +15,33 @@ Measured on 2026-07-25 against a real Figma Desktop file (`Untitled`).
 
 Raw results:
 
+- [`raw/live-paired-fixture.json`](raw/live-paired-fixture.json)
+- [`raw/mcp-fig-paired.json`](raw/mcp-fig-paired.json)
+- [`raw/legacy-paired.json`](raw/legacy-paired.json)
 - [`raw/mcp-fig-after.json`](raw/mcp-fig-after.json)
 - [`raw/legacy-after.json`](raw/legacy-after.json)
 
+The `*-paired.json` runs used one preserved fixture in the same Figma file: page `0:1`, frame `20:2`, node `20:3`, and component `20:4`. Both raw files embed the complete fixture identity in `metadata.fixture`, and both `node_read` payloads confirm node `20:3` (`Benchmark Node B`).
+
 ## Acceptance limitation
 
-The two runs used the same Mac, Figma Desktop file, node types, and operations, but the raw fixture IDs differ (`7:17`/`7:18` versus `7:43`/`7:44`). The operation table is therefore a workload-level diagnostic, not proof of the stricter same-node requirement. A fresh paired run against one preserved fixture is still required for that criterion.
+The paired node read, node write, Auto Layout, component, token, and instance cases ran against the same preserved fixture. Selection is not a strict same-selection comparison: MCP Fig observed the selection that existed before its run, while restarting Figma to switch development plugins cleared the legacy selection. Document summary operates on the same file and page, but the facades intentionally return different summary shapes.
 
-MCP Fig was faster in **0 of 8 operation p50 cases** in this run, so the “lower p50 in a majority of cases” product criterion is not met. The legacy MCP must remain installed.
+MCP Fig was faster in **0 of 8 operation p50 cases** in the paired run, so the “lower p50 in a majority of cases” product criterion is not met. The legacy MCP must remain installed. The older `*-after.json` files remain historical workload-level diagnostics and use different fixture IDs (`7:17`/`7:18` versus `7:43`/`7:44`).
 
 ## Startup and surface
 
 | Metric | MCP Fig | Legacy | MCP Fig / Legacy |
 | --- | ---: | ---: | ---: |
-| Initialize p50 | 151.7 ms | 533.8 ms | 0.28× |
-| Initialize p95 | 161.8 ms | 775.6 ms | 0.21× |
-| List tools p50 | 3.1 ms | 6.1 ms | 0.51× |
-| Handshake ready p50 | 420.0 ms | 1039.7 ms | 0.40× |
-| Handshake ready p95 | 3180.4 ms | 1811.0 ms | 1.76× |
+| Initialize p50 | 141.6 ms | 522.0 ms | 0.27× |
+| Initialize p95 | 151.2 ms | 1117.7 ms | 0.14× |
+| List tools p50 | 3.1 ms | 7.2 ms | 0.44× |
+| Handshake ready p50 | 400.7 ms | 1035.9 ms | 0.39× |
+| Handshake ready p95 | 409.0 ms | 1635.6 ms | 0.25× |
 | Runtime tools | 8 | 113 | 7.1% |
 | Tool schema | 16,864 bytes | 145,709 bytes | 11.6% |
 
-The compact facade reduced initialize p50 by 71.6%, handshake-ready p50 by 59.6%, tool count by 92.9%, and schema bytes by 88.4%. MCP Fig handshake p95 remains less stable and needs reconnect/session work.
+The compact facade reduced initialize p50 by 72.9%, handshake-ready p50 by 61.3%, tool count by 92.9%, and schema bytes by 88.4% in the paired run.
 
 ## Live operation latency
 
@@ -44,14 +49,14 @@ Values are `p50 / p95` in milliseconds.
 
 | Case | MCP Fig | Legacy |
 | --- | ---: | ---: |
-| Selection | 2.75 / 17.71 | 0.73 / 0.99 |
-| Node read | 3.50 / 26.27 | 3.29 / 34.76 |
-| Document summary | 2.97 / 19.58 | 2.42 / 28.24 |
-| Single write | 3.23 / 5.25 | 1.85 / 9.85 |
-| Layout batch + validate | 7.74 / 29.11 | 3.82 / 25.17 |
-| Component write | 4.80 / 17.53 | 2.59 / 26.51 |
-| Tokens read | 2.63 / 24.30 | 1.18 / 16.00 |
-| Instance write | 6.09 / 40.58 | 3.63 / 30.39 |
+| Selection (non-strict) | 5.11 / 41.69 | 0.16 / 0.40 |
+| Node read | 2.20 / 40.21 | 1.05 / 83.71 |
+| Document summary | 3.24 / 23.97 | 1.03 / 4.19 |
+| Single write | 2.48 / 27.26 | 1.01 / 2.44 |
+| Layout batch + validate | 6.93 / 32.37 | 2.30 / 94.23 |
+| Component write | 3.49 / 23.86 | 1.38 / 23.88 |
+| Tokens read | 1.65 / 37.67 | 0.31 / 1.35 |
+| Instance write | 4.44 / 27.39 | 2.34 / 64.00 |
 
 ## Conclusion
 
