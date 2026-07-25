@@ -1,0 +1,954 @@
+{
+  "manifestVersion": "0.1.0-draft",
+  "defaultProfile": "core",
+  "policies": {
+    "actionDiscriminator": "action",
+    "unknownFields": "reject",
+    "destructiveConfirmation": "confirm must equal target-specific summary token",
+    "dryRunDefaultForHighRisk": "true when the action can produce a deterministic preview; raw execute is excluded",
+    "resultEnvelope": [
+      "ok",
+      "tool",
+      "action",
+      "target",
+      "data",
+      "changes",
+      "warnings",
+      "traceId"
+    ],
+    "errorEnvelope": [
+      "ok=false",
+      "error.code",
+      "error.message",
+      "error.retryable",
+      "error.details",
+      "traceId"
+    ]
+  },
+  "profiles": {
+    "core": {
+      "default": true,
+      "tools": [
+        "figma_connection",
+        "figma_document",
+        "figma_selection",
+        "figma_node",
+        "figma_layout",
+        "figma_component",
+        "figma_instance",
+        "figma_tokens",
+        "figma_styles",
+        "figma_screenshot",
+        "figma_audit",
+        "figma_annotation"
+      ],
+      "extends": {}
+    },
+    "tokens": {
+      "default": false,
+      "tools": [],
+      "extends": {
+        "figma_tokens": [
+          "import",
+          "export"
+        ]
+      }
+    },
+    "libraries": {
+      "default": false,
+      "tools": [],
+      "extends": {
+        "figma_component": [
+          "library_search",
+          "library_inspect"
+        ],
+        "figma_tokens": [
+          "library_list",
+          "library_import"
+        ]
+      }
+    },
+    "collaboration": {
+      "default": false,
+      "tools": [
+        "figma_collaboration"
+      ],
+      "extends": {}
+    },
+    "history": {
+      "default": false,
+      "tools": [
+        "figma_history"
+      ],
+      "extends": {}
+    },
+    "slides": {
+      "default": false,
+      "tools": [
+        "figma_slides"
+      ],
+      "extends": {}
+    },
+    "figjam": {
+      "default": false,
+      "tools": [
+        "figma_figjam"
+      ],
+      "extends": {}
+    },
+    "debug": {
+      "default": false,
+      "tools": [],
+      "extends": {
+        "figma_connection": [
+          "logs",
+          "watch_logs",
+          "clear_logs",
+          "reload_plugin"
+        ]
+      }
+    },
+    "advanced": {
+      "default": false,
+      "tools": [
+        "figma_execute"
+      ],
+      "extends": {
+        "figma_document": [
+          "plugin_view"
+        ],
+        "figma_audit": [
+          "accessibility",
+          "design_system",
+          "design_code"
+        ]
+      }
+    }
+  },
+  "tools": {
+    "figma_connection": {
+      "profile": "core",
+      "actions": {
+        "status": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "list_files": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "target": {
+          "mode": "control",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "fileKey|url"
+          ]
+        },
+        "reconnect": {
+          "mode": "control",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "capabilities": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "logs": {
+          "mode": "read",
+          "profile": "debug",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "watch_logs": {
+          "mode": "read",
+          "profile": "debug",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "clear_logs": {
+          "mode": "control",
+          "profile": "debug",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "reload_plugin": {
+          "mode": "control",
+          "profile": "debug",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        }
+      }
+    },
+    "figma_document": {
+      "profile": "core",
+      "actions": {
+        "inspect": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "fileKey?"
+          ]
+        },
+        "summary": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "changes": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "plugin_view": {
+          "mode": "read",
+          "profile": "advanced",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        }
+      }
+    },
+    "figma_selection": {
+      "profile": "core",
+      "actions": {
+        "get": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "inspect": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        }
+      }
+    },
+    "figma_node": {
+      "profile": "core",
+      "actions": {
+        "get": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "nodeIds"
+          ]
+        },
+        "create": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "parentId",
+            "nodeType"
+          ]
+        },
+        "update": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "nodeIds",
+            "patch"
+          ]
+        },
+        "move": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "nodeIds",
+            "parentId?",
+            "index?"
+          ]
+        },
+        "resize": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "nodeIds",
+            "size"
+          ]
+        },
+        "clone": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "nodeIds"
+          ]
+        },
+        "delete": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "destructive",
+          "dryRun": true,
+          "required": [
+            "nodeIds",
+            "confirm"
+          ]
+        }
+      }
+    },
+    "figma_layout": {
+      "profile": "core",
+      "actions": {
+        "inspect": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "nodeIds"
+          ]
+        },
+        "apply": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "nodeIds",
+            "layout"
+          ]
+        },
+        "sizing": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "nodeIds",
+            "sizing"
+          ]
+        },
+        "batch": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "operations"
+          ]
+        },
+        "validate": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "nodeIds"
+          ]
+        },
+        "repair": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "guarded",
+          "dryRun": true,
+          "required": [
+            "nodeIds",
+            "issueCodes"
+          ]
+        }
+      }
+    },
+    "figma_component": {
+      "profile": "core",
+      "actions": {
+        "search": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "query?"
+          ]
+        },
+        "inspect": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "componentId|componentKey"
+          ]
+        },
+        "create_set": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "parentId",
+            "axes"
+          ]
+        },
+        "arrange_set": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "componentSetId"
+          ]
+        },
+        "set_description": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "componentId",
+            "description"
+          ]
+        },
+        "property_add": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "componentId",
+            "property"
+          ]
+        },
+        "property_update": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "componentId",
+            "propertyName",
+            "patch"
+          ]
+        },
+        "property_delete": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "destructive",
+          "dryRun": true,
+          "required": [
+            "componentId",
+            "propertyName",
+            "confirm"
+          ]
+        },
+        "slots": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "componentId"
+          ]
+        },
+        "slot_create": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "componentId",
+            "slot"
+          ]
+        },
+        "library_search": {
+          "mode": "read",
+          "profile": "libraries",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "query?"
+          ]
+        },
+        "library_inspect": {
+          "mode": "read",
+          "profile": "libraries",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "componentKey"
+          ]
+        }
+      }
+    },
+    "figma_instance": {
+      "profile": "core",
+      "actions": {
+        "create": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "componentId|componentKey",
+            "parentId"
+          ]
+        },
+        "update": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "instanceIds",
+            "properties"
+          ]
+        },
+        "slot_append": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "instanceId",
+            "slotName",
+            "content"
+          ]
+        },
+        "slot_reset": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "instanceId",
+            "slotName"
+          ]
+        }
+      }
+    },
+    "figma_tokens": {
+      "profile": "core",
+      "actions": {
+        "inspect": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "apply": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "operations"
+          ]
+        },
+        "collection_create": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "name"
+          ]
+        },
+        "collection_delete": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "destructive",
+          "dryRun": true,
+          "required": [
+            "collectionId",
+            "confirm"
+          ]
+        },
+        "import": {
+          "mode": "write",
+          "profile": "tokens",
+          "risk": "destructive",
+          "dryRun": true,
+          "required": [
+            "format",
+            "payload",
+            "strategy",
+            "confirm?"
+          ]
+        },
+        "export": {
+          "mode": "read",
+          "profile": "tokens",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "format"
+          ]
+        },
+        "library_list": {
+          "mode": "read",
+          "profile": "libraries",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "library_import": {
+          "mode": "write",
+          "profile": "libraries",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "variableKey"
+          ]
+        }
+      }
+    },
+    "figma_styles": {
+      "profile": "core",
+      "actions": {
+        "inspect": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "types?"
+          ]
+        }
+      }
+    },
+    "figma_screenshot": {
+      "profile": "core",
+      "actions": {
+        "capture": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "nodeIds?",
+            "format?"
+          ]
+        }
+      }
+    },
+    "figma_audit": {
+      "profile": "core",
+      "actions": {
+        "verify": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "nodeIds?"
+          ]
+        },
+        "lint": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "nodeIds?"
+          ]
+        },
+        "accessibility": {
+          "mode": "read",
+          "profile": "advanced",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "design_system": {
+          "mode": "read",
+          "profile": "advanced",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "design_code": {
+          "mode": "read",
+          "profile": "advanced",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        }
+      }
+    },
+    "figma_annotation": {
+      "profile": "core",
+      "actions": {
+        "categories": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "get": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "nodeIds?"
+          ]
+        },
+        "set": {
+          "mode": "write",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "nodeIds",
+            "annotations"
+          ]
+        }
+      }
+    },
+    "figma_execute": {
+      "profile": "advanced",
+      "actions": {
+        "run": {
+          "mode": "write",
+          "profile": "advanced",
+          "risk": "destructive",
+          "dryRun": false,
+          "required": [
+            "code",
+            "confirm"
+          ]
+        }
+      }
+    },
+    "figma_collaboration": {
+      "profile": "collaboration",
+      "actions": {
+        "comments": {
+          "mode": "read",
+          "profile": "collaboration",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "comment_post": {
+          "mode": "write",
+          "profile": "collaboration",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "message"
+          ]
+        },
+        "comment_delete": {
+          "mode": "write",
+          "profile": "collaboration",
+          "risk": "destructive",
+          "dryRun": true,
+          "required": [
+            "commentId",
+            "confirm"
+          ]
+        }
+      }
+    },
+    "figma_history": {
+      "profile": "history",
+      "actions": {
+        "list": {
+          "mode": "read",
+          "profile": "history",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "snapshot": {
+          "mode": "read",
+          "profile": "history",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "versionId"
+          ]
+        },
+        "diff": {
+          "mode": "read",
+          "profile": "history",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "fromVersion",
+            "toVersion?"
+          ]
+        },
+        "changes": {
+          "mode": "read",
+          "profile": "history",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "sinceVersion"
+          ]
+        },
+        "changelog": {
+          "mode": "read",
+          "profile": "history",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "fromVersion",
+            "toVersion?"
+          ]
+        },
+        "blame": {
+          "mode": "read",
+          "profile": "history",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "nodeId",
+            "property?"
+          ]
+        }
+      }
+    },
+    "figma_slides": {
+      "profile": "slides",
+      "actions": {
+        "list": {
+          "mode": "read",
+          "profile": "slides",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "inspect": {
+          "mode": "read",
+          "profile": "slides",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "slideId?"
+          ]
+        },
+        "create": {
+          "mode": "write",
+          "profile": "slides",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "deckId?"
+          ]
+        },
+        "duplicate": {
+          "mode": "write",
+          "profile": "slides",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "slideId"
+          ]
+        },
+        "update": {
+          "mode": "write",
+          "profile": "slides",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "slideIds",
+            "patch"
+          ]
+        },
+        "reorder": {
+          "mode": "write",
+          "profile": "slides",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "slideIds"
+          ]
+        },
+        "delete": {
+          "mode": "write",
+          "profile": "slides",
+          "risk": "destructive",
+          "dryRun": true,
+          "required": [
+            "slideIds",
+            "confirm"
+          ]
+        }
+      }
+    },
+    "figma_figjam": {
+      "profile": "figjam",
+      "actions": {
+        "inspect": {
+          "mode": "read",
+          "profile": "figjam",
+          "risk": "normal",
+          "dryRun": false,
+          "required": []
+        },
+        "create": {
+          "mode": "write",
+          "profile": "figjam",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "kind",
+            "items"
+          ]
+        },
+        "connect": {
+          "mode": "write",
+          "profile": "figjam",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "fromId",
+            "toId"
+          ]
+        },
+        "arrange": {
+          "mode": "write",
+          "profile": "figjam",
+          "risk": "normal",
+          "dryRun": true,
+          "required": [
+            "nodeIds",
+            "layout"
+          ]
+        }
+      }
+    }
+  }
+}
