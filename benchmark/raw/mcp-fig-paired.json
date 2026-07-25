@@ -154,9 +154,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -396,9 +394,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -472,9 +468,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -543,10 +537,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -775,9 +766,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -1017,9 +1006,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -1093,9 +1080,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -1164,10 +1149,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -1396,9 +1378,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -1638,9 +1618,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -1714,9 +1692,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -1785,10 +1761,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -2017,9 +1990,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -2259,9 +2230,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -2335,9 +2304,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -2406,10 +2373,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -2638,9 +2602,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -2880,9 +2842,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -2956,9 +2916,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -3027,10 +2985,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -3259,9 +3214,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -3501,9 +3454,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -3577,9 +3528,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -3648,10 +3597,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -3880,9 +3826,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -4122,9 +4066,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -4198,9 +4140,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -4269,10 +4209,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -4501,9 +4438,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -4743,9 +4678,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -4819,9 +4752,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -4890,10 +4821,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -5122,9 +5050,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -5364,9 +5290,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -5440,9 +5364,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -5511,10 +5433,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -5743,9 +5662,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -5985,9 +5902,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -6061,9 +5976,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -6132,10 +6045,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -6364,9 +6274,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -6606,9 +6514,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -6682,9 +6588,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -6753,10 +6657,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -6985,9 +6886,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -7227,9 +7126,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -7303,9 +7200,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -7374,10 +7269,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -7606,9 +7498,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -7848,9 +7738,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -7924,9 +7812,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -7995,10 +7881,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -8227,9 +8110,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -8469,9 +8350,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -8545,9 +8424,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -8616,10 +8493,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -8848,9 +8722,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -9090,9 +8962,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -9166,9 +9036,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -9237,10 +9105,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -9469,9 +9334,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -9711,9 +9574,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -9787,9 +9648,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -9858,10 +9717,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -10090,9 +9946,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -10332,9 +10186,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -10408,9 +10260,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -10479,10 +10329,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -10711,9 +10558,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -10953,9 +10798,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -11029,9 +10872,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -11100,10 +10941,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -11332,9 +11170,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -11574,9 +11410,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -11650,9 +11484,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -11721,10 +11553,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
@@ -11953,9 +11782,7 @@
           "tool": "figma_selection",
           "action": "inspect",
           "data": {
-            "nodeIds": [
-              "10:115"
-            ],
+            "nodeIds": ["10:115"],
             "nodes": [
               {
                 "id": "10:115",
@@ -12195,9 +12022,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 8,
@@ -12271,9 +12096,7 @@
                 "nodeId": "20:2",
                 "name": "MCP Fig Benchmark ms0lxh91",
                 "parentId": "0:1",
-                "childIds": [
-                  "20:3"
-                ],
+                "childIds": ["20:3"],
                 "layout": {
                   "layoutMode": "VERTICAL",
                   "gap": 9,
@@ -12342,10 +12165,7 @@
                 }
               }
             ],
-            "appliedOrder": [
-              "apply:20:2",
-              "sizing:20:3"
-            ],
+            "appliedOrder": ["apply:20:2", "sizing:20:3"],
             "dryRun": false
           },
           "changes": [],
