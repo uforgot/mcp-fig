@@ -120,9 +120,26 @@ MCP Fig is an independent project informed by experience with existing Figma MCP
 
 If source code is later adapted from another project, its license and attribution requirements will be preserved.
 
+## Development
+
+Prerequisites: Node.js 20+ and npm.
+
+```bash
+npm install
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npm run smoke
+```
+
+`npm run smoke` builds the server, starts `dist/index.js` over stdio, completes the MCP handshake, lists tools, and calls `figma_connection` with `action: "status"`.
+
+Copy `.env.example` when you need local profile configuration. The current foundation intentionally reports the Figma bridge as `not-configured`; bridge connectivity is implemented in a later roadmap task.
+
 ## Contributing
 
-The architecture and implementation tasks will be tracked in this repository after the initial planning phase. Issues and contribution guidelines will be added before development begins.
+The architecture and implementation tasks are tracked in the MCP Fig project backlog. Contribution guidelines will be added before the first public release.
 
 ## License
 
