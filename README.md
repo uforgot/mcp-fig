@@ -2,7 +2,7 @@
 
 A streamlined MCP server for Figma with an organized tool surface and reliable Auto Layout support.
 
-> **Status:** Planning. MCP Fig is not ready for production use yet.
+> **Status:** Early development. Connection and Core node foundations are implemented, but MCP Fig is not ready for production use yet.
 
 ## Why MCP Fig?
 
@@ -135,7 +135,9 @@ npm run smoke
 
 `npm run smoke` builds the server, starts `dist/index.js` over stdio, completes the MCP handshake, lists tools, and calls `figma_connection` with `action: "status"`.
 
-Copy `.env.example` when you need local profile configuration. The current foundation intentionally reports the Figma bridge as `not-configured`; bridge connectivity is implemented in a later roadmap task.
+Copy `.env.example` when you need local profile configuration. With no credentials, the server safely reports the bridge as `not-configured`. Setting `FIGMA_ACCESS_TOKEN` and `FIGMA_FILE_KEY` enables authenticated REST document and node reads. Current selection and all writes intentionally require a Desktop Plugin bridge; REST-only mode returns `UNSUPPORTED_BY_BRIDGE` instead of pretending a mutation succeeded.
+
+The fixture adapter and `tests/fixtures/core-file.json` exercise create, update, move, resize, clone, delete preview, confirmation, and deletion through the same `FigmaBridge` contract. See [`docs/bridge-contract.md`](docs/bridge-contract.md).
 
 ## Contributing
 

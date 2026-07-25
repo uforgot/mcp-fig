@@ -29,11 +29,16 @@ async function createConnectedClient() {
 }
 
 describe("MCP server", () => {
-  it("completes initialization and lists the foundation tool", async () => {
+  it("completes initialization and lists the implemented core tools", async () => {
     const client = await createConnectedClient();
     const result = await client.listTools();
 
-    expect(result.tools.map((tool) => tool.name)).toEqual(["figma_connection"]);
+    expect(result.tools.map((tool) => tool.name)).toEqual([
+      "figma_connection",
+      "figma_document",
+      "figma_selection",
+      "figma_node",
+    ]);
     expect(result.tools[0]?.inputSchema).toMatchObject({ type: "object" });
   });
 
@@ -60,6 +65,24 @@ describe("MCP server", () => {
     });
   });
 
+  it("returns a common error when a bridge-only tool is called disconnected", async () => {
+    const client = await createConnectedClient();
+    const result = CallToolResultSchema.parse(
+      await client.callTool({
+        name: "figma_document",
+        arguments: { action: "inspect" },
+      }),
+    );
+    const text = result.content.find((item) => item.type === "text");
+    const payload = JSON.parse(text?.type === "text" ? text.text : "{}");
+
+    expect(result.isError).toBe(true);
+    expect(payload.error).toMatchObject({
+      code: "NOT_CONNECTED",
+      retryable: true,
+    });
+  });
+
   it("reports enabled profiles through capability discovery", async () => {
     const client = await createConnectedClient();
     const result = CallToolResultSchema.parse(
@@ -73,7 +96,12 @@ describe("MCP server", () => {
 
     expect(payload.data).toMatchObject({
       profiles: ["core"],
-      registeredTools: ["figma_connection"],
+      registeredTools: [
+        "figma_connection",
+        "figma_document",
+        "figma_selection",
+        "figma_node",
+      ],
       dryRun: true,
       rawExecuteDryRun: false,
     });

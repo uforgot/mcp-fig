@@ -1,94 +1,33 @@
-import { randomUUID } from "node:crypto";
-
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 
+import { createDefaultBridge } from "./bridge/factory.js";
+import type { FigmaBridge } from "./bridge/types.js";
 import type { ServerConfig } from "./config.js";
+import { ConfirmationStore } from "./confirmations.js";
+import { registerConnectionTool } from "./tools/connection.js";
+import { registerDocumentTool } from "./tools/document.js";
+import { registerNodeTool } from "./tools/node.js";
+import { registerSelectionTool } from "./tools/selection.js";
 
-const connectionInputSchema = z
-  .object({
-    action: z.enum(["status", "capabilities"]),
-  })
-  .strict();
-
-interface ResultEnvelope {
-  ok: true;
-  tool: "figma_connection";
-  action: "status" | "capabilities";
-  data: Record<string, unknown>;
-  warnings: string[];
-  traceId: string;
+export interface ServerOptions {
+  bridge?: FigmaBridge;
+  confirmations?: ConfirmationStore;
 }
 
-function asToolResult(payload: ResultEnvelope) {
-  return {
-    content: [
-      {
-        type: "text" as const,
-        text: JSON.stringify(payload),
-      },
-    ],
-  };
-}
-
-function registerConnectionTool(server: McpServer, config: ServerConfig): void {
-  server.registerTool(
-    "figma_connection",
-    {
-      title: "Figma connection",
-      description:
-        "Inspect MCP Fig health and discover the capabilities enabled for this server process.",
-      inputSchema: connectionInputSchema,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-    },
-    async ({ action }) => {
-      const common = {
-        ok: true as const,
-        tool: "figma_connection" as const,
-        action,
-        warnings: [],
-        traceId: randomUUID(),
-      };
-
-      if (action === "status") {
-        return asToolResult({
-          ...common,
-          data: {
-            connected: false,
-            bridge: "not-configured",
-            serverVersion: config.version,
-          },
-        });
-      }
-
-      return asToolResult({
-        ...common,
-        data: {
-          profiles: config.profiles,
-          registeredTools: ["figma_connection"],
-          dryRun: true,
-          rawExecuteDryRun: false,
-          bridge: {
-            connected: false,
-            mode: "not-configured",
-          },
-        },
-      });
-    },
-  );
-}
-
-export function createMcpServer(config: ServerConfig): McpServer {
+export function createMcpServer(
+  config: ServerConfig,
+  options: ServerOptions = {},
+): McpServer {
   const server = new McpServer({
     name: "mcp-fig",
     version: config.version,
   });
+  const bridge = options.bridge ?? createDefaultBridge(config);
+  const confirmations = options.confirmations ?? new ConfirmationStore();
 
-  registerConnectionTool(server, config);
+  registerConnectionTool(server, config, bridge);
+  registerDocumentTool(server, bridge);
+  registerSelectionTool(server, bridge);
+  registerNodeTool(server, bridge, confirmations);
   return server;
 }

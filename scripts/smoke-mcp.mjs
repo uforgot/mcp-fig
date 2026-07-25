@@ -15,6 +15,13 @@ const transport = new StdioClientTransport({
   stderr: "pipe",
 });
 
+const expectedTools = [
+  "figma_connection",
+  "figma_document",
+  "figma_selection",
+  "figma_node",
+];
+
 try {
   await client.connect(transport);
   const tools = await client.listTools();
@@ -27,8 +34,11 @@ try {
   const text = result.content.find((item) => item.type === "text");
   const status = JSON.parse(text?.type === "text" ? text.text : "{}");
 
-  if (tools.tools.map((tool) => tool.name).join(",") !== "figma_connection") {
-    throw new Error("Unexpected foundation tool list");
+  if (
+    JSON.stringify(tools.tools.map((tool) => tool.name)) !==
+    JSON.stringify(expectedTools)
+  ) {
+    throw new Error("Unexpected implemented Core tool list");
   }
   if (status.ok !== true || status.data?.connected !== false) {
     throw new Error("Unexpected foundation health response");

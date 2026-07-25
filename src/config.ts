@@ -19,6 +19,11 @@ export interface ServerConfig {
   version: string;
   profiles: ProfileName[];
   logLevel: LogLevel;
+  figmaRest?: {
+    accessToken: string;
+    fileKey?: string | undefined;
+    baseUrl: string;
+  };
 }
 
 function parseProfiles(value: string | undefined): ProfileName[] {
@@ -56,5 +61,14 @@ export function loadConfig(
     version: env.MCP_FIG_VERSION ?? "0.0.0",
     profiles: parseProfiles(env.MCP_FIG_PROFILES),
     logLevel: parseLogLevel(env.MCP_FIG_LOG_LEVEL),
+    ...(env.FIGMA_ACCESS_TOKEN
+      ? {
+          figmaRest: {
+            accessToken: env.FIGMA_ACCESS_TOKEN,
+            fileKey: env.FIGMA_FILE_KEY,
+            baseUrl: env.FIGMA_API_BASE_URL ?? "https://api.figma.com",
+          },
+        }
+      : {}),
   };
 }

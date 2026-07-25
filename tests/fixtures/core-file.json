@@ -1,0 +1,41 @@
+{
+  "key": "fixture-file",
+  "name": "Core fixture",
+  "selection": ["2:1"],
+  "document": {
+    "id": "0:0",
+    "type": "DOCUMENT",
+    "name": "Core fixture",
+    "children": [
+      {
+        "id": "1:0",
+        "type": "PAGE",
+        "name": "Page 1",
+        "parentId": "0:0",
+        "children": [
+          {
+            "id": "2:0",
+            "type": "FRAME",
+            "name": "Destination",
+            "parentId": "1:0",
+            "x": 0,
+            "y": 0,
+            "width": 400,
+            "height": 400,
+            "children": []
+          },
+          {
+            "id": "2:1",
+            "type": "RECTANGLE",
+            "name": "Selected rectangle",
+            "parentId": "1:0",
+            "x": 8,
+            "y": 8,
+            "width": 80,
+            "height": 40
+          }
+        ]
+      }
+    ]
+  }
+}
