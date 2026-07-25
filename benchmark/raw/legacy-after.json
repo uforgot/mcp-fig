@@ -1,0 +1,3717 @@
+{
+  "metadata": {
+    "target": "legacy",
+    "comparatorVersion": "1.37.1",
+    "timestamp": "2026-07-25T13:24:29.804Z",
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v25.9.0",
+    "samples": 20,
+    "startupSamples": 5,
+    "fixture": {
+      "createdAt": "2026-07-25T13:02:14.592Z",
+      "pageId": "0:1",
+      "frameId": "7:43",
+      "nodeId": "7:44",
+      "componentId": "7:45",
+      "componentKey": "7e66bd0db0eabef247e19f84f0b861b8a7a65401",
+      "componentName": "Benchmark Component ms0dpdim"
+    }
+  },
+  "startup": [
+    {
+      "sample": 0,
+      "initializeMs": 775.6134999999999,
+      "toolsListMs": 6.837750000000028,
+      "processToToolsCompleteMs": 782.453,
+      "toolCount": 113,
+      "schemaBytes": 145709,
+      "handshakeReadyMs": 1810.9630829999999
+    },
+    {
+      "sample": 1,
+      "initializeMs": 514.1662909999995,
+      "toolsListMs": 7.135040999999546,
+      "processToToolsCompleteMs": 521.3015409999998,
+      "toolCount": 113,
+      "schemaBytes": 145709,
+      "handshakeReadyMs": 778.0989579999996
+    },
+    {
+      "sample": 2,
+      "initializeMs": 533.7707500000006,
+      "toolsListMs": 5.835667000000285,
+      "processToToolsCompleteMs": 539.6066250000003,
+      "toolCount": 113,
+      "schemaBytes": 145709,
+      "handshakeReadyMs": 797.1264169999995
+    },
+    {
+      "sample": 3,
+      "initializeMs": 525.9779580000013,
+      "toolsListMs": 5.568917000000511,
+      "processToToolsCompleteMs": 531.5470830000013,
+      "toolCount": 113,
+      "schemaBytes": 145709,
+      "handshakeReadyMs": 1039.7110830000001
+    },
+    {
+      "sample": 4,
+      "initializeMs": 578.9572090000001,
+      "toolsListMs": 6.103250000000116,
+      "processToToolsCompleteMs": 585.0605840000007,
+      "toolCount": 113,
+      "schemaBytes": 145709,
+      "handshakeReadyMs": 1094.5553340000006
+    }
+  ],
+  "startupSummary": {
+    "initializeP50Ms": 533.7707500000006,
+    "initializeP95Ms": 775.6134999999999,
+    "toolsListP50Ms": 6.103250000000116,
+    "toolsListP95Ms": 7.135040999999546,
+    "handshakeReadyP50Ms": 1039.7110830000001,
+    "handshakeReadyP95Ms": 1810.9630829999999,
+    "toolCount": 113,
+    "schemaBytes": 145709
+  },
+  "summary": {
+    "selection": {
+      "samples": 20,
+      "p50Ms": 0.7284579999995913,
+      "p95Ms": 0.9948750000003201,
+      "requestBytesP50": 45,
+      "responseBytesP50": 213,
+      "callsPerSample": 1
+    },
+    "node_read": {
+      "samples": 20,
+      "p50Ms": 3.288875000000189,
+      "p95Ms": 34.75891599999886,
+      "requestBytesP50": 211,
+      "responseBytesP50": 248,
+      "callsPerSample": 1
+    },
+    "document_summary": {
+      "samples": 20,
+      "p50Ms": 2.4224579999990965,
+      "p95Ms": 28.236958999999842,
+      "requestBytesP50": 231,
+      "responseBytesP50": 262,
+      "callsPerSample": 1
+    },
+    "single_write": {
+      "samples": 20,
+      "p50Ms": 1.8453330000011192,
+      "p95Ms": 9.853542000000743,
+      "requestBytesP50": 87,
+      "responseBytesP50": 235,
+      "callsPerSample": 1
+    },
+    "layout_batch_validate": {
+      "samples": 20,
+      "p50Ms": 3.8188330000011774,
+      "p95Ms": 25.168249999998807,
+      "requestBytesP50": 594,
+      "responseBytesP50": 377,
+      "callsPerSample": 2
+    },
+    "component_write": {
+      "samples": 20,
+      "p50Ms": 2.588999999999942,
+      "p95Ms": 26.51154200000019,
+      "requestBytesP50": 185,
+      "responseBytesP50": 177,
+      "callsPerSample": 1
+    },
+    "tokens_read": {
+      "samples": 20,
+      "p50Ms": 1.1806250000008731,
+      "p95Ms": 16.004624999999578,
+      "requestBytesP50": 106,
+      "responseBytesP50": 421,
+      "callsPerSample": 1
+    },
+    "instance_write": {
+      "samples": 20,
+      "p50Ms": 3.628832999998849,
+      "p95Ms": 30.387791999999536,
+      "requestBytesP50": 206,
+      "responseBytesP50": 145,
+      "callsPerSample": 1
+    }
+  },
+  "samples": [
+    {
+      "case": "selection",
+      "durationMs": 0.9806669999998121,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 0
+    },
+    {
+      "case": "node_read",
+      "durationMs": 1.973374999999578,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node B",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985866641
+        }
+      ],
+      "sample": 0
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 20.910750000000917,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 22
+          },
+          "timestamp": 1784985866661
+        }
+      ],
+      "sample": 0
+    },
+    {
+      "case": "single_write",
+      "durationMs": 2.908792000000176,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node A\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node A",
+            "oldName": "Benchmark Node B"
+          }
+        }
+      ],
+      "sample": 0
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 3.948958999999377,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985866666
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 8,
+            "childCount": 1
+          },
+          "timestamp": 1784985866668
+        }
+      ],
+      "sample": 0
+    },
+    {
+      "case": "component_write",
+      "durationMs": 1.841374999999971,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-A"
+          },
+          "timestamp": 1784985866670
+        }
+      ],
+      "sample": 0
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 1.0040829999998095,
+      "requestBytes": 106,
+      "responseBytes": 421,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "cache",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          }
+        }
+      ],
+      "sample": 0
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 3.186582999998791,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:61"
+          },
+          "timestamp": 1784985866674
+        }
+      ],
+      "sample": 0
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.7402500000007421,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 1
+    },
+    {
+      "case": "node_read",
+      "durationMs": 25.27124999999978,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node A",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985866699
+        }
+      ],
+      "sample": 1
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 2.0425000000013824,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 23
+          },
+          "timestamp": 1784985866702
+        }
+      ],
+      "sample": 1
+    },
+    {
+      "case": "single_write",
+      "durationMs": 2.3057909999988624,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node B\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node B",
+            "oldName": "Benchmark Node A"
+          }
+        }
+      ],
+      "sample": 1
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 16.121917000000394,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985866707
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 9,
+            "childCount": 1
+          },
+          "timestamp": 1784985866721
+        }
+      ],
+      "sample": 1
+    },
+    {
+      "case": "component_write",
+      "durationMs": 2.588999999999942,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-B"
+          },
+          "timestamp": 1784985866723
+        }
+      ],
+      "sample": 1
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 9.500333999998475,
+      "requestBytes": 106,
+      "responseBytes": 451,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "desktop_connection",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          },
+          "cached": false
+        }
+      ],
+      "sample": 1
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 3.1025829999998678,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:62"
+          },
+          "timestamp": 1784985866736
+        }
+      ],
+      "sample": 1
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.7284579999995913,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 2
+    },
+    {
+      "case": "node_read",
+      "durationMs": 2.2859170000010636,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node B",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985866739
+        }
+      ],
+      "sample": 2
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 25.366625000000568,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 24
+          },
+          "timestamp": 1784985866764
+        }
+      ],
+      "sample": 2
+    },
+    {
+      "case": "single_write",
+      "durationMs": 2.241707999999562,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node A\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node A",
+            "oldName": "Benchmark Node B"
+          }
+        }
+      ],
+      "sample": 2
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 3.8833749999994325,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985866769
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 8,
+            "childCount": 1
+          },
+          "timestamp": 1784985866771
+        }
+      ],
+      "sample": 2
+    },
+    {
+      "case": "component_write",
+      "durationMs": 2.530790999999226,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-A"
+          },
+          "timestamp": 1784985866773
+        }
+      ],
+      "sample": 2
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 0.9495839999999589,
+      "requestBytes": 106,
+      "responseBytes": 421,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "cache",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          }
+        }
+      ],
+      "sample": 2
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 16.143874999999753,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:63"
+          },
+          "timestamp": 1784985866790
+        }
+      ],
+      "sample": 2
+    },
+    {
+      "case": "selection",
+      "durationMs": 4.898875000000771,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 3
+    },
+    {
+      "case": "node_read",
+      "durationMs": 26.11004200000025,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node A",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985866819
+        }
+      ],
+      "sample": 3
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 5.78099999999904,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 25
+          },
+          "timestamp": 1784985866826
+        }
+      ],
+      "sample": 3
+    },
+    {
+      "case": "single_write",
+      "durationMs": 2.262332999998762,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node B\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node B",
+            "oldName": "Benchmark Node A"
+          }
+        }
+      ],
+      "sample": 3
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 5.457875000000058,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985866833
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 9,
+            "childCount": 1
+          },
+          "timestamp": 1784985866835
+        }
+      ],
+      "sample": 3
+    },
+    {
+      "case": "component_write",
+      "durationMs": 3.4435410000005504,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-B"
+          },
+          "timestamp": 1784985866838
+        }
+      ],
+      "sample": 3
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 2.678165999999692,
+      "requestBytes": 106,
+      "responseBytes": 451,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "desktop_connection",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          },
+          "cached": false
+        }
+      ],
+      "sample": 3
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 69.25799999999981,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:64"
+          },
+          "timestamp": 1784985866910
+        }
+      ],
+      "sample": 3
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.5293750000000728,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 4
+    },
+    {
+      "case": "node_read",
+      "durationMs": 3.7728749999987485,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node B",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985866915
+        }
+      ],
+      "sample": 4
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 1.8693750000002183,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 26
+          },
+          "timestamp": 1784985866917
+        }
+      ],
+      "sample": 4
+    },
+    {
+      "case": "single_write",
+      "durationMs": 1.943333999999595,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node A\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node A",
+            "oldName": "Benchmark Node B"
+          }
+        }
+      ],
+      "sample": 4
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 3.8099160000001575,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985866921
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 8,
+            "childCount": 1
+          },
+          "timestamp": 1784985866922
+        }
+      ],
+      "sample": 4
+    },
+    {
+      "case": "component_write",
+      "durationMs": 16.668125000000146,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-A"
+          },
+          "timestamp": 1784985866939
+        }
+      ],
+      "sample": 4
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 1.2236250000005384,
+      "requestBytes": 106,
+      "responseBytes": 421,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "cache",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          }
+        }
+      ],
+      "sample": 4
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 6.952624999999898,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:65"
+          },
+          "timestamp": 1784985866947
+        }
+      ],
+      "sample": 4
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.8443329999990965,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 5
+    },
+    {
+      "case": "node_read",
+      "durationMs": 1.8903750000008586,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node A",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985866950
+        }
+      ],
+      "sample": 5
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 1.4521669999994629,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 27
+          },
+          "timestamp": 1784985866952
+        }
+      ],
+      "sample": 5
+    },
+    {
+      "case": "single_write",
+      "durationMs": 1.4268750000010186,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node B\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node B",
+            "oldName": "Benchmark Node A"
+          }
+        }
+      ],
+      "sample": 5
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 3.7917919999999867,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985866955
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 9,
+            "childCount": 1
+          },
+          "timestamp": 1784985866957
+        }
+      ],
+      "sample": 5
+    },
+    {
+      "case": "component_write",
+      "durationMs": 26.51154200000019,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-B"
+          },
+          "timestamp": 1784985866983
+        }
+      ],
+      "sample": 5
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 3.4087909999998374,
+      "requestBytes": 106,
+      "responseBytes": 451,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "desktop_connection",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          },
+          "cached": false
+        }
+      ],
+      "sample": 5
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 3.9222090000002936,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:66"
+          },
+          "timestamp": 1784985866991
+        }
+      ],
+      "sample": 5
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.34279199999946286,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 6
+    },
+    {
+      "case": "node_read",
+      "durationMs": 25.66125000000102,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node B",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985867016
+        }
+      ],
+      "sample": 6
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 2.1535000000003492,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 28
+          },
+          "timestamp": 1784985867019
+        }
+      ],
+      "sample": 6
+    },
+    {
+      "case": "single_write",
+      "durationMs": 1.7803750000002765,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node A\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node A",
+            "oldName": "Benchmark Node B"
+          }
+        }
+      ],
+      "sample": 6
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 22.264208000000508,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985867023
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 8,
+            "childCount": 1
+          },
+          "timestamp": 1784985867042
+        }
+      ],
+      "sample": 6
+    },
+    {
+      "case": "component_write",
+      "durationMs": 3.0704159999986587,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-A"
+          },
+          "timestamp": 1784985867046
+        }
+      ],
+      "sample": 6
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 1.1806250000008731,
+      "requestBytes": 106,
+      "responseBytes": 421,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "cache",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          }
+        }
+      ],
+      "sample": 6
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 3.628832999998849,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:67"
+          },
+          "timestamp": 1784985867051
+        }
+      ],
+      "sample": 6
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.42820899999969697,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 7
+    },
+    {
+      "case": "node_read",
+      "durationMs": 1.2909159999999247,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node A",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985867053
+        }
+      ],
+      "sample": 7
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 1.3311250000006112,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 29
+          },
+          "timestamp": 1784985867054
+        }
+      ],
+      "sample": 7
+    },
+    {
+      "case": "single_write",
+      "durationMs": 1.5263749999994616,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node B\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node B",
+            "oldName": "Benchmark Node A"
+          }
+        }
+      ],
+      "sample": 7
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 33.347459000000526,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985867057
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 9,
+            "childCount": 1
+          },
+          "timestamp": 1784985867088
+        }
+      ],
+      "sample": 7
+    },
+    {
+      "case": "component_write",
+      "durationMs": 11.580416999999215,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-B"
+          },
+          "timestamp": 1784985867100
+        }
+      ],
+      "sample": 7
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 1.5681660000009288,
+      "requestBytes": 106,
+      "responseBytes": 451,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "desktop_connection",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          },
+          "cached": false
+        }
+      ],
+      "sample": 7
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 3.5574590000014723,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:68"
+          },
+          "timestamp": 1784985867105
+        }
+      ],
+      "sample": 7
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.9014580000002752,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 8
+    },
+    {
+      "case": "node_read",
+      "durationMs": 25.940042000000176,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node B",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985867132
+        }
+      ],
+      "sample": 8
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 2.4764589999995223,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 30
+          },
+          "timestamp": 1784985867135
+        }
+      ],
+      "sample": 8
+    },
+    {
+      "case": "single_write",
+      "durationMs": 1.8453330000011192,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node A\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node A",
+            "oldName": "Benchmark Node B"
+          }
+        }
+      ],
+      "sample": 8
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 3.8188330000011774,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985867139
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 8,
+            "childCount": 1
+          },
+          "timestamp": 1784985867140
+        }
+      ],
+      "sample": 8
+    },
+    {
+      "case": "component_write",
+      "durationMs": 19.192290999999386,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-A"
+          },
+          "timestamp": 1784985867160
+        }
+      ],
+      "sample": 8
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 1.8803339999994932,
+      "requestBytes": 106,
+      "responseBytes": 451,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "desktop_connection",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          },
+          "cached": false
+        }
+      ],
+      "sample": 8
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 3.2962079999997513,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:69"
+          },
+          "timestamp": 1784985867165
+        }
+      ],
+      "sample": 8
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.4403330000004644,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 9
+    },
+    {
+      "case": "node_read",
+      "durationMs": 1.6778749999994034,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node A",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985867167
+        }
+      ],
+      "sample": 9
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 1.785249999998996,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 31
+          },
+          "timestamp": 1784985867169
+        }
+      ],
+      "sample": 9
+    },
+    {
+      "case": "single_write",
+      "durationMs": 1.698458999999275,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node B\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node B",
+            "oldName": "Benchmark Node A"
+          }
+        }
+      ],
+      "sample": 9
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 3.883208999999624,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985867173
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 9,
+            "childCount": 1
+          },
+          "timestamp": 1784985867174
+        }
+      ],
+      "sample": 9
+    },
+    {
+      "case": "component_write",
+      "durationMs": 34.081083000000945,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-B"
+          },
+          "timestamp": 1784985867208
+        }
+      ],
+      "sample": 9
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 1.0470830000012938,
+      "requestBytes": 106,
+      "responseBytes": 421,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "cache",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          }
+        }
+      ],
+      "sample": 9
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 10.622666999999637,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:70"
+          },
+          "timestamp": 1784985867220
+        }
+      ],
+      "sample": 9
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.7568329999994603,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 10
+    },
+    {
+      "case": "node_read",
+      "durationMs": 2.0890829999989364,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node B",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985867223
+        }
+      ],
+      "sample": 10
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 28.01995900000111,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 32
+          },
+          "timestamp": 1784985867251
+        }
+      ],
+      "sample": 10
+    },
+    {
+      "case": "single_write",
+      "durationMs": 2.34362499999952,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node A\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node A",
+            "oldName": "Benchmark Node B"
+          }
+        }
+      ],
+      "sample": 10
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 3.0031249999992724,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985867255
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 8,
+            "childCount": 1
+          },
+          "timestamp": 1784985867256
+        }
+      ],
+      "sample": 10
+    },
+    {
+      "case": "component_write",
+      "durationMs": 19.16791700000067,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-A"
+          },
+          "timestamp": 1784985867275
+        }
+      ],
+      "sample": 10
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 0.7548329999990528,
+      "requestBytes": 106,
+      "responseBytes": 421,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "cache",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          }
+        }
+      ],
+      "sample": 10
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 10.12433400000009,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:71"
+          },
+          "timestamp": 1784985867286
+        }
+      ],
+      "sample": 10
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.6625420000000304,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 11
+    },
+    {
+      "case": "node_read",
+      "durationMs": 3.288875000000189,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node A",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985867290
+        }
+      ],
+      "sample": 11
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 28.236958999999842,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 33
+          },
+          "timestamp": 1784985867318
+        }
+      ],
+      "sample": 11
+    },
+    {
+      "case": "single_write",
+      "durationMs": 1.5282499999993888,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node B\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node B",
+            "oldName": "Benchmark Node A"
+          }
+        }
+      ],
+      "sample": 11
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 2.4310000000004948,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985867322
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 9,
+            "childCount": 1
+          },
+          "timestamp": 1784985867323
+        }
+      ],
+      "sample": 11
+    },
+    {
+      "case": "component_write",
+      "durationMs": 1.2417499999992287,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-B"
+          },
+          "timestamp": 1784985867324
+        }
+      ],
+      "sample": 11
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 16.004624999999578,
+      "requestBytes": 106,
+      "responseBytes": 451,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "desktop_connection",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          },
+          "cached": false
+        }
+      ],
+      "sample": 11
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 10.225458999999319,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:72"
+          },
+          "timestamp": 1784985867350
+        }
+      ],
+      "sample": 11
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.5692909999997937,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 12
+    },
+    {
+      "case": "node_read",
+      "durationMs": 1.4863329999989219,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node B",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985867352
+        }
+      ],
+      "sample": 12
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 2.4224579999990965,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 34
+          },
+          "timestamp": 1784985867354
+        }
+      ],
+      "sample": 12
+    },
+    {
+      "case": "single_write",
+      "durationMs": 1.6349579999987327,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node A\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node A",
+            "oldName": "Benchmark Node B"
+          }
+        }
+      ],
+      "sample": 12
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 25.168249999998807,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985867379
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 8,
+            "childCount": 1
+          },
+          "timestamp": 1784985867381
+        }
+      ],
+      "sample": 12
+    },
+    {
+      "case": "component_write",
+      "durationMs": 3.9465839999993477,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-A"
+          },
+          "timestamp": 1784985867385
+        }
+      ],
+      "sample": 12
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 1.716667000000598,
+      "requestBytes": 106,
+      "responseBytes": 451,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "desktop_connection",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          },
+          "cached": false
+        }
+      ],
+      "sample": 12
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 3.5006670000002487,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:73"
+          },
+          "timestamp": 1784985867391
+        }
+      ],
+      "sample": 12
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.37066699999923003,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 13
+    },
+    {
+      "case": "node_read",
+      "durationMs": 34.75891599999886,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node A",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985867425
+        }
+      ],
+      "sample": 13
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 2.152874999999767,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 35
+          },
+          "timestamp": 1784985867428
+        }
+      ],
+      "sample": 13
+    },
+    {
+      "case": "single_write",
+      "durationMs": 1.5834169999998267,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node B\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node B",
+            "oldName": "Benchmark Node A"
+          }
+        }
+      ],
+      "sample": 13
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 3.3679169999995793,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985867431
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 9,
+            "childCount": 1
+          },
+          "timestamp": 1784985867433
+        }
+      ],
+      "sample": 13
+    },
+    {
+      "case": "component_write",
+      "durationMs": 1.5473750000001019,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-B"
+          },
+          "timestamp": 1784985867434
+        }
+      ],
+      "sample": 13
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 0.8546249999999418,
+      "requestBytes": 106,
+      "responseBytes": 421,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "cache",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          }
+        }
+      ],
+      "sample": 13
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 3.126625000000786,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:74"
+          },
+          "timestamp": 1784985867438
+        }
+      ],
+      "sample": 13
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.8221659999999247,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 14
+    },
+    {
+      "case": "node_read",
+      "durationMs": 27.665791999999783,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node B",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985867467
+        }
+      ],
+      "sample": 14
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 8.778000000000247,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 36
+          },
+          "timestamp": 1784985867475
+        }
+      ],
+      "sample": 14
+    },
+    {
+      "case": "single_write",
+      "durationMs": 1.7345829999994749,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node A\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node A",
+            "oldName": "Benchmark Node B"
+          }
+        }
+      ],
+      "sample": 14
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 3.4345419999990554,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985867479
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 8,
+            "childCount": 1
+          },
+          "timestamp": 1784985867481
+        }
+      ],
+      "sample": 14
+    },
+    {
+      "case": "component_write",
+      "durationMs": 1.8535420000007434,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-A"
+          },
+          "timestamp": 1784985867483
+        }
+      ],
+      "sample": 14
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 0.9480839999996533,
+      "requestBytes": 106,
+      "responseBytes": 421,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "cache",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          }
+        }
+      ],
+      "sample": 14
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 3.057082999999693,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:75"
+          },
+          "timestamp": 1784985867487
+        }
+      ],
+      "sample": 14
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.7587920000005397,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 15
+    },
+    {
+      "case": "node_read",
+      "durationMs": 1.5313749999986612,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node A",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985867489
+        }
+      ],
+      "sample": 15
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 27.921833000000333,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 37
+          },
+          "timestamp": 1784985867517
+        }
+      ],
+      "sample": 15
+    },
+    {
+      "case": "single_write",
+      "durationMs": 9.853542000000743,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node B\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node B",
+            "oldName": "Benchmark Node A"
+          }
+        }
+      ],
+      "sample": 15
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 3.960750000000189,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985867529
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 9,
+            "childCount": 1
+          },
+          "timestamp": 1784985867531
+        }
+      ],
+      "sample": 15
+    },
+    {
+      "case": "component_write",
+      "durationMs": 1.9209590000009484,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-B"
+          },
+          "timestamp": 1784985867533
+        }
+      ],
+      "sample": 15
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 0.8077909999992698,
+      "requestBytes": 106,
+      "responseBytes": 451,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "desktop_connection",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          },
+          "cached": false
+        }
+      ],
+      "sample": 15
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 2.720833000001221,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:76"
+          },
+          "timestamp": 1784985867536
+        }
+      ],
+      "sample": 15
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.7304169999988517,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 16
+    },
+    {
+      "case": "node_read",
+      "durationMs": 1.8984590000000026,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node B",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985867539
+        }
+      ],
+      "sample": 16
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 30.00866700000006,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 38
+          },
+          "timestamp": 1784985867569
+        }
+      ],
+      "sample": 16
+    },
+    {
+      "case": "single_write",
+      "durationMs": 9.854833999999755,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node A\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node A",
+            "oldName": "Benchmark Node B"
+          }
+        }
+      ],
+      "sample": 16
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 5.100624999999127,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985867582
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 8,
+            "childCount": 1
+          },
+          "timestamp": 1784985867584
+        }
+      ],
+      "sample": 16
+    },
+    {
+      "case": "component_write",
+      "durationMs": 2.6224590000001626,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-A"
+          },
+          "timestamp": 1784985867587
+        }
+      ],
+      "sample": 16
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 1.0945409999985714,
+      "requestBytes": 106,
+      "responseBytes": 421,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "cache",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          }
+        }
+      ],
+      "sample": 16
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 29.75958299999911,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:77"
+          },
+          "timestamp": 1784985867618
+        }
+      ],
+      "sample": 16
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.4552090000015596,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 17
+    },
+    {
+      "case": "node_read",
+      "durationMs": 9.049334000001181,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node A",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985867628
+        }
+      ],
+      "sample": 17
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 1.9671669999988808,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 39
+          },
+          "timestamp": 1784985867629
+        }
+      ],
+      "sample": 17
+    },
+    {
+      "case": "single_write",
+      "durationMs": 2.1455409999998665,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node B\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node B",
+            "oldName": "Benchmark Node A"
+          }
+        }
+      ],
+      "sample": 17
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 3.2230839999992895,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985867634
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 9,
+            "childCount": 1
+          },
+          "timestamp": 1784985867635
+        }
+      ],
+      "sample": 17
+    },
+    {
+      "case": "component_write",
+      "durationMs": 1.6118750000005093,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-B"
+          },
+          "timestamp": 1784985867637
+        }
+      ],
+      "sample": 17
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 1.8407910000005359,
+      "requestBytes": 106,
+      "responseBytes": 451,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "desktop_connection",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          },
+          "cached": false
+        }
+      ],
+      "sample": 17
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 30.387791999999536,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:78"
+          },
+          "timestamp": 1784985867669
+        }
+      ],
+      "sample": 17
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.4303749999999127,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 18
+    },
+    {
+      "case": "node_read",
+      "durationMs": 8.12774999999965,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node B",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985867677
+        }
+      ],
+      "sample": 18
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 1.278707999998005,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 40
+          },
+          "timestamp": 1784985867679
+        }
+      ],
+      "sample": 18
+    },
+    {
+      "case": "single_write",
+      "durationMs": 1.5863749999989523,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node A\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node A",
+            "oldName": "Benchmark Node B"
+          }
+        }
+      ],
+      "sample": 18
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 3.467458999999508,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985867682
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 8,
+            "childCount": 1
+          },
+          "timestamp": 1784985867684
+        }
+      ],
+      "sample": 18
+    },
+    {
+      "case": "component_write",
+      "durationMs": 1.733749999999418,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-A"
+          },
+          "timestamp": 1784985867685
+        }
+      ],
+      "sample": 18
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 0.7029589999983727,
+      "requestBytes": 106,
+      "responseBytes": 421,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "cache",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          }
+        }
+      ],
+      "sample": 18
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 3.209082999997918,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:79"
+          },
+          "timestamp": 1784985867689
+        }
+      ],
+      "sample": 18
+    },
+    {
+      "case": "selection",
+      "durationMs": 0.9948750000003201,
+      "requestBytes": 45,
+      "responseBytes": 213,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "selection": [],
+          "count": 0,
+          "page": "unknown",
+          "message": "Nothing is selected in Figma. Select one or more elements to use this tool."
+        }
+      ],
+      "sample": 19
+    },
+    {
+      "case": "node_read",
+      "durationMs": 39.63624999999956,
+      "requestBytes": 211,
+      "responseBytes": 248,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:44",
+            "type": "RECTANGLE",
+            "name": "Benchmark Node A",
+            "parentId": "7:43",
+            "width": 120,
+            "height": 80
+          },
+          "timestamp": 1784985867728
+        }
+      ],
+      "sample": 19
+    },
+    {
+      "case": "document_summary",
+      "durationMs": 2.7274170000018785,
+      "requestBytes": 231,
+      "responseBytes": 262,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "fileName": "Untitled",
+            "pageId": "0:1",
+            "pageName": "Page 1",
+            "topLevelNodeCount": 41
+          },
+          "timestamp": 1784985867732
+        }
+      ],
+      "sample": 19
+    },
+    {
+      "case": "single_write",
+      "durationMs": 1.8794999999990978,
+      "requestBytes": 87,
+      "responseBytes": 235,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "message": "Node renamed to \"Benchmark Node B\"",
+          "node": {
+            "id": "7:44",
+            "name": "Benchmark Node B",
+            "oldName": "Benchmark Node A"
+          }
+        }
+      ],
+      "sample": 19
+    },
+    {
+      "case": "layout_batch_validate",
+      "durationMs": 3.6640000000006694,
+      "requestBytes": 594,
+      "responseBytes": 377,
+      "calls": 2,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "frameId": "7:43",
+            "nodeId": "7:44"
+          },
+          "timestamp": 1784985867737
+        },
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "valid": true,
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 9,
+            "childCount": 1
+          },
+          "timestamp": 1784985867738
+        }
+      ],
+      "sample": 19
+    },
+    {
+      "case": "component_write",
+      "durationMs": 2.4072919999998703,
+      "requestBytes": 185,
+      "responseBytes": 177,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "7:45",
+            "description": "benchmark-B"
+          },
+          "timestamp": 1784985867741
+        }
+      ],
+      "sample": 19
+    },
+    {
+      "case": "tokens_read",
+      "durationMs": 16.890707999998995,
+      "requestBytes": 106,
+      "responseBytes": 451,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+          "source": "desktop_connection",
+          "format": "summary",
+          "timestamp": 1784985866283,
+          "data": {
+            "fileKey": "gmmy5FAQVgssiel3LOx4QV",
+            "timestamp": 1784985866283,
+            "source": "desktop_connection",
+            "overview": {
+              "total_variables": 0,
+              "total_collections": 0
+            },
+            "collections": [],
+            "variables_by_type": {},
+            "variable_names": []
+          },
+          "cached": false
+        }
+      ],
+      "sample": 19
+    },
+    {
+      "case": "instance_write",
+      "durationMs": 9.603957999999693,
+      "requestBytes": 206,
+      "responseBytes": 145,
+      "calls": 1,
+      "payloads": [
+        {
+          "_mcp": "figma-console-mcp",
+          "success": true,
+          "result": {
+            "id": "8:80"
+          },
+          "timestamp": 1784985867767
+        }
+      ],
+      "sample": 19
+    }
+  ],
+  "phaseMetrics": []
+}
