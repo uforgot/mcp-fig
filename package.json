@@ -25,7 +25,8 @@
     "smoke": "npm run build && node scripts/smoke-mcp.mjs",
     "smoke:plugin": "npm run build && node scripts/smoke-plugin-bridge.mjs",
     "benchmark:live": "node scripts/benchmark-live.mjs",
-    "canary:plugin": "npm run build && node scripts/live-plugin-canary.mjs"
+    "canary:plugin": "npm run build && node scripts/live-plugin-canary.mjs",
+    "canary:reconnect": "npm run build && node scripts/live-reconnect-canary.mjs"
   },
   "engines": {
     "node": ">=20"
