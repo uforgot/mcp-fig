@@ -127,6 +127,7 @@ Prerequisites: Node.js 20+ and npm.
 ```bash
 npm install
 npm test
+npm run quality
 npm run typecheck
 npm run lint
 npm run build
@@ -134,6 +135,8 @@ npm run smoke
 ```
 
 `npm run smoke` builds the server, starts `dist/index.js` over stdio, completes the MCP handshake, lists tools, and calls `figma_connection` with `action: "status"`.
+
+`npm run quality` executes the compact-surface, schema snapshot, workflow call-budget, typed Auto Layout, and structural visual regression gates. The current fixture baseline is 8 core tools, 12/12 successful representative workflows, no more than 5 calls per workflow, and 10/10 Auto Layout workflows without raw execution. See [`docs/quality-gates.md`](docs/quality-gates.md).
 
 Copy `.env.example` when you need local profile configuration. With no credentials, the server safely reports the bridge as `not-configured`. Setting `FIGMA_ACCESS_TOKEN` and `FIGMA_FILE_KEY` enables authenticated REST document and node reads. Current selection and all writes intentionally require a Desktop Plugin bridge; REST-only mode returns `UNSUPPORTED_BY_BRIDGE` instead of pretending a mutation succeeded.
 

@@ -1,0 +1,100 @@
+{
+  "layouts": [
+    {
+      "nodeId": "4:0",
+      "name": "Layout root",
+      "parentId": "1:0",
+      "childIds": [
+        "4:1"
+      ],
+      "layout": {
+        "layoutMode": "VERTICAL",
+        "gap": 16,
+        "itemSpacing": 16,
+        "padding": {
+          "top": 20,
+          "right": 20,
+          "bottom": 20,
+          "left": 20
+        },
+        "primaryAxisAlignItems": "MIN",
+        "counterAxisAlignItems": "CENTER",
+        "layoutWrap": "NO_WRAP",
+        "primaryAxisSizingMode": "FIXED",
+        "counterAxisSizingMode": "FIXED"
+      },
+      "sizing": {
+        "horizontal": "FIXED",
+        "vertical": "FIXED"
+      },
+      "constraints": {
+        "horizontal": "LEFT",
+        "vertical": "TOP"
+      }
+    },
+    {
+      "nodeId": "4:1",
+      "name": "Card",
+      "parentId": "4:0",
+      "childIds": [
+        "4:2"
+      ],
+      "layout": {
+        "layoutMode": "HORIZONTAL",
+        "gap": 8,
+        "itemSpacing": 8,
+        "padding": {
+          "top": 12,
+          "right": 16,
+          "bottom": 12,
+          "left": 16
+        },
+        "primaryAxisAlignItems": "MIN",
+        "counterAxisAlignItems": "CENTER",
+        "layoutWrap": "NO_WRAP",
+        "primaryAxisSizingMode": "FIXED",
+        "counterAxisSizingMode": "FIXED"
+      },
+      "sizing": {
+        "horizontal": "FILL",
+        "vertical": "HUG",
+        "minWidth": 240,
+        "maxWidth": 560
+      },
+      "constraints": {
+        "horizontal": "LEFT_RIGHT",
+        "vertical": "TOP"
+      }
+    },
+    {
+      "nodeId": "4:2",
+      "name": "Card label",
+      "parentId": "4:1",
+      "childIds": [],
+      "layout": {
+        "layoutMode": "NONE",
+        "gap": 0,
+        "itemSpacing": 0,
+        "padding": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "primaryAxisAlignItems": "MIN",
+        "counterAxisAlignItems": "MIN",
+        "layoutWrap": "NO_WRAP",
+        "primaryAxisSizingMode": "FIXED",
+        "counterAxisSizingMode": "FIXED"
+      },
+      "sizing": {
+        "horizontal": "HUG",
+        "vertical": "HUG"
+      },
+      "constraints": {
+        "horizontal": "LEFT",
+        "vertical": "TOP"
+      }
+    }
+  ]
+}

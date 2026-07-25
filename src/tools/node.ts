@@ -4,6 +4,7 @@ import { z } from "zod";
 import { FIGMA_NODE_TYPES, type FigmaBridge } from "../bridge/types.js";
 import type { ConfirmationStore } from "../confirmations.js";
 import { McpFigError } from "../errors.js";
+import { exposeMcpInputSchema } from "../mcp-schema.js";
 import { handleToolCall, success } from "../tool-result.js";
 
 const fileKey = z.string().min(1).optional();
@@ -116,7 +117,7 @@ export function registerNodeTool(
       title: "Figma node",
       description:
         "Get, create, update, move, resize, clone, or explicitly delete Figma nodes without raw execution.",
-      inputSchema,
+      inputSchema: exposeMcpInputSchema(inputSchema),
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,

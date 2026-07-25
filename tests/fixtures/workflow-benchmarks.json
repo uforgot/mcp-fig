@@ -1,0 +1,81 @@
+{
+  "thresholds": {
+    "maxCoreTools": 15,
+    "maxCallsPerWorkflow": 5,
+    "minAutoLayoutTypedRate": 0.9
+  },
+  "workflows": [
+    {
+      "id": "selection-inspect",
+      "category": "general",
+      "fixture": "core",
+      "maxCalls": 1
+    },
+    {
+      "id": "component-instance-token",
+      "category": "general",
+      "fixture": "core",
+      "maxCalls": 5
+    },
+    {
+      "id": "layout-inspect",
+      "category": "auto-layout",
+      "fixture": "core",
+      "maxCalls": 1
+    },
+    {
+      "id": "layout-apply-preview",
+      "category": "auto-layout",
+      "fixture": "core",
+      "maxCalls": 1
+    },
+    {
+      "id": "layout-batch-nested",
+      "category": "auto-layout",
+      "fixture": "core",
+      "maxCalls": 1
+    },
+    {
+      "id": "layout-batch-validate",
+      "category": "auto-layout",
+      "fixture": "core",
+      "maxCalls": 2
+    },
+    {
+      "id": "layout-structural-visual",
+      "category": "auto-layout",
+      "fixture": "core",
+      "maxCalls": 2
+    },
+    {
+      "id": "layout-validate-valid",
+      "category": "auto-layout",
+      "fixture": "invalid-layout",
+      "maxCalls": 1
+    },
+    {
+      "id": "layout-validate-invalid",
+      "category": "auto-layout",
+      "fixture": "invalid-layout",
+      "maxCalls": 1
+    },
+    {
+      "id": "layout-repair-preview",
+      "category": "auto-layout",
+      "fixture": "invalid-layout",
+      "maxCalls": 1
+    },
+    {
+      "id": "layout-repair-apply",
+      "category": "auto-layout",
+      "fixture": "invalid-layout",
+      "maxCalls": 2
+    },
+    {
+      "id": "layout-batch-rollback",
+      "category": "auto-layout",
+      "fixture": "core",
+      "maxCalls": 2
+    }
+  ]
+}

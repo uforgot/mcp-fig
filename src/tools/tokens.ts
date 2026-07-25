@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { FigmaBridge, TokenActionInput } from "../bridge/types.js";
 import type { ConfirmationStore } from "../confirmations.js";
 import { McpFigError } from "../errors.js";
+import { exposeMcpInputSchema } from "../mcp-schema.js";
 import { handleToolCall, success } from "../tool-result.js";
 
 const fileKey = z.string().min(1).optional();
@@ -96,7 +97,7 @@ export function registerTokensTool(
       title: "Figma tokens",
       description:
         "Inspect variables and collections, apply values or aliases by mode, bind variables, and manage collections.",
-      inputSchema,
+      inputSchema: exposeMcpInputSchema(inputSchema),
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,

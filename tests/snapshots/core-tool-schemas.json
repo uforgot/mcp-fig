@@ -1,0 +1,1515 @@
+[
+  {
+    "name": "figma_component",
+    "title": "Figma component",
+    "description": "Search, inspect, create, arrange, and manage local components; library actions are profile-gated and key-addressed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "search"
+            },
+            {
+              "type": "string",
+              "const": "inspect"
+            },
+            {
+              "type": "string",
+              "const": "create_set"
+            },
+            {
+              "type": "string",
+              "const": "arrange_set"
+            },
+            {
+              "type": "string",
+              "const": "set_description"
+            },
+            {
+              "type": "string",
+              "const": "property_add"
+            },
+            {
+              "type": "string",
+              "const": "property_update"
+            },
+            {
+              "type": "string",
+              "const": "property_delete"
+            },
+            {
+              "type": "string",
+              "const": "slots"
+            },
+            {
+              "type": "string",
+              "const": "slot_create"
+            }
+          ]
+        },
+        "query": {
+          "type": "string"
+        },
+        "fileKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "componentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        },
+        "componentKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "axes": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "dryRun": {
+          "type": "boolean"
+        },
+        "componentSetId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "columns": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "gap": {
+          "type": "number",
+          "minimum": 0
+        },
+        "description": {
+          "type": "string"
+        },
+        "propertyName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        },
+        "property": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "BOOLEAN",
+                "TEXT",
+                "INSTANCE_SWAP",
+                "VARIANT"
+              ]
+            },
+            "defaultValue": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "options": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "type",
+            "defaultValue"
+          ],
+          "additionalProperties": false
+        },
+        "patch": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "BOOLEAN",
+                "TEXT",
+                "INSTANCE_SWAP",
+                "VARIANT"
+              ]
+            },
+            "defaultValue": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "options": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "confirm": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "slotName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "allowedComponentKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": {}
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "figma_connection",
+    "title": "Figma connection",
+    "description": "Inspect connection health, target a file, reconnect, or discover enabled MCP Fig capabilities.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "status"
+            },
+            {
+              "type": "string",
+              "const": "list_files"
+            },
+            {
+              "type": "string",
+              "const": "target"
+            },
+            {
+              "type": "string",
+              "const": "reconnect"
+            },
+            {
+              "type": "string",
+              "const": "capabilities"
+            }
+          ]
+        },
+        "fileKey": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": {}
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "figma_document",
+    "title": "Figma document",
+    "description": "Inspect the targeted document, summarize it, or read changes.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "inspect"
+            },
+            {
+              "type": "string",
+              "const": "summary"
+            },
+            {
+              "type": "string",
+              "const": "changes"
+            }
+          ]
+        },
+        "fileKey": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "figma_instance",
+    "title": "Figma instance",
+    "description": "Create component instances, update typed properties, and manage component slots without raw execution.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "create"
+            },
+            {
+              "type": "string",
+              "const": "update"
+            },
+            {
+              "type": "string",
+              "const": "slot_append"
+            },
+            {
+              "type": "string",
+              "const": "slot_reset"
+            }
+          ]
+        },
+        "componentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "componentKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        },
+        "parentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "properties": {
+          "anyOf": [
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "minLength": 1
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "minLength": 1
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "dryRun": {
+          "type": "boolean"
+        },
+        "fileKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instanceIds": {
+          "minItems": 1,
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "instanceId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        },
+        "slotName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": {}
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "figma_layout",
+    "title": "Figma Auto Layout",
+    "description": "Inspect and apply typed Auto Layout, sizing, and constraints with deterministic dependency-ordered batch previews.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "inspect"
+            },
+            {
+              "type": "string",
+              "const": "apply"
+            },
+            {
+              "type": "string",
+              "const": "sizing"
+            },
+            {
+              "type": "string",
+              "const": "batch"
+            },
+            {
+              "type": "string",
+              "const": "validate"
+            },
+            {
+              "type": "string",
+              "const": "repair"
+            }
+          ]
+        },
+        "nodeIds": {
+          "minItems": 1,
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "fileKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "layout": {
+          "type": "object",
+          "properties": {
+            "layoutMode": {
+              "type": "string",
+              "enum": [
+                "HORIZONTAL",
+                "VERTICAL"
+              ]
+            },
+            "gap": {
+              "type": "number",
+              "minimum": 0
+            },
+            "itemSpacing": {
+              "type": "number",
+              "minimum": 0
+            },
+            "padding": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "top": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "right": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "bottom": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "left": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "top",
+                    "right",
+                    "bottom",
+                    "left"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "primaryAxisAlignItems": {
+              "type": "string",
+              "enum": [
+                "MIN",
+                "CENTER",
+                "MAX",
+                "SPACE_BETWEEN"
+              ]
+            },
+            "counterAxisAlignItems": {
+              "type": "string",
+              "enum": [
+                "MIN",
+                "CENTER",
+                "MAX",
+                "BASELINE"
+              ]
+            },
+            "layoutWrap": {
+              "type": "string",
+              "enum": [
+                "NO_WRAP",
+                "WRAP"
+              ]
+            },
+            "primaryAxisSizingMode": {
+              "type": "string",
+              "enum": [
+                "FIXED",
+                "AUTO"
+              ]
+            },
+            "counterAxisSizingMode": {
+              "type": "string",
+              "enum": [
+                "FIXED",
+                "AUTO"
+              ]
+            }
+          },
+          "required": [
+            "layoutMode"
+          ],
+          "additionalProperties": false
+        },
+        "dryRun": {
+          "type": "boolean"
+        },
+        "sizing": {
+          "type": "object",
+          "properties": {
+            "horizontal": {
+              "type": "string",
+              "enum": [
+                "FIXED",
+                "HUG",
+                "FILL"
+              ]
+            },
+            "vertical": {
+              "type": "string",
+              "enum": [
+                "FIXED",
+                "HUG",
+                "FILL"
+              ]
+            },
+            "minWidth": {
+              "type": "number",
+              "minimum": 0
+            },
+            "maxWidth": {
+              "type": "number",
+              "minimum": 0
+            },
+            "minHeight": {
+              "type": "number",
+              "minimum": 0
+            },
+            "maxHeight": {
+              "type": "number",
+              "minimum": 0
+            },
+            "layoutAlign": {
+              "type": "string",
+              "enum": [
+                "INHERIT",
+                "STRETCH"
+              ]
+            }
+          },
+          "required": [
+            "horizontal",
+            "vertical"
+          ],
+          "additionalProperties": false
+        },
+        "operations": {
+          "minItems": 1,
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "apply"
+                  },
+                  "nodeIds": {
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "layout": {
+                    "type": "object",
+                    "properties": {
+                      "layoutMode": {
+                        "type": "string",
+                        "enum": [
+                          "HORIZONTAL",
+                          "VERTICAL"
+                        ]
+                      },
+                      "gap": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "itemSpacing": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "padding": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "top": {
+                                "type": "number",
+                                "minimum": 0
+                              },
+                              "right": {
+                                "type": "number",
+                                "minimum": 0
+                              },
+                              "bottom": {
+                                "type": "number",
+                                "minimum": 0
+                              },
+                              "left": {
+                                "type": "number",
+                                "minimum": 0
+                              }
+                            },
+                            "required": [
+                              "top",
+                              "right",
+                              "bottom",
+                              "left"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "primaryAxisAlignItems": {
+                        "type": "string",
+                        "enum": [
+                          "MIN",
+                          "CENTER",
+                          "MAX",
+                          "SPACE_BETWEEN"
+                        ]
+                      },
+                      "counterAxisAlignItems": {
+                        "type": "string",
+                        "enum": [
+                          "MIN",
+                          "CENTER",
+                          "MAX",
+                          "BASELINE"
+                        ]
+                      },
+                      "layoutWrap": {
+                        "type": "string",
+                        "enum": [
+                          "NO_WRAP",
+                          "WRAP"
+                        ]
+                      },
+                      "primaryAxisSizingMode": {
+                        "type": "string",
+                        "enum": [
+                          "FIXED",
+                          "AUTO"
+                        ]
+                      },
+                      "counterAxisSizingMode": {
+                        "type": "string",
+                        "enum": [
+                          "FIXED",
+                          "AUTO"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "layoutMode"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "op",
+                  "nodeIds",
+                  "layout"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "sizing"
+                  },
+                  "nodeIds": {
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "sizing": {
+                    "type": "object",
+                    "properties": {
+                      "horizontal": {
+                        "type": "string",
+                        "enum": [
+                          "FIXED",
+                          "HUG",
+                          "FILL"
+                        ]
+                      },
+                      "vertical": {
+                        "type": "string",
+                        "enum": [
+                          "FIXED",
+                          "HUG",
+                          "FILL"
+                        ]
+                      },
+                      "minWidth": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "maxWidth": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "minHeight": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "maxHeight": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "layoutAlign": {
+                        "type": "string",
+                        "enum": [
+                          "INHERIT",
+                          "STRETCH"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "horizontal",
+                      "vertical"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "op",
+                  "nodeIds",
+                  "sizing"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "constraints"
+                  },
+                  "nodeIds": {
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "constraints": {
+                    "type": "object",
+                    "properties": {
+                      "horizontal": {
+                        "type": "string",
+                        "enum": [
+                          "LEFT",
+                          "RIGHT",
+                          "CENTER",
+                          "LEFT_RIGHT",
+                          "SCALE"
+                        ]
+                      },
+                      "vertical": {
+                        "type": "string",
+                        "enum": [
+                          "TOP",
+                          "BOTTOM",
+                          "CENTER",
+                          "TOP_BOTTOM",
+                          "SCALE"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "horizontal",
+                      "vertical"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "op",
+                  "nodeIds",
+                  "constraints"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "issueCodes": {
+          "minItems": 1,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "AUTO_LAYOUT_OVERFLOW_HORIZONTAL",
+              "AUTO_LAYOUT_OVERFLOW_VERTICAL",
+              "FILL_IN_HUG_PARENT_HORIZONTAL",
+              "FILL_IN_HUG_PARENT_VERTICAL",
+              "HUG_WITHOUT_AUTO_LAYOUT_PARENT",
+              "FILL_WITHOUT_AUTO_LAYOUT_PARENT",
+              "MIN_MAX_CONFLICT_WIDTH",
+              "MIN_MAX_CONFLICT_HEIGHT"
+            ]
+          }
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": {}
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "figma_node",
+    "title": "Figma node",
+    "description": "Get, create, update, move, resize, clone, or explicitly delete Figma nodes without raw execution.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "get"
+            },
+            {
+              "type": "string",
+              "const": "create"
+            },
+            {
+              "type": "string",
+              "const": "update"
+            },
+            {
+              "type": "string",
+              "const": "move"
+            },
+            {
+              "type": "string",
+              "const": "resize"
+            },
+            {
+              "type": "string",
+              "const": "clone"
+            },
+            {
+              "type": "string",
+              "const": "delete"
+            }
+          ]
+        },
+        "fileKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nodeIds": {
+          "minItems": 1,
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        },
+        "nodeType": {
+          "type": "string",
+          "enum": [
+            "DOCUMENT",
+            "PAGE",
+            "FRAME",
+            "GROUP",
+            "RECTANGLE",
+            "ELLIPSE",
+            "LINE",
+            "TEXT",
+            "COMPONENT",
+            "INSTANCE"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "props": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            },
+            "width": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "height": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "visible": {
+              "type": "boolean"
+            },
+            "locked": {
+              "type": "boolean"
+            },
+            "text": {
+              "type": "string"
+            },
+            "fills": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "strokes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "dryRun": {
+          "type": "boolean"
+        },
+        "patch": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            },
+            "width": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "height": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "visible": {
+              "type": "boolean"
+            },
+            "locked": {
+              "type": "boolean"
+            },
+            "text": {
+              "type": "string"
+            },
+            "fills": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "strokes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "size": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "height": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "required": [
+            "width",
+            "height"
+          ],
+          "additionalProperties": false
+        },
+        "offset": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ],
+          "additionalProperties": false
+        },
+        "confirm": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": {}
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "figma_selection",
+    "title": "Figma selection",
+    "description": "Read the current Desktop Plugin selection and its nodes.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "get"
+            },
+            {
+              "type": "string",
+              "const": "inspect"
+            }
+          ]
+        },
+        "fileKey": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "figma_tokens",
+    "title": "Figma tokens",
+    "description": "Inspect variables and collections, apply values or aliases by mode, bind variables, and manage collections.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "inspect"
+            },
+            {
+              "type": "string",
+              "const": "apply"
+            },
+            {
+              "type": "string",
+              "const": "collection_create"
+            },
+            {
+              "type": "string",
+              "const": "collection_delete"
+            }
+          ]
+        },
+        "fileKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operations": {
+          "minItems": 1,
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "bind"
+                  },
+                  "nodeIds": {
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "field": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "variableId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "op",
+                  "nodeIds",
+                  "field",
+                  "variableId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "set_value"
+                  },
+                  "variableId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "modeId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "VARIABLE_ALIAS"
+                          },
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "id"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "op",
+                  "variableId",
+                  "modeId",
+                  "value"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "alias"
+                  },
+                  "variableId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "modeId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "targetVariableId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "op",
+                  "variableId",
+                  "modeId",
+                  "targetVariableId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "mode_add"
+                  },
+                  "collectionId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "modeId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "op",
+                  "collectionId",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "mode_rename"
+                  },
+                  "collectionId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "modeId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "op",
+                  "collectionId",
+                  "modeId",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "dryRun": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "initialModeName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "collectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confirm": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": {}
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  }
+]

@@ -18,6 +18,8 @@
     "format": "biome check --write .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "quality": "vitest run tests/quality-gates.test.ts",
+    "snapshots:update": "npm run build && node scripts/update-quality-snapshots.mjs",
     "smoke": "npm run build && node scripts/smoke-mcp.mjs"
   },
   "engines": {

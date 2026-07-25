@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { FigmaBridge } from "../bridge/types.js";
 import type { ServerConfig } from "../config.js";
+import { exposeMcpInputSchema } from "../mcp-schema.js";
 import { handleToolCall, success } from "../tool-result.js";
 
 const inputSchema = z.discriminatedUnion("action", [
@@ -37,7 +38,7 @@ export function registerConnectionTool(
       title: "Figma connection",
       description:
         "Inspect connection health, target a file, reconnect, or discover enabled MCP Fig capabilities.",
-      inputSchema,
+      inputSchema: exposeMcpInputSchema(inputSchema),
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,

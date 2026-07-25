@@ -1,0 +1,60 @@
+{
+  "nodeIds": ["4:0", "4:1", "4:2"],
+  "operations": [
+    {
+      "op": "constraints",
+      "nodeIds": ["4:1"],
+      "constraints": {
+        "horizontal": "LEFT_RIGHT",
+        "vertical": "TOP"
+      }
+    },
+    {
+      "op": "sizing",
+      "nodeIds": ["4:2"],
+      "sizing": {
+        "horizontal": "HUG",
+        "vertical": "HUG"
+      }
+    },
+    {
+      "op": "sizing",
+      "nodeIds": ["4:1"],
+      "sizing": {
+        "horizontal": "FILL",
+        "vertical": "HUG",
+        "minWidth": 240,
+        "maxWidth": 560
+      }
+    },
+    {
+      "op": "apply",
+      "nodeIds": ["4:1"],
+      "layout": {
+        "layoutMode": "HORIZONTAL",
+        "gap": 8,
+        "padding": {
+          "top": 12,
+          "right": 16,
+          "bottom": 12,
+          "left": 16
+        },
+        "primaryAxisAlignItems": "MIN",
+        "counterAxisAlignItems": "CENTER",
+        "layoutWrap": "NO_WRAP"
+      }
+    },
+    {
+      "op": "apply",
+      "nodeIds": ["4:0"],
+      "layout": {
+        "layoutMode": "VERTICAL",
+        "gap": 16,
+        "padding": 20,
+        "primaryAxisAlignItems": "MIN",
+        "counterAxisAlignItems": "CENTER",
+        "layoutWrap": "NO_WRAP"
+      }
+    }
+  ]
+}

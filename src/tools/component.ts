@@ -5,6 +5,7 @@ import type { ComponentActionInput, FigmaBridge } from "../bridge/types.js";
 import type { ProfileName } from "../config.js";
 import type { ConfirmationStore } from "../confirmations.js";
 import { McpFigError } from "../errors.js";
+import { exposeMcpInputSchema } from "../mcp-schema.js";
 import { handleToolCall, success } from "../tool-result.js";
 
 const fileKey = z.string().min(1).optional();
@@ -158,7 +159,7 @@ export function registerComponentTool(
       title: "Figma component",
       description:
         "Search, inspect, create, arrange, and manage local components; library actions are profile-gated and key-addressed.",
-      inputSchema,
+      inputSchema: exposeMcpInputSchema(inputSchema),
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,

@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { FigmaBridge, InstanceActionInput } from "../bridge/types.js";
+import { exposeMcpInputSchema } from "../mcp-schema.js";
 import { handleToolCall, success } from "../tool-result.js";
 
 const fileKey = z.string().min(1).optional();
@@ -70,7 +71,7 @@ export function registerInstanceTool(
       title: "Figma instance",
       description:
         "Create component instances, update typed properties, and manage component slots without raw execution.",
-      inputSchema,
+      inputSchema: exposeMcpInputSchema(inputSchema),
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,

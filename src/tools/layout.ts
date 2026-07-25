@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { FigmaBridge, LayoutActionInput } from "../bridge/types.js";
 import { LAYOUT_ISSUE_CODES } from "../bridge/types.js";
+import { exposeMcpInputSchema } from "../mcp-schema.js";
 import { handleToolCall, success } from "../tool-result.js";
 
 const fileKey = z.string().min(1).optional();
@@ -114,7 +115,7 @@ export function registerLayoutTool(
       title: "Figma Auto Layout",
       description:
         "Inspect and apply typed Auto Layout, sizing, and constraints with deterministic dependency-ordered batch previews.",
-      inputSchema,
+      inputSchema: exposeMcpInputSchema(inputSchema),
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
