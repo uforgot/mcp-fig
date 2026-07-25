@@ -23,7 +23,8 @@
     "quality": "vitest run tests/quality-gates.test.ts",
     "snapshots:update": "npm run build && node scripts/update-quality-snapshots.mjs && biome format --write tests/snapshots",
     "smoke": "npm run build && node scripts/smoke-mcp.mjs",
-    "smoke:plugin": "npm run build && node scripts/smoke-plugin-bridge.mjs"
+    "smoke:plugin": "npm run build && node scripts/smoke-plugin-bridge.mjs",
+    "canary:plugin": "npm run build && node scripts/live-plugin-canary.mjs"
   },
   "engines": {
     "node": ">=20"

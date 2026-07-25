@@ -148,6 +148,8 @@ Copy `.env.example` when you need local profile configuration. With no credentia
 3. Enter the same port and token in the plugin UI. The UI handshakes the current file identity, then maintains a reconnecting localhost long-poll transport.
 4. Optionally set `MCP_FIG_PLUGIN_FILE_KEY` to pin the MCP process to one paired file. Each command and result validates token, request ID, client ID, session ID, and file key before a response can resolve.
 
+For a disposable blank Figma draft, run `npm run canary:plugin`. After the Plugin pairs, the script reads live selection, creates and renames a frame, applies Auto Layout, validates it, and prints the verified node. It intentionally leaves one `MCP Fig Live Canary - PASS` frame as visible evidence.
+
 Protocol v1 routes typed facade actions through `stdio MCP → 127.0.0.1 host → Plugin UI → Plugin main`. It supports current selection/document/node reads, core node mutations, Component/Instance/Token actions, and Auto Layout inspect/apply/sizing/batch/validate/repair. It does not expose raw Plugin API execution. Timing metrics retain created/dispatched/received/completed timestamps and request/client/session/file correlation for the dedicated benchmark and concurrency follow-ups.
 
 The fixture adapter and `tests/fixtures/core-file.json` exercise create, update, move, resize, clone, delete preview, confirmation, and deletion through the same `FigmaBridge` contract. See [`docs/bridge-contract.md`](docs/bridge-contract.md).
