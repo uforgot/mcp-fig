@@ -156,12 +156,7 @@
           "properties": {
             "type": {
               "type": "string",
-              "enum": [
-                "BOOLEAN",
-                "TEXT",
-                "INSTANCE_SWAP",
-                "VARIANT"
-              ]
+              "enum": ["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"]
             },
             "defaultValue": {
               "anyOf": [
@@ -181,10 +176,7 @@
               }
             }
           },
-          "required": [
-            "type",
-            "defaultValue"
-          ],
+          "required": ["type", "defaultValue"],
           "additionalProperties": false
         },
         "patch": {
@@ -192,12 +184,7 @@
           "properties": {
             "type": {
               "type": "string",
-              "enum": [
-                "BOOLEAN",
-                "TEXT",
-                "INSTANCE_SWAP",
-                "VARIANT"
-              ]
+              "enum": ["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"]
             },
             "defaultValue": {
               "anyOf": [
@@ -236,9 +223,7 @@
           }
         }
       },
-      "required": [
-        "action"
-      ],
+      "required": ["action"],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": {}
     },
@@ -285,9 +270,7 @@
           "minLength": 1
         }
       },
-      "required": [
-        "action"
-      ],
+      "required": ["action"],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": {}
     },
@@ -326,9 +309,7 @@
           "minLength": 1
         }
       },
-      "required": [
-        "action"
-      ],
+      "required": ["action"],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": {}
     },
@@ -471,9 +452,7 @@
           ]
         }
       },
-      "required": [
-        "action"
-      ],
+      "required": ["action"],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": {}
     },
@@ -537,10 +516,7 @@
           "properties": {
             "layoutMode": {
               "type": "string",
-              "enum": [
-                "HORIZONTAL",
-                "VERTICAL"
-              ]
+              "enum": ["HORIZONTAL", "VERTICAL"]
             },
             "gap": {
               "type": "number",
@@ -576,59 +552,33 @@
                       "minimum": 0
                     }
                   },
-                  "required": [
-                    "top",
-                    "right",
-                    "bottom",
-                    "left"
-                  ],
+                  "required": ["top", "right", "bottom", "left"],
                   "additionalProperties": false
                 }
               ]
             },
             "primaryAxisAlignItems": {
               "type": "string",
-              "enum": [
-                "MIN",
-                "CENTER",
-                "MAX",
-                "SPACE_BETWEEN"
-              ]
+              "enum": ["MIN", "CENTER", "MAX", "SPACE_BETWEEN"]
             },
             "counterAxisAlignItems": {
               "type": "string",
-              "enum": [
-                "MIN",
-                "CENTER",
-                "MAX",
-                "BASELINE"
-              ]
+              "enum": ["MIN", "CENTER", "MAX", "BASELINE"]
             },
             "layoutWrap": {
               "type": "string",
-              "enum": [
-                "NO_WRAP",
-                "WRAP"
-              ]
+              "enum": ["NO_WRAP", "WRAP"]
             },
             "primaryAxisSizingMode": {
               "type": "string",
-              "enum": [
-                "FIXED",
-                "AUTO"
-              ]
+              "enum": ["FIXED", "AUTO"]
             },
             "counterAxisSizingMode": {
               "type": "string",
-              "enum": [
-                "FIXED",
-                "AUTO"
-              ]
+              "enum": ["FIXED", "AUTO"]
             }
           },
-          "required": [
-            "layoutMode"
-          ],
+          "required": ["layoutMode"],
           "additionalProperties": false
         },
         "dryRun": {
@@ -639,19 +589,11 @@
           "properties": {
             "horizontal": {
               "type": "string",
-              "enum": [
-                "FIXED",
-                "HUG",
-                "FILL"
-              ]
+              "enum": ["FIXED", "HUG", "FILL"]
             },
             "vertical": {
               "type": "string",
-              "enum": [
-                "FIXED",
-                "HUG",
-                "FILL"
-              ]
+              "enum": ["FIXED", "HUG", "FILL"]
             },
             "minWidth": {
               "type": "number",
@@ -671,16 +613,10 @@
             },
             "layoutAlign": {
               "type": "string",
-              "enum": [
-                "INHERIT",
-                "STRETCH"
-              ]
+              "enum": ["INHERIT", "STRETCH"]
             }
           },
-          "required": [
-            "horizontal",
-            "vertical"
-          ],
+          "required": ["horizontal", "vertical"],
           "additionalProperties": false
         },
         "operations": {
@@ -710,10 +646,7 @@
                     "properties": {
                       "layoutMode": {
                         "type": "string",
-                        "enum": [
-                          "HORIZONTAL",
-                          "VERTICAL"
-                        ]
+                        "enum": ["HORIZONTAL", "VERTICAL"]
                       },
                       "gap": {
                         "type": "number",
@@ -749,67 +682,37 @@
                                 "minimum": 0
                               }
                             },
-                            "required": [
-                              "top",
-                              "right",
-                              "bottom",
-                              "left"
-                            ],
+                            "required": ["top", "right", "bottom", "left"],
                             "additionalProperties": false
                           }
                         ]
                       },
                       "primaryAxisAlignItems": {
                         "type": "string",
-                        "enum": [
-                          "MIN",
-                          "CENTER",
-                          "MAX",
-                          "SPACE_BETWEEN"
-                        ]
+                        "enum": ["MIN", "CENTER", "MAX", "SPACE_BETWEEN"]
                       },
                       "counterAxisAlignItems": {
                         "type": "string",
-                        "enum": [
-                          "MIN",
-                          "CENTER",
-                          "MAX",
-                          "BASELINE"
-                        ]
+                        "enum": ["MIN", "CENTER", "MAX", "BASELINE"]
                       },
                       "layoutWrap": {
                         "type": "string",
-                        "enum": [
-                          "NO_WRAP",
-                          "WRAP"
-                        ]
+                        "enum": ["NO_WRAP", "WRAP"]
                       },
                       "primaryAxisSizingMode": {
                         "type": "string",
-                        "enum": [
-                          "FIXED",
-                          "AUTO"
-                        ]
+                        "enum": ["FIXED", "AUTO"]
                       },
                       "counterAxisSizingMode": {
                         "type": "string",
-                        "enum": [
-                          "FIXED",
-                          "AUTO"
-                        ]
+                        "enum": ["FIXED", "AUTO"]
                       }
                     },
-                    "required": [
-                      "layoutMode"
-                    ],
+                    "required": ["layoutMode"],
                     "additionalProperties": false
                   }
                 },
-                "required": [
-                  "op",
-                  "nodeIds",
-                  "layout"
-                ],
+                "required": ["op", "nodeIds", "layout"],
                 "additionalProperties": false
               },
               {
@@ -833,19 +736,11 @@
                     "properties": {
                       "horizontal": {
                         "type": "string",
-                        "enum": [
-                          "FIXED",
-                          "HUG",
-                          "FILL"
-                        ]
+                        "enum": ["FIXED", "HUG", "FILL"]
                       },
                       "vertical": {
                         "type": "string",
-                        "enum": [
-                          "FIXED",
-                          "HUG",
-                          "FILL"
-                        ]
+                        "enum": ["FIXED", "HUG", "FILL"]
                       },
                       "minWidth": {
                         "type": "number",
@@ -865,24 +760,14 @@
                       },
                       "layoutAlign": {
                         "type": "string",
-                        "enum": [
-                          "INHERIT",
-                          "STRETCH"
-                        ]
+                        "enum": ["INHERIT", "STRETCH"]
                       }
                     },
-                    "required": [
-                      "horizontal",
-                      "vertical"
-                    ],
+                    "required": ["horizontal", "vertical"],
                     "additionalProperties": false
                   }
                 },
-                "required": [
-                  "op",
-                  "nodeIds",
-                  "sizing"
-                ],
+                "required": ["op", "nodeIds", "sizing"],
                 "additionalProperties": false
               },
               {
@@ -925,18 +810,11 @@
                         ]
                       }
                     },
-                    "required": [
-                      "horizontal",
-                      "vertical"
-                    ],
+                    "required": ["horizontal", "vertical"],
                     "additionalProperties": false
                   }
                 },
-                "required": [
-                  "op",
-                  "nodeIds",
-                  "constraints"
-                ],
+                "required": ["op", "nodeIds", "constraints"],
                 "additionalProperties": false
               }
             ]
@@ -961,9 +839,7 @@
           }
         }
       },
-      "required": [
-        "action"
-      ],
+      "required": ["action"],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": {}
     },
@@ -1189,10 +1065,7 @@
               "exclusiveMinimum": 0
             }
           },
-          "required": [
-            "width",
-            "height"
-          ],
+          "required": ["width", "height"],
           "additionalProperties": false
         },
         "offset": {
@@ -1205,10 +1078,7 @@
               "type": "number"
             }
           },
-          "required": [
-            "x",
-            "y"
-          ],
+          "required": ["x", "y"],
           "additionalProperties": false
         },
         "confirm": {
@@ -1217,9 +1087,7 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         }
       },
-      "required": [
-        "action"
-      ],
+      "required": ["action"],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": {}
     },
@@ -1254,9 +1122,7 @@
           "minLength": 1
         }
       },
-      "required": [
-        "action"
-      ],
+      "required": ["action"],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": {}
     },
@@ -1329,12 +1195,7 @@
                     "minLength": 1
                   }
                 },
-                "required": [
-                  "op",
-                  "nodeIds",
-                  "field",
-                  "variableId"
-                ],
+                "required": ["op", "nodeIds", "field", "variableId"],
                 "additionalProperties": false
               },
               {
@@ -1375,21 +1236,13 @@
                             "minLength": 1
                           }
                         },
-                        "required": [
-                          "type",
-                          "id"
-                        ],
+                        "required": ["type", "id"],
                         "additionalProperties": false
                       }
                     ]
                   }
                 },
-                "required": [
-                  "op",
-                  "variableId",
-                  "modeId",
-                  "value"
-                ],
+                "required": ["op", "variableId", "modeId", "value"],
                 "additionalProperties": false
               },
               {
@@ -1412,12 +1265,7 @@
                     "minLength": 1
                   }
                 },
-                "required": [
-                  "op",
-                  "variableId",
-                  "modeId",
-                  "targetVariableId"
-                ],
+                "required": ["op", "variableId", "modeId", "targetVariableId"],
                 "additionalProperties": false
               },
               {
@@ -1440,11 +1288,7 @@
                     "minLength": 1
                   }
                 },
-                "required": [
-                  "op",
-                  "collectionId",
-                  "name"
-                ],
+                "required": ["op", "collectionId", "name"],
                 "additionalProperties": false
               },
               {
@@ -1467,12 +1311,7 @@
                     "minLength": 1
                   }
                 },
-                "required": [
-                  "op",
-                  "collectionId",
-                  "modeId",
-                  "name"
-                ],
+                "required": ["op", "collectionId", "modeId", "name"],
                 "additionalProperties": false
               }
             ]
@@ -1499,9 +1338,7 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         }
       },
-      "required": [
-        "action"
-      ],
+      "required": ["action"],
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": {}
     },

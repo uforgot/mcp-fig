@@ -4,9 +4,7 @@
       "nodeId": "4:0",
       "name": "Layout root",
       "parentId": "1:0",
-      "childIds": [
-        "4:1"
-      ],
+      "childIds": ["4:1"],
       "layout": {
         "layoutMode": "VERTICAL",
         "gap": 16,
@@ -36,9 +34,7 @@
       "nodeId": "4:1",
       "name": "Card",
       "parentId": "4:0",
-      "childIds": [
-        "4:2"
-      ],
+      "childIds": ["4:2"],
       "layout": {
         "layoutMode": "HORIZONTAL",
         "gap": 8,

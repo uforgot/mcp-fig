@@ -19,7 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "quality": "vitest run tests/quality-gates.test.ts",
-    "snapshots:update": "npm run build && node scripts/update-quality-snapshots.mjs",
+    "snapshots:update": "npm run build && node scripts/update-quality-snapshots.mjs && biome format --write tests/snapshots",
     "smoke": "npm run build && node scripts/smoke-mcp.mjs"
   },
   "engines": {
