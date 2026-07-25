@@ -1,0 +1,1358 @@
+figma.showUI(__html__, { width: 360, height: 300, themeColors: true });
+
+let revision = 1;
+const changes = [];
+
+function fileIdentity() {
+  return {
+    key: figma.fileKey || `local:${figma.root.id}`,
+    name: figma.root.name || "Untitled Figma file",
+    revision: String(revision),
+  };
+}
+
+/**
+ * @param {string} code
+ * @param {string} message
+ * @param {boolean} [retryable]
+ * @param {Record<string, unknown>} [details]
+ * @returns {never}
+ */
+function fail(code, message, retryable = false, details) {
+  const error = /** @type {Error & { bridge?: Record<string, unknown> }} */ (
+    new Error(message)
+  );
+  error.bridge = { code, message, retryable, ...(details ? { details } : {}) };
+  throw error;
+}
+
+function assertNodeIds(value) {
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.some((id) => typeof id !== "string" || !id)
+  ) {
+    fail(
+      "INVALID_ARGUMENT",
+      "nodeIds must contain at least one explicit node ID.",
+    );
+  }
+}
+
+async function nodeById(id) {
+  const node = await figma.getNodeByIdAsync(id);
+  if (!node)
+    fail("NODE_NOT_FOUND", `Figma node ${id} was not found.`, false, {
+      nodeId: id,
+    });
+  return node;
+}
+
+/**
+ * @param {BaseNode} node
+ * @returns {node is BaseNode & ChildrenMixin}
+ */
+function hasChildren(node) {
+  return "children" in node && Array.isArray(node.children);
+}
+
+function parentId(node) {
+  return node.parent && node.parent.type !== "DOCUMENT"
+    ? node.parent.id
+    : node.parent?.id;
+}
+
+function serializePaints(paints) {
+  return paints === figma.mixed ? undefined : paints;
+}
+
+async function serializeNode(node, deep = false) {
+  const output = { id: node.id, type: node.type, name: node.name };
+  const parent = parentId(node);
+  if (parent) output.parentId = parent;
+  for (const key of ["x", "y", "width", "height", "visible", "locked"]) {
+    if (key in node && typeof node[key] !== "symbol") output[key] = node[key];
+  }
+  if (node.type === "TEXT" && node.characters !== figma.mixed)
+    output.text = node.characters;
+  if ("fills" in node) output.fills = serializePaints(node.fills);
+  if ("strokes" in node) output.strokes = serializePaints(node.strokes);
+  if (node.type === "COMPONENT") {
+    output.componentKey = node.key;
+    output.componentSource = "local";
+    output.description = node.description;
+    output.componentProperties = node.componentPropertyDefinitions;
+  }
+  if (node.type === "INSTANCE") {
+    const mainComponent = await node.getMainComponentAsync();
+    output.mainComponentId = mainComponent?.id;
+    output.mainComponentKey = mainComponent?.key;
+    output.instanceProperties = Object.fromEntries(
+      Object.entries(node.componentProperties || {}).map(([key, value]) => [
+        key,
+        value.value,
+      ]),
+    );
+  }
+  if ("boundVariables" in node) {
+    output.boundVariables = Object.fromEntries(
+      Object.entries(node.boundVariables || {}).map(([key, value]) => [
+        key,
+        value.id,
+      ]),
+    );
+  }
+  for (const key of [
+    "layoutMode",
+    "itemSpacing",
+    "paddingTop",
+    "paddingRight",
+    "paddingBottom",
+    "paddingLeft",
+    "primaryAxisAlignItems",
+    "counterAxisAlignItems",
+    "layoutWrap",
+    "primaryAxisSizingMode",
+    "counterAxisSizingMode",
+    "layoutSizingHorizontal",
+    "layoutSizingVertical",
+    "minWidth",
+    "maxWidth",
+    "minHeight",
+    "maxHeight",
+    "layoutAlign",
+    "layoutPositioning",
+    "constraints",
+  ]) {
+    if (key in node && node[key] !== undefined && typeof node[key] !== "symbol")
+      output[key] = node[key];
+  }
+  if (deep && hasChildren(node))
+    output.children = await Promise.all(
+      node.children.map((child) => serializeNode(child, true)),
+    );
+  return output;
+}
+
+function recordChange(action, nodeIds) {
+  revision += 1;
+  changes.push({
+    revision: String(revision),
+    action,
+    nodeIds: [...nodeIds],
+    timestamp: new Date().toISOString(),
+  });
+  if (changes.length > 500) changes.splice(0, changes.length - 500);
+}
+
+async function applyProps(node, props) {
+  if (!props) return;
+  if (props.name !== undefined) node.name = props.name;
+  for (const key of ["x", "y", "visible", "locked"]) {
+    if (props[key] !== undefined && key in node) node[key] = props[key];
+  }
+  if (
+    (props.width !== undefined || props.height !== undefined) &&
+    "resize" in node
+  ) {
+    node.resize(props.width ?? node.width, props.height ?? node.height);
+  }
+  if (props.text !== undefined) {
+    if (node.type !== "TEXT")
+      fail("INVALID_ARGUMENT", `Node ${node.id} is not a text node.`);
+    if (node.fontName === figma.mixed)
+      fail("INVALID_ARGUMENT", `Text node ${node.id} uses mixed fonts.`);
+    await figma.loadFontAsync(node.fontName);
+    node.characters = props.text;
+  }
+  if (props.fills !== undefined && "fills" in node) node.fills = props.fills;
+  if (props.strokes !== undefined && "strokes" in node)
+    node.strokes = props.strokes;
+}
+
+async function validateProps(node, props) {
+  if (!props) return;
+  if (
+    (props.width !== undefined || props.height !== undefined) &&
+    !("resize" in node)
+  )
+    fail("INVALID_ARGUMENT", `Node ${node.id} cannot be resized.`);
+  if (props.text !== undefined) {
+    if (node.type !== "TEXT")
+      fail("INVALID_ARGUMENT", `Node ${node.id} is not a text node.`);
+    if (node.fontName === figma.mixed)
+      fail("INVALID_ARGUMENT", `Text node ${node.id} uses mixed fonts.`);
+    await figma.loadFontAsync(node.fontName);
+  }
+  if (props.fills !== undefined && !("fills" in node))
+    fail("INVALID_ARGUMENT", `Node ${node.id} does not support fills.`);
+  if (props.strokes !== undefined && !("strokes" in node))
+    fail("INVALID_ARGUMENT", `Node ${node.id} does not support strokes.`);
+}
+
+function createByType(type) {
+  switch (type) {
+    case "FRAME":
+      return figma.createFrame();
+    case "GROUP":
+      return fail(
+        "UNSUPPORTED_BY_BRIDGE",
+        "GROUP creation requires existing child nodes.",
+      );
+    case "RECTANGLE":
+      return figma.createRectangle();
+    case "ELLIPSE":
+      return figma.createEllipse();
+    case "LINE":
+      return figma.createLine();
+    case "TEXT":
+      return figma.createText();
+    case "COMPONENT":
+      return figma.createComponent();
+    default:
+      fail(
+        "UNSUPPORTED_BY_BRIDGE",
+        `Desktop Plugin cannot create ${type} nodes.`,
+      );
+  }
+}
+
+async function coreCommand(method, input) {
+  if (method === "document.get") {
+    await figma.loadAllPagesAsync();
+    return serializeNode(figma.root, true);
+  }
+  if (method === "selection.get")
+    return figma.currentPage.selection.map((node) => node.id);
+  if (method === "changes.get") return structuredClone(changes);
+  if (method === "node.get") {
+    assertNodeIds(input.nodeIds);
+    return Promise.all(
+      input.nodeIds.map(async (id) => serializeNode(await nodeById(id))),
+    );
+  }
+  if (method === "node.create") {
+    const parent = await nodeById(input.parentId);
+    if (!hasChildren(parent) || typeof parent.appendChild !== "function") {
+      fail(
+        "INVALID_ARGUMENT",
+        `Parent ${input.parentId} cannot contain children.`,
+      );
+    }
+    if (input.dryRun) {
+      return [
+        {
+          id: "preview:new",
+          type: input.nodeType,
+          name: input.name || input.nodeType,
+          parentId: parent.id,
+          ...input.props,
+        },
+      ];
+    }
+    const node = createByType(input.nodeType);
+    try {
+      await validateProps(node, input.props);
+      parent.appendChild(node);
+      if (input.name) node.name = input.name;
+      await applyProps(node, input.props);
+    } catch (error) {
+      node.remove();
+      throw error;
+    }
+    recordChange("create", [node.id]);
+    return [await serializeNode(node)];
+  }
+  assertNodeIds(input.nodeIds);
+  const nodes = await Promise.all(input.nodeIds.map(nodeById));
+  if (input.dryRun) {
+    if (method === "node.update") {
+      await Promise.all(nodes.map((node) => validateProps(node, input.patch)));
+      return Promise.all(
+        nodes.map(async (node) => ({
+          ...(await serializeNode(node)),
+          ...structuredClone(input.patch),
+        })),
+      );
+    }
+    if (method === "node.move") {
+      let parent;
+      if (input.parentId) {
+        parent = await nodeById(input.parentId);
+        if (!hasChildren(parent) || typeof parent.insertChild !== "function")
+          fail("INVALID_ARGUMENT", "Target parent cannot contain children.");
+      }
+      return Promise.all(
+        nodes.map(async (node) => ({
+          ...(await serializeNode(node)),
+          ...(parent ? { parentId: parent.id } : {}),
+          ...(input.x !== undefined ? { x: input.x } : {}),
+          ...(input.y !== undefined ? { y: input.y } : {}),
+        })),
+      );
+    }
+    if (method === "node.resize") {
+      for (const node of nodes)
+        if (!("resize" in node))
+          fail("INVALID_ARGUMENT", `Node ${node.id} cannot be resized.`);
+      return Promise.all(
+        nodes.map(async (node) => ({
+          ...(await serializeNode(node)),
+          width: input.size.width,
+          height: input.size.height,
+        })),
+      );
+    }
+    if (method === "node.clone") {
+      let parent;
+      if (input.parentId) {
+        parent = await nodeById(input.parentId);
+        if (!hasChildren(parent) || typeof parent.appendChild !== "function")
+          fail("INVALID_ARGUMENT", "Clone parent cannot contain children.");
+      }
+      return Promise.all(
+        nodes.map(async (node) => {
+          const snapshot = await serializeNode(node);
+          return {
+            ...snapshot,
+            id: `preview:${node.id}`,
+            ...(parent ? { parentId: parent.id } : {}),
+            ...(input.offset && "x" in node
+              ? { x: node.x + input.offset.x }
+              : {}),
+            ...(input.offset && "y" in node
+              ? { y: node.y + input.offset.y }
+              : {}),
+          };
+        }),
+      );
+    }
+    if (method === "node.delete") return [...input.nodeIds];
+  }
+  if (method === "node.update") {
+    await Promise.all(nodes.map((node) => validateProps(node, input.patch)));
+    for (const node of nodes) await applyProps(node, input.patch);
+    recordChange("update", input.nodeIds);
+    return Promise.all(nodes.map((node) => serializeNode(node)));
+  }
+  if (method === "node.move") {
+    let parent;
+    if (input.parentId) {
+      parent = await nodeById(input.parentId);
+      if (!hasChildren(parent) || typeof parent.insertChild !== "function")
+        fail("INVALID_ARGUMENT", "Target parent cannot contain children.");
+    }
+    for (const node of nodes) {
+      if (input.x !== undefined && !("x" in node))
+        fail("INVALID_ARGUMENT", `Node ${node.id} cannot be positioned.`);
+      if (input.y !== undefined && !("y" in node))
+        fail("INVALID_ARGUMENT", `Node ${node.id} cannot be positioned.`);
+    }
+    nodes.forEach((node, offset) => {
+      if (parent)
+        parent.insertChild(
+          (input.index ?? parent.children.length) + offset,
+          node,
+        );
+      if (input.x !== undefined && "x" in node) node.x = input.x;
+      if (input.y !== undefined && "y" in node) node.y = input.y;
+    });
+    recordChange("move", input.nodeIds);
+    return Promise.all(nodes.map((node) => serializeNode(node)));
+  }
+  if (method === "node.resize") {
+    for (const node of nodes)
+      if (!("resize" in node))
+        fail("INVALID_ARGUMENT", `Node ${node.id} cannot be resized.`);
+    for (const node of nodes) {
+      node.resize(input.size.width, input.size.height);
+    }
+    recordChange("resize", input.nodeIds);
+    return Promise.all(nodes.map((node) => serializeNode(node)));
+  }
+  if (method === "node.clone") {
+    for (const node of nodes)
+      if (!("clone" in node))
+        fail("UNSUPPORTED_BY_BRIDGE", `Node ${node.id} cannot be cloned.`);
+    let cloneParent;
+    if (input.parentId) {
+      cloneParent = await nodeById(input.parentId);
+      if (
+        !hasChildren(cloneParent) ||
+        typeof cloneParent.appendChild !== "function"
+      )
+        fail("INVALID_ARGUMENT", "Clone parent cannot contain children.");
+    }
+    const clones = nodes.map((node) => ({ clone: node.clone() }));
+    for (const entry of clones) {
+      if (cloneParent) cloneParent.appendChild(entry.clone);
+      if (input.offset && "x" in entry.clone) entry.clone.x += input.offset.x;
+      if (input.offset && "y" in entry.clone) entry.clone.y += input.offset.y;
+    }
+    recordChange(
+      "clone",
+      clones.map((entry) => entry.clone.id),
+    );
+    return Promise.all(clones.map((entry) => serializeNode(entry.clone)));
+  }
+  if (method === "node.delete") {
+    for (const node of nodes) node.remove();
+    recordChange("delete", input.nodeIds);
+    return input.nodeIds;
+  }
+  fail("UNSUPPORTED_BY_BRIDGE", `Unknown core method ${method}.`);
+}
+
+function padding(layout) {
+  if (typeof layout.padding === "number") {
+    return {
+      top: layout.padding,
+      right: layout.padding,
+      bottom: layout.padding,
+      left: layout.padding,
+    };
+  }
+  return layout.padding;
+}
+
+function applyLayout(node, layout) {
+  if (!("layoutMode" in node))
+    fail("INVALID_ARGUMENT", `Node ${node.id} does not support Auto Layout.`);
+  node.layoutMode = layout.layoutMode;
+  if (layout.gap !== undefined || layout.itemSpacing !== undefined)
+    node.itemSpacing = layout.gap ?? layout.itemSpacing;
+  const pad = padding(layout);
+  if (pad) {
+    node.paddingTop = pad.top;
+    node.paddingRight = pad.right;
+    node.paddingBottom = pad.bottom;
+    node.paddingLeft = pad.left;
+  }
+  for (const key of [
+    "primaryAxisAlignItems",
+    "counterAxisAlignItems",
+    "layoutWrap",
+    "primaryAxisSizingMode",
+    "counterAxisSizingMode",
+  ])
+    if (layout[key] !== undefined) node[key] = layout[key];
+}
+
+function applySizing(node, sizing) {
+  if (!("layoutSizingHorizontal" in node))
+    fail("INVALID_ARGUMENT", `Node ${node.id} does not support layout sizing.`);
+  node.layoutSizingHorizontal = sizing.horizontal;
+  node.layoutSizingVertical = sizing.vertical;
+  for (const key of [
+    "minWidth",
+    "maxWidth",
+    "minHeight",
+    "maxHeight",
+    "layoutAlign",
+  ]) {
+    if (sizing[key] !== undefined) node[key] = sizing[key];
+  }
+}
+
+function layoutSnapshot(node) {
+  const parent = parentId(node);
+  return {
+    nodeId: node.id,
+    name: node.name,
+    ...(parent ? { parentId: parent } : {}),
+    childIds: hasChildren(node) ? node.children.map((child) => child.id) : [],
+    layout: {
+      layoutMode: "layoutMode" in node ? node.layoutMode : "NONE",
+      gap: "itemSpacing" in node ? (node.itemSpacing ?? 0) : 0,
+      itemSpacing: "itemSpacing" in node ? (node.itemSpacing ?? 0) : 0,
+      padding: {
+        top: "paddingTop" in node ? (node.paddingTop ?? 0) : 0,
+        right: "paddingRight" in node ? (node.paddingRight ?? 0) : 0,
+        bottom: "paddingBottom" in node ? (node.paddingBottom ?? 0) : 0,
+        left: "paddingLeft" in node ? (node.paddingLeft ?? 0) : 0,
+      },
+      primaryAxisAlignItems:
+        "primaryAxisAlignItems" in node
+          ? (node.primaryAxisAlignItems ?? "MIN")
+          : "MIN",
+      counterAxisAlignItems:
+        "counterAxisAlignItems" in node
+          ? (node.counterAxisAlignItems ?? "MIN")
+          : "MIN",
+      layoutWrap:
+        "layoutWrap" in node ? (node.layoutWrap ?? "NO_WRAP") : "NO_WRAP",
+      primaryAxisSizingMode:
+        "primaryAxisSizingMode" in node
+          ? (node.primaryAxisSizingMode ?? "FIXED")
+          : "FIXED",
+      counterAxisSizingMode:
+        "counterAxisSizingMode" in node
+          ? (node.counterAxisSizingMode ?? "FIXED")
+          : "FIXED",
+    },
+    sizing: {
+      horizontal:
+        "layoutSizingHorizontal" in node
+          ? (node.layoutSizingHorizontal ?? "FIXED")
+          : "FIXED",
+      vertical:
+        "layoutSizingVertical" in node
+          ? (node.layoutSizingVertical ?? "FIXED")
+          : "FIXED",
+      ...(node.minWidth !== undefined ? { minWidth: node.minWidth } : {}),
+      ...(node.maxWidth !== undefined ? { maxWidth: node.maxWidth } : {}),
+      ...(node.minHeight !== undefined ? { minHeight: node.minHeight } : {}),
+      ...(node.maxHeight !== undefined ? { maxHeight: node.maxHeight } : {}),
+      ...(node.layoutAlign !== undefined
+        ? { layoutAlign: node.layoutAlign }
+        : {}),
+      ...(node.layoutPositioning !== undefined
+        ? { layoutPositioning: node.layoutPositioning }
+        : {}),
+    },
+    constraints:
+      "constraints" in node
+        ? node.constraints
+        : { horizontal: "LEFT", vertical: "TOP" },
+  };
+}
+
+/**
+ * @param {BaseNode} node
+ * @returns {node is FrameNode | ComponentNode | ComponentSetNode | InstanceNode}
+ */
+function isAutoLayoutContainer(node) {
+  return ["FRAME", "COMPONENT", "COMPONENT_SET", "INSTANCE"].includes(
+    node.type,
+  );
+}
+
+function parentAxisSizing(node, axis) {
+  const primary =
+    (node.layoutMode === "HORIZONTAL" && axis === "horizontal") ||
+    (node.layoutMode === "VERTICAL" && axis === "vertical");
+  return primary
+    ? (node.primaryAxisSizingMode ?? "FIXED")
+    : (node.counterAxisSizingMode ?? "FIXED");
+}
+
+function childExtent(node, axis) {
+  const sizing =
+    axis === "horizontal"
+      ? node.layoutSizingHorizontal
+      : node.layoutSizingVertical;
+  const minimum = axis === "horizontal" ? node.minWidth : node.minHeight;
+  if (sizing === "FILL") return minimum ?? 0;
+  return (axis === "horizontal" ? node.width : node.height) ?? minimum ?? 0;
+}
+
+function validateNode(node) {
+  const issues = [];
+  const parent = node.parent;
+  const parentAuto =
+    parent && "layoutMode" in parent && parent.layoutMode !== "NONE";
+  if (
+    "layoutSizingHorizontal" in node &&
+    node.layoutPositioning !== "ABSOLUTE"
+  ) {
+    for (const axis of ["horizontal", "vertical"]) {
+      const property =
+        axis === "horizontal"
+          ? "layoutSizingHorizontal"
+          : "layoutSizingVertical";
+      const sizing = node[property];
+      if (sizing !== "HUG" && sizing !== "FILL") continue;
+      if (!parentAuto) {
+        issues.push({
+          code:
+            sizing === "HUG"
+              ? "HUG_WITHOUT_AUTO_LAYOUT_PARENT"
+              : "FILL_WITHOUT_AUTO_LAYOUT_PARENT",
+          nodeId: node.id,
+          axis,
+          repairable: true,
+          message: `${sizing} requires an Auto Layout parent.`,
+          details: { property, parentId: parent?.id, current: sizing },
+        });
+      } else if (
+        sizing === "FILL" &&
+        parentAxisSizing(parent, axis) === "AUTO"
+      ) {
+        issues.push({
+          code:
+            axis === "horizontal"
+              ? "FILL_IN_HUG_PARENT_HORIZONTAL"
+              : "FILL_IN_HUG_PARENT_VERTICAL",
+          nodeId: node.id,
+          axis,
+          repairable: true,
+          message: `FILL on ${axis} conflicts with a hugging parent.`,
+          details: { property, parentId: parent.id, current: sizing },
+        });
+      }
+    }
+  }
+  if (
+    "minWidth" in node &&
+    node.minWidth != null &&
+    node.maxWidth != null &&
+    node.minWidth > node.maxWidth
+  ) {
+    issues.push({
+      code: "MIN_MAX_CONFLICT_WIDTH",
+      nodeId: node.id,
+      axis: "horizontal",
+      repairable: false,
+      message: "minWidth is greater than maxWidth.",
+      details: { minimum: node.minWidth, maximum: node.maxWidth },
+    });
+  }
+  if (
+    "minHeight" in node &&
+    node.minHeight != null &&
+    node.maxHeight != null &&
+    node.minHeight > node.maxHeight
+  ) {
+    issues.push({
+      code: "MIN_MAX_CONFLICT_HEIGHT",
+      nodeId: node.id,
+      axis: "vertical",
+      repairable: false,
+      message: "minHeight is greater than maxHeight.",
+      details: { minimum: node.minHeight, maximum: node.maxHeight },
+    });
+  }
+  if (
+    isAutoLayoutContainer(node) &&
+    node.layoutMode !== "NONE" &&
+    node.layoutWrap !== "WRAP" &&
+    hasChildren(node)
+  ) {
+    const children = node.children.filter(
+      (child) =>
+        child.visible !== false &&
+        (!("layoutPositioning" in child) ||
+          child.layoutPositioning !== "ABSOLUTE"),
+    );
+    if (children.length > 0) {
+      const gap = node.itemSpacing ?? 0;
+      const horizontal = node.layoutMode === "HORIZONTAL";
+      const requiredHorizontal =
+        node.paddingLeft +
+        node.paddingRight +
+        (horizontal
+          ? children.reduce(
+              (sum, child) => sum + childExtent(child, "horizontal"),
+              0,
+            ) +
+            gap * Math.max(0, children.length - 1)
+          : Math.max(
+              ...children.map((child) => childExtent(child, "horizontal")),
+            ));
+      const requiredVertical =
+        node.paddingTop +
+        node.paddingBottom +
+        (horizontal
+          ? Math.max(...children.map((child) => childExtent(child, "vertical")))
+          : children.reduce(
+              (sum, child) => sum + childExtent(child, "vertical"),
+              0,
+            ) +
+            gap * Math.max(0, children.length - 1));
+      for (const [axis, required, available] of [
+        ["horizontal", requiredHorizontal, node.width],
+        ["vertical", requiredVertical, node.height],
+      ]) {
+        if (parentAxisSizing(node, axis) === "FIXED" && required > available) {
+          issues.push({
+            code:
+              axis === "horizontal"
+                ? "AUTO_LAYOUT_OVERFLOW_HORIZONTAL"
+                : "AUTO_LAYOUT_OVERFLOW_VERTICAL",
+            nodeId: node.id,
+            axis,
+            repairable: false,
+            message: `Auto Layout node overflows its ${axis} bounds.`,
+            details: { required, available, overflowBy: required - available },
+          });
+        }
+      }
+    }
+  }
+  return issues;
+}
+
+function collectLayoutScope(nodes) {
+  const result = [];
+  const visited = new Set();
+  const visit = (node) => {
+    if (visited.has(node.id)) return;
+    visited.add(node.id);
+    result.push(node);
+    if (hasChildren(node)) node.children.forEach(visit);
+  };
+  nodes.forEach(visit);
+  return result;
+}
+
+function validateLayoutScope(nodes) {
+  const issues = collectLayoutScope(nodes).flatMap(validateNode);
+  return { valid: issues.length === 0, issues };
+}
+
+function assertLayoutOperation(node, operation, plannedAutoLayoutParents) {
+  if (operation.op === "apply" && !("layoutMode" in node))
+    fail("INVALID_ARGUMENT", `Node ${node.id} does not support Auto Layout.`);
+  if (operation.op === "sizing") {
+    if (!("layoutSizingHorizontal" in node))
+      fail(
+        "INVALID_ARGUMENT",
+        `Node ${node.id} does not support layout sizing.`,
+      );
+    const automatic =
+      operation.sizing.horizontal !== "FIXED" ||
+      operation.sizing.vertical !== "FIXED";
+    const parent = node.parent;
+    if (
+      automatic &&
+      (!parent ||
+        ((!("layoutMode" in parent) || parent.layoutMode === "NONE") &&
+          !plannedAutoLayoutParents.has(parent.id)))
+    )
+      fail(
+        "INVALID_ARGUMENT",
+        `Node ${node.id} requires an Auto Layout parent for HUG or FILL sizing.`,
+      );
+    const minWidth = operation.sizing.minWidth ?? node.minWidth;
+    const maxWidth = operation.sizing.maxWidth ?? node.maxWidth;
+    const minHeight = operation.sizing.minHeight ?? node.minHeight;
+    const maxHeight = operation.sizing.maxHeight ?? node.maxHeight;
+    if (minWidth != null && maxWidth != null && minWidth > maxWidth)
+      fail("INVALID_ARGUMENT", "minWidth must not exceed maxWidth.");
+    if (minHeight != null && maxHeight != null && minHeight > maxHeight)
+      fail("INVALID_ARGUMENT", "minHeight must not exceed maxHeight.");
+  }
+  if (operation.op === "constraints" && !("constraints" in node))
+    fail("INVALID_ARGUMENT", `Node ${node.id} does not support constraints.`);
+}
+
+function nodeDepth(node) {
+  let depth = 0;
+  let current = node.parent;
+  while (current) {
+    depth += 1;
+    current = current.parent;
+  }
+  return depth;
+}
+
+function applyLayoutPreview(snapshot, layout) {
+  snapshot.layout.layoutMode = layout.layoutMode;
+  const gap = layout.gap ?? layout.itemSpacing;
+  if (gap !== undefined) {
+    snapshot.layout.gap = gap;
+    snapshot.layout.itemSpacing = gap;
+  }
+  const pad = padding(layout);
+  if (pad) snapshot.layout.padding = { ...pad };
+  for (const key of [
+    "primaryAxisAlignItems",
+    "counterAxisAlignItems",
+    "layoutWrap",
+    "primaryAxisSizingMode",
+    "counterAxisSizingMode",
+  ])
+    if (layout[key] !== undefined) snapshot.layout[key] = layout[key];
+}
+
+function applySizingPreview(snapshot, sizing) {
+  snapshot.sizing.horizontal = sizing.horizontal;
+  snapshot.sizing.vertical = sizing.vertical;
+  for (const key of [
+    "minWidth",
+    "maxWidth",
+    "minHeight",
+    "maxHeight",
+    "layoutAlign",
+  ])
+    if (sizing[key] !== undefined) snapshot.sizing[key] = sizing[key];
+}
+
+function captureLayoutState(node) {
+  const state = {};
+  for (const key of [
+    "layoutMode",
+    "itemSpacing",
+    "paddingTop",
+    "paddingRight",
+    "paddingBottom",
+    "paddingLeft",
+    "primaryAxisAlignItems",
+    "counterAxisAlignItems",
+    "layoutWrap",
+    "primaryAxisSizingMode",
+    "counterAxisSizingMode",
+    "layoutSizingHorizontal",
+    "layoutSizingVertical",
+    "minWidth",
+    "maxWidth",
+    "minHeight",
+    "maxHeight",
+    "layoutAlign",
+    "constraints",
+  ])
+    if (key in node) state[key] = structuredClone(node[key]);
+  return state;
+}
+
+function restoreLayoutState(node, state) {
+  for (const [key, value] of Object.entries(state)) node[key] = value;
+}
+
+async function layoutCommand(input) {
+  if (input.action !== "batch") assertNodeIds(input.nodeIds);
+  const directNodes =
+    input.action === "batch"
+      ? []
+      : await Promise.all(input.nodeIds.map(nodeById));
+  if (input.action === "inspect")
+    return { layouts: await Promise.all(directNodes.map(layoutSnapshot)) };
+  if (input.action === "validate") return validateLayoutScope(directNodes);
+  if (input.action === "repair") {
+    const repairableCodes = new Set([
+      "FILL_IN_HUG_PARENT_HORIZONTAL",
+      "FILL_IN_HUG_PARENT_VERTICAL",
+      "HUG_WITHOUT_AUTO_LAYOUT_PARENT",
+      "FILL_WITHOUT_AUTO_LAYOUT_PARENT",
+    ]);
+    const unsafeCodes = [...new Set(input.issueCodes)].filter(
+      (code) => !repairableCodes.has(code),
+    );
+    if (unsafeCodes.length)
+      fail(
+        "INVALID_ARGUMENT",
+        "Requested layout repair includes unsafe issue codes.",
+        false,
+        { issueCodes: unsafeCodes },
+      );
+    const beforeValidation = validateLayoutScope(directNodes);
+    const selected = beforeValidation.issues.filter((issue) =>
+      input.issueCodes.includes(issue.code),
+    );
+    const repairs = selected.map((issue) => ({
+      issueCode: issue.code,
+      nodeId: issue.nodeId,
+      reason: issue.message,
+      changes: [
+        {
+          property: issue.details.property,
+          from: issue.details.current,
+          to: "FIXED",
+        },
+      ],
+    }));
+    if (input.dryRun) {
+      const selectedKeys = new Set(
+        selected.map((issue) => `${issue.code}:${issue.nodeId}:${issue.axis}`),
+      );
+      const issues = beforeValidation.issues.filter(
+        (issue) =>
+          !selectedKeys.has(`${issue.code}:${issue.nodeId}:${issue.axis}`),
+      );
+      return {
+        beforeValidation,
+        repairs,
+        afterValidation: { valid: issues.length === 0, issues },
+        dryRun: true,
+      };
+    }
+
+    const repairedNodeMap = new Map();
+    for (const issue of selected) {
+      const node = await nodeById(issue.nodeId);
+      repairedNodeMap.set(node.id, node);
+    }
+    const repairedNodes = [...repairedNodeMap.values()];
+    const originals = new Map(
+      repairedNodes.map((node) => [node.id, captureLayoutState(node)]),
+    );
+    try {
+      for (const issue of selected) {
+        const node = await nodeById(issue.nodeId);
+        node[issue.details.property] = "FIXED";
+      }
+      const afterValidation = validateLayoutScope(directNodes);
+      const unresolved = afterValidation.issues.filter((issue) =>
+        input.issueCodes.includes(issue.code),
+      );
+      if (repairs.length > 0 && unresolved.length > 0)
+        fail(
+          "INTERNAL_ERROR",
+          "Auto Layout repair did not clear every selected issue.",
+          false,
+          { unresolvedIssues: unresolved },
+        );
+      if (repairs.length) recordChange("layout.repair", input.nodeIds);
+      return {
+        beforeValidation,
+        repairs,
+        afterValidation,
+        dryRun: false,
+      };
+    } catch (error) {
+      for (const node of repairedNodes) {
+        const original = originals.get(node.id);
+        if (original) restoreLayoutState(node, original);
+      }
+      throw error;
+    }
+  }
+
+  const operations =
+    input.action === "batch"
+      ? input.operations
+      : input.action === "apply"
+        ? [{ op: "apply", nodeIds: input.nodeIds, layout: input.layout }]
+        : [{ op: "sizing", nodeIds: input.nodeIds, sizing: input.sizing }];
+  for (const operation of operations) assertNodeIds(operation.nodeIds);
+  const units = [];
+  const plannedAutoLayoutParents = new Set(
+    operations
+      .filter(
+        (operation) =>
+          operation.op === "apply" && operation.layout.layoutMode !== "NONE",
+      )
+      .flatMap((operation) => operation.nodeIds),
+  );
+  for (const [operationIndex, operation] of operations.entries()) {
+    for (const [nodeIndex, nodeId] of operation.nodeIds.entries()) {
+      const node = await nodeById(nodeId);
+      assertLayoutOperation(node, operation, plannedAutoLayoutParents);
+      units.push({ operation, operationIndex, nodeIndex, node });
+    }
+  }
+  const phase = { apply: 0, sizing: 1, constraints: 2 };
+  units.sort((left, right) => {
+    const phaseDifference =
+      phase[left.operation.op] - phase[right.operation.op];
+    if (phaseDifference !== 0) return phaseDifference;
+    const depthDifference = nodeDepth(left.node) - nodeDepth(right.node);
+    if (depthDifference !== 0) return depthDifference;
+    return (
+      left.operationIndex - right.operationIndex ||
+      left.nodeIndex - right.nodeIndex
+    );
+  });
+  const targetNodes = [
+    ...new Map(units.map((unit) => [unit.node.id, unit.node])).values(),
+  ].sort(
+    (left, right) =>
+      nodeDepth(left) - nodeDepth(right) || left.id.localeCompare(right.id),
+  );
+  const targetIds = targetNodes.map((node) => node.id);
+  const before = targetNodes.map(layoutSnapshot);
+  const appliedOrder = units.map(
+    (unit) => `${unit.operation.op}:${unit.node.id}`,
+  );
+
+  if (input.dryRun) {
+    const previews = new Map(
+      before.map((snapshot) => [snapshot.nodeId, structuredClone(snapshot)]),
+    );
+    for (const { operation, node } of units) {
+      const snapshot = previews.get(node.id);
+      if (operation.op === "apply")
+        applyLayoutPreview(snapshot, operation.layout);
+      else if (operation.op === "sizing")
+        applySizingPreview(snapshot, operation.sizing);
+      else snapshot.constraints = { ...operation.constraints };
+    }
+    return {
+      before,
+      after: targetIds.map((nodeId) => previews.get(nodeId)),
+      appliedOrder,
+      dryRun: true,
+    };
+  }
+
+  const originals = new Map(
+    targetNodes.map((node) => [node.id, captureLayoutState(node)]),
+  );
+  try {
+    for (const { operation, node } of units) {
+      if (operation.op === "apply") applyLayout(node, operation.layout);
+      else if (operation.op === "sizing") applySizing(node, operation.sizing);
+      else if ("constraints" in node) node.constraints = operation.constraints;
+    }
+    const after = targetNodes.map(layoutSnapshot);
+    recordChange(`layout.${input.action}`, targetIds);
+    return { before, after, appliedOrder, dryRun: false };
+  } catch (error) {
+    for (const node of targetNodes) {
+      const original = originals.get(node.id);
+      if (original) restoreLayoutState(node, original);
+    }
+    throw error;
+  }
+}
+
+async function localComponents() {
+  await figma.loadAllPagesAsync();
+  return figma.root.findAllWithCriteria({ types: ["COMPONENT"] });
+}
+
+/** @param {ComponentNode} node */
+function componentRecord(node) {
+  return {
+    source: "local",
+    name: node.name,
+    nodeId: node.id,
+    key: node.key,
+    description: node.description,
+    properties: node.componentPropertyDefinitions,
+  };
+}
+
+async function componentCommand(input) {
+  const components = await localComponents();
+  if (input.action === "search") {
+    const query = (input.query || "").toLowerCase();
+    return {
+      components: components
+        .filter((node) => node.name.toLowerCase().includes(query))
+        .map(componentRecord),
+    };
+  }
+  if (input.action === "inspect") {
+    const node = input.componentId
+      ? await nodeById(input.componentId)
+      : components.find((item) => item.key === input.componentKey);
+    if (node?.type !== "COMPONENT")
+      fail("NODE_NOT_FOUND", "Component was not found.");
+    return {
+      component: componentRecord(node),
+      node: await serializeNode(node, true),
+    };
+  }
+  if (input.action === "library_search" || input.action === "library_inspect") {
+    fail(
+      "UNSUPPORTED_BY_BRIDGE",
+      "Library search requires a configured library inventory.",
+    );
+  }
+  if (input.dryRun) return { dryRun: true, action: input.action };
+  if (input.action === "create_set") {
+    const parent = await nodeById(input.parentId);
+    if (!hasChildren(parent))
+      fail("INVALID_ARGUMENT", "Component set parent cannot contain children.");
+    const entries = Object.entries(input.axes);
+    const combinations = entries.reduce(
+      (sets, [axis, values]) =>
+        sets.flatMap((set) =>
+          values.map((value) => ({ ...set, [axis]: value })),
+        ),
+      [{}],
+    );
+    const variants = combinations.map((combination) => {
+      const component = figma.createComponent();
+      component.name = Object.entries(combination)
+        .map(([key, value]) => `${key}=${value}`)
+        .join(", ");
+      parent.appendChild(component);
+      return component;
+    });
+    const set = figma.combineAsVariants(variants, parent);
+    set.name = input.name;
+    recordChange("component.create_set", [set.id]);
+    return { componentSet: await serializeNode(set, true) };
+  }
+  if (input.action === "arrange_set") {
+    const set = await nodeById(input.componentSetId);
+    if (set.type !== "COMPONENT_SET")
+      fail("INVALID_ARGUMENT", "Target is not a component set.");
+    const columns = input.columns || Math.ceil(Math.sqrt(set.children.length));
+    const gap = input.gap ?? 24;
+    set.children.forEach((child, index) => {
+      child.x = (index % columns) * (child.width + gap);
+      child.y = Math.floor(index / columns) * (child.height + gap);
+    });
+    recordChange("component.arrange_set", [set.id]);
+    return { componentSet: await serializeNode(set, true) };
+  }
+  const component = await nodeById(input.componentId);
+  if (component.type !== "COMPONENT")
+    fail("INVALID_ARGUMENT", "Target is not a component.");
+  if (input.action === "set_description")
+    component.description = input.description;
+  if (
+    input.action === "property_add" &&
+    input.property.options &&
+    input.property.type !== "INSTANCE_SWAP"
+  )
+    fail(
+      "UNSUPPORTED_BY_BRIDGE",
+      "Figma derives VARIANT options from component-set variants; explicit options are only supported for INSTANCE_SWAP.",
+    );
+  if (input.action === "property_add")
+    component.addComponentProperty(
+      input.propertyName,
+      input.property.type,
+      input.property.defaultValue,
+      input.property.options
+        ? {
+            preferredValues: input.property.options.map((key) => ({
+              type: "COMPONENT",
+              key,
+            })),
+          }
+        : undefined,
+    );
+  if (input.action === "property_update")
+    component.editComponentProperty(input.propertyName, input.patch);
+  if (input.action === "property_delete")
+    component.deleteComponentProperty(input.propertyName);
+  if (input.action === "slots")
+    return {
+      slots: JSON.parse(component.getPluginData("mcp-fig-slots") || "{}"),
+    };
+  if (input.action === "slot_create") {
+    const slots = JSON.parse(component.getPluginData("mcp-fig-slots") || "{}");
+    slots[input.slotName] = input.allowedComponentKeys || [];
+    component.setPluginData("mcp-fig-slots", JSON.stringify(slots));
+  }
+  recordChange(`component.${input.action}`, [component.id]);
+  return {
+    component: componentRecord(component),
+    node: await serializeNode(component),
+  };
+}
+
+async function resolveComponent(input) {
+  if (input.componentId) {
+    const node = await nodeById(input.componentId);
+    if (node.type !== "COMPONENT")
+      fail("INVALID_ARGUMENT", "Target is not a component.");
+    return node;
+  }
+  if (input.componentKey)
+    return figma.importComponentByKeyAsync(input.componentKey);
+  fail("INVALID_ARGUMENT", "componentId or componentKey is required.");
+}
+
+async function instanceCommand(input) {
+  if (input.dryRun) return { dryRun: true, action: input.action };
+  if (input.action === "create") {
+    const component = await resolveComponent(input);
+    const parent = await nodeById(input.parentId);
+    if (!hasChildren(parent))
+      fail("INVALID_ARGUMENT", "Instance parent cannot contain children.");
+    const instance = component.createInstance();
+    parent.appendChild(instance);
+    if (input.x !== undefined) instance.x = input.x;
+    if (input.y !== undefined) instance.y = input.y;
+    if (input.properties) instance.setProperties(input.properties);
+    recordChange("instance.create", [instance.id]);
+    return { instances: [await serializeNode(instance, true)] };
+  }
+  const ids = input.instanceIds || [input.instanceId];
+  assertNodeIds(ids);
+  const instances = await Promise.all(
+    ids.map(async (id) => {
+      const node = await nodeById(id);
+      if (node.type !== "INSTANCE")
+        fail("INVALID_ARGUMENT", "Every target must be an instance.");
+      return node;
+    }),
+  );
+  if (input.action === "update")
+    instances.forEach((instance) => {
+      instance.setProperties(input.properties);
+    });
+  if (input.action === "slot_reset")
+    instances.forEach((instance) => {
+      instance.resetOverrides();
+    });
+  if (input.action === "slot_append")
+    fail(
+      "UNSUPPORTED_BY_BRIDGE",
+      "Slot append needs a concrete slot node mapping.",
+    );
+  recordChange(`instance.${input.action}`, ids);
+  return {
+    instances: await Promise.all(
+      instances.map((node) => serializeNode(node, true)),
+    ),
+  };
+}
+
+async function tokensCommand(input) {
+  if (input.action === "inspect") {
+    const collections =
+      await figma.variables.getLocalVariableCollectionsAsync();
+    const variables = await figma.variables.getLocalVariablesAsync();
+    return {
+      collections: collections.map((item) => ({
+        id: item.id,
+        name: item.name,
+        defaultModeId: item.defaultModeId,
+        modes: item.modes,
+      })),
+      variables: variables.map((item) => ({
+        id: item.id,
+        key: item.key,
+        name: item.name,
+        resolvedType: item.resolvedType,
+        collectionId: item.variableCollectionId,
+        valuesByMode: item.valuesByMode,
+      })),
+    };
+  }
+  if (input.dryRun)
+    return {
+      dryRun: true,
+      action: input.action,
+      operations: input.operations || [],
+    };
+  if (input.action === "collection_create") {
+    const collection = figma.variables.createVariableCollection(input.name);
+    if (input.initialModeName)
+      collection.renameMode(collection.defaultModeId, input.initialModeName);
+    recordChange("tokens.collection_create", [collection.id]);
+    return {
+      collection: {
+        id: collection.id,
+        name: collection.name,
+        defaultModeId: collection.defaultModeId,
+        modes: collection.modes,
+      },
+    };
+  }
+  if (input.action === "collection_delete") {
+    const collection = await figma.variables.getVariableCollectionByIdAsync(
+      input.collectionId,
+    );
+    if (!collection)
+      fail(
+        "NODE_NOT_FOUND",
+        `Variable collection ${input.collectionId} was not found.`,
+      );
+    collection.remove();
+    recordChange("tokens.collection_delete", [input.collectionId]);
+    return { deletedCollectionId: input.collectionId };
+  }
+  for (const operation of input.operations) {
+    if (operation.op === "bind") {
+      const variable = await figma.variables.getVariableByIdAsync(
+        operation.variableId,
+      );
+      if (!variable)
+        fail(
+          "NODE_NOT_FOUND",
+          `Variable ${operation.variableId} was not found.`,
+        );
+      for (const id of operation.nodeIds) {
+        const node = await nodeById(id);
+        if (node.type === "DOCUMENT" || node.type === "PAGE")
+          fail("INVALID_ARGUMENT", `Node ${id} cannot bind variables.`);
+        node.setBoundVariable(operation.field, variable);
+      }
+    }
+    if (operation.op === "set_value" || operation.op === "alias") {
+      const variable = await figma.variables.getVariableByIdAsync(
+        operation.variableId,
+      );
+      if (!variable)
+        fail(
+          "NODE_NOT_FOUND",
+          `Variable ${operation.variableId} was not found.`,
+        );
+      const value =
+        operation.op === "alias"
+          ? figma.variables.createVariableAlias(
+              await figma.variables.getVariableByIdAsync(
+                operation.targetVariableId,
+              ),
+            )
+          : operation.value;
+      variable.setValueForMode(operation.modeId, value);
+    }
+    if (operation.op === "mode_add" || operation.op === "mode_rename") {
+      const collection = await figma.variables.getVariableCollectionByIdAsync(
+        operation.collectionId,
+      );
+      if (!collection)
+        fail(
+          "NODE_NOT_FOUND",
+          `Variable collection ${operation.collectionId} was not found.`,
+        );
+      if (operation.op === "mode_add") collection.addMode(operation.name);
+      else collection.renameMode(operation.modeId, operation.name);
+    }
+  }
+  recordChange("tokens.apply", []);
+  return tokensCommand({ action: "inspect" });
+}
+
+async function execute(command) {
+  const identity = fileIdentity();
+  if (command.fileKey !== identity.key) {
+    fail(
+      "FILE_NOT_TARGETED",
+      `Command targets ${command.fileKey}, but this plugin owns ${identity.key}.`,
+      true,
+    );
+  }
+  if (
+    ["document.get", "selection.get", "changes.get"].includes(command.method) ||
+    command.method.startsWith("node.")
+  ) {
+    return coreCommand(command.method, command.params || {});
+  }
+  if (command.method === "layout") return layoutCommand(command.params || {});
+  if (command.method === "component")
+    return componentCommand(command.params || {});
+  if (command.method === "instance")
+    return instanceCommand(command.params || {});
+  if (command.method === "tokens") return tokensCommand(command.params || {});
+  fail(
+    "UNSUPPORTED_BY_BRIDGE",
+    `Unknown Desktop Plugin method ${command.method}.`,
+  );
+}
+
+figma.ui.onmessage = async (message) => {
+  if (message?.type === "bridge-bootstrap") {
+    figma.ui.postMessage({ type: "bridge-bootstrap", file: fileIdentity() });
+    return;
+  }
+  if (message?.type !== "bridge-command" || !message.command) return;
+  const requestId = message.command.requestId;
+  try {
+    const data = await execute(message.command);
+    figma.ui.postMessage({
+      type: "bridge-result",
+      requestId,
+      ok: true,
+      data,
+      revision: String(revision),
+    });
+  } catch (error) {
+    const bridge = error?.bridge || {
+      code: "INTERNAL_ERROR",
+      message: error instanceof Error ? error.message : String(error),
+      retryable: false,
+    };
+    figma.ui.postMessage({
+      type: "bridge-result",
+      requestId,
+      ok: false,
+      error: bridge,
+      revision: String(revision),
+    });
+  }
+};
+
+figma.on("selectionchange", () => {
+  revision += 1;
+  figma.ui.postMessage({ type: "bridge-bootstrap", file: fileIdentity() });
+});

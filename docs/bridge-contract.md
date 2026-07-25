@@ -28,6 +28,19 @@ The facade chooses an adapter; callers do not select REST or Plugin API per acti
 
 `DisconnectedFigmaBridge` is the safe default. It reports health honestly and returns `NOT_CONNECTED` for document or node operations. `RestFigmaBridge` provides authenticated Figma REST document, version, and node reads while explicitly rejecting selection and writes. `InMemoryFigmaBridge` implements the full contract for fixture integration tests without pretending that a live Figma connection exists.
 
+`DesktopPluginFigmaBridge` is enabled with `MCP_FIG_PLUGIN_TOKEN`. Its host binds to `127.0.0.1` only and uses protocol `mcp-fig-plugin/v1`. The Plugin UI owns HTTP transport because the Figma main sandbox cannot access localhost directly; UI and main exchange typed commands with `postMessage`.
+
+## Desktop Plugin protocol v1
+
+- Pairing handshake: protocol, session ID, plugin client ID, active file key/name/revision, capabilities, and client timestamp.
+- Command: request/client/session/file correlation, typed method and params, created/dispatched timestamps.
+- Result: the same correlation tuple, success data or structured error, received/completed timestamps.
+- Security: bearer session token, loopback-only bind, exact file target checks, and rejection of unknown or mismatched results.
+- Connection state: connected/disconnected host records, reconnecting Plugin UI backoff, heartbeat/long-poll last-seen tracking, reusable session identity, expiring sessions, and retryable `NOT_CONNECTED` errors.
+- Metrics: bounded in-memory queue/plugin/total latency records for the benchmark task.
+
+One Plugin UI processes its queue sequentially, so concurrent callers cannot consume each other's results. Cross-agent write conflict/revision policy and repeated stress proof remain the explicit follow-up scope rather than an unverified MVP claim.
+
 ## Mutation safety
 
 - Every mutation requires an explicit `action`.

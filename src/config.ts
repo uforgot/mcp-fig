@@ -24,6 +24,22 @@ export interface ServerConfig {
     fileKey?: string | undefined;
     baseUrl: string;
   };
+  desktopPlugin?: {
+    token: string;
+    port: number;
+    clientId: string;
+    fileKey?: string | undefined;
+  };
+}
+
+function parsePluginPort(value: string | undefined): number {
+  const port = value === undefined ? 3847 : Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error(
+      "MCP_FIG_PLUGIN_PORT must be an integer between 1 and 65535.",
+    );
+  }
+  return port;
 }
 
 function parseProfiles(value: string | undefined): ProfileName[] {
@@ -67,6 +83,18 @@ export function loadConfig(
             accessToken: env.FIGMA_ACCESS_TOKEN,
             fileKey: env.FIGMA_FILE_KEY,
             baseUrl: env.FIGMA_API_BASE_URL ?? "https://api.figma.com",
+          },
+        }
+      : {}),
+    ...(env.MCP_FIG_PLUGIN_TOKEN
+      ? {
+          desktopPlugin: {
+            token: env.MCP_FIG_PLUGIN_TOKEN,
+            port: parsePluginPort(env.MCP_FIG_PLUGIN_PORT),
+            clientId: env.MCP_FIG_PLUGIN_CLIENT_ID ?? `mcp-fig-${process.pid}`,
+            ...(env.MCP_FIG_PLUGIN_FILE_KEY
+              ? { fileKey: env.MCP_FIG_PLUGIN_FILE_KEY }
+              : {}),
           },
         }
       : {}),

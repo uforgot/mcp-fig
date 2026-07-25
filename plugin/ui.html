@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { color-scheme: light dark; font: 12px/1.45 Inter, system-ui, sans-serif; }
+    body { margin: 0; padding: 16px; }
+    form { display: grid; gap: 10px; }
+    label { display: grid; gap: 4px; font-weight: 600; }
+    input { padding: 7px 8px; border: 1px solid #8888; border-radius: 5px; background: transparent; }
+    button { padding: 8px; border: 0; border-radius: 5px; background: #0d99ff; color: white; font-weight: 700; }
+    #status { margin-top: 12px; padding: 9px; border-radius: 5px; background: #8882; word-break: break-word; }
+    .ok { color: #16a34a; } .bad { color: #dc2626; }
+  </style>
+</head>
+<body>
+  <form id="pair-form">
+    <label>Bridge port <input id="port" inputmode="numeric" value="3847" /></label>
+    <label>Session token <input id="token" type="password" autocomplete="off" /></label>
+    <button type="submit">Pair with MCP Fig</button>
+  </form>
+  <div id="status">Waiting for file identity…</div>
+  <script>
+    const PROTOCOL = "mcp-fig-plugin/v1";
+    const CAPABILITIES = [
+      "document.read", "selection.read", "node.read", "node.write",
+      "layout.write", "component.write", "instance.write", "tokens.write"
+    ];
+    const sessionId = crypto.randomUUID();
+    const pluginClientId = `figma-plugin-ui:${sessionId}`;
+    const statusNode = document.querySelector("#status");
+    let file = null;
+    let controller = null;
+    const pending = new Map();
+
+    function setStatus(text, ok) {
+      statusNode.textContent = text;
+      statusNode.className = ok === true ? "ok" : ok === false ? "bad" : "";
+    }
+    function pluginMessage(message) {
+      parent.postMessage({ pluginMessage: message }, "*");
+    }
+    window.onmessage = (event) => {
+      const message = event.data?.pluginMessage;
+      if (!message) return;
+      if (message.type === "bridge-bootstrap") {
+        file = message.file;
+        setStatus(`Ready: ${file.name} (${file.key})`);
+      }
+      if (message.type === "bridge-result") {
+        const entry = pending.get(message.requestId);
+        if (entry) {
+          pending.delete(message.requestId);
+          clearTimeout(entry.timer);
+          entry.resolve(message);
+        }
+      }
+    };
+    pluginMessage({ type: "bridge-bootstrap" });
+
+    async function sendToMain(command) {
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          pending.delete(command.requestId);
+          reject(new Error(`Plugin command ${command.requestId} timed out.`));
+        }, 5000);
+        pending.set(command.requestId, { resolve, timer });
+        pluginMessage({ type: "bridge-command", command });
+      });
+    }
+    async function request(url, options = {}) {
+      const response = await fetch(url, options);
+      if (!response.ok && response.status !== 204) {
+        throw new Error(`${response.status} ${await response.text()}`);
+      }
+      return response;
+    }
+    async function pair(port, token, signal) {
+      const base = `http://127.0.0.1:${port}`;
+      const auth = { authorization: `Bearer ${token}`, "content-type": "application/json" };
+      let backoff = 250;
+      while (!signal.aborted) {
+        try {
+          if (!file) throw new Error("File identity is not ready.");
+          await request(`${base}/v1/session/handshake`, {
+            method: "POST", headers: auth, signal,
+            body: JSON.stringify({
+              protocol: PROTOCOL, sessionId, clientId: pluginClientId, file,
+              capabilities: CAPABILITIES, sentAt: new Date().toISOString()
+            })
+          });
+          setStatus(`Connected: ${file.name}`, true);
+          backoff = 250;
+          while (!signal.aborted) {
+            const response = await request(
+              `${base}/v1/session/${encodeURIComponent(sessionId)}/next`,
+              { headers: { authorization: `Bearer ${token}` }, signal },
+            );
+            if (response.status === 204) continue;
+            const command = await response.json();
+            const receivedAt = new Date().toISOString();
+            let result;
+            if (
+              command.protocol !== PROTOCOL || command.sessionId !== sessionId ||
+              command.fileKey !== file.key || typeof command.requestId !== "string"
+            ) {
+              result = {
+                protocol: PROTOCOL, requestId: command.requestId || "invalid",
+                clientId: command.clientId || "invalid", sessionId, fileKey: file.key,
+                ok: false, error: { code: "FILE_NOT_TARGETED", message: "Command target does not match this plugin session." },
+                receivedAt, completedAt: new Date().toISOString()
+              };
+            } else {
+              const mainResult = await sendToMain(command);
+              if (mainResult.revision) file.revision = mainResult.revision;
+              result = {
+                protocol: PROTOCOL, requestId: command.requestId, clientId: command.clientId,
+                sessionId, fileKey: file.key, ok: mainResult.ok,
+                revision: file.revision,
+                ...(mainResult.ok ? { data: mainResult.data } : { error: mainResult.error }),
+                receivedAt, completedAt: new Date().toISOString()
+              };
+            }
+            await request(`${base}/v1/session/${encodeURIComponent(sessionId)}/result`, {
+              method: "POST", headers: auth, signal, body: JSON.stringify(result)
+            });
+          }
+        } catch (error) {
+          if (signal.aborted) return;
+          setStatus(`Reconnecting in ${backoff}ms: ${error.message}`, false);
+          await new Promise((resolve) => setTimeout(resolve, backoff));
+          backoff = Math.min(backoff * 2, 5000);
+        }
+      }
+    }
+    document.querySelector("#pair-form").onsubmit = (event) => {
+      event.preventDefault();
+      if (!file) return setStatus("File identity is not ready.", false);
+      const port = document.querySelector("#port").value.trim();
+      const token = document.querySelector("#token").value;
+      if (!/^\d+$/.test(port) || !token) return setStatus("Enter a valid port and session token.", false);
+      controller?.abort();
+      controller = new AbortController();
+      void pair(port, token, controller.signal);
+    };
+  </script>
+</body>
+</html>

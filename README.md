@@ -132,13 +132,23 @@ npm run typecheck
 npm run lint
 npm run build
 npm run smoke
+npm run smoke:plugin
 ```
 
-`npm run smoke` builds the server, starts `dist/index.js` over stdio, completes the MCP handshake, lists tools, and calls `figma_connection` with `action: "status"`.
+`npm run smoke` builds the server, starts `dist/index.js` over stdio, completes the MCP handshake, lists tools, and calls `figma_connection` with `action: "status"`. `npm run smoke:plugin` also starts the built stdio artifact with a loopback host, pairs a deterministic fake Plugin transport, then round-trips selection inspection, node update, and Auto Layout repair.
 
 `npm run quality` executes the compact-surface, schema snapshot, workflow call-budget, typed Auto Layout, and structural visual regression gates. The current fixture baseline is 8 core tools, 12/12 successful representative workflows, no more than 5 calls per workflow, and 10/10 Auto Layout workflows without raw execution. See [`docs/quality-gates.md`](docs/quality-gates.md).
 
-Copy `.env.example` when you need local profile configuration. With no credentials, the server safely reports the bridge as `not-configured`. Setting `FIGMA_ACCESS_TOKEN` and `FIGMA_FILE_KEY` enables authenticated REST document and node reads. Current selection and all writes intentionally require a Desktop Plugin bridge; REST-only mode returns `UNSUPPORTED_BY_BRIDGE` instead of pretending a mutation succeeded.
+Copy `.env.example` when you need local profile configuration. With no credentials, the server safely reports the bridge as `not-configured`. Setting `FIGMA_ACCESS_TOKEN` and `FIGMA_FILE_KEY` enables authenticated REST document and node reads. REST-only mode returns `UNSUPPORTED_BY_BRIDGE` instead of pretending a mutation succeeded.
+
+### Live Desktop Plugin bridge
+
+1. Set `MCP_FIG_PLUGIN_TOKEN` to a long random value. The default port is `3847`; the server binds only to `127.0.0.1`. If you choose another port, add that exact origin to `plugin/manifest.json` `devAllowedDomains` before importing the development plugin.
+2. In Figma Desktop, import `plugin/manifest.json` as a development plugin and run **MCP Fig Live Bridge** in the file you want to target.
+3. Enter the same port and token in the plugin UI. The UI handshakes the current file identity, then maintains a reconnecting localhost long-poll transport.
+4. Optionally set `MCP_FIG_PLUGIN_FILE_KEY` to pin the MCP process to one paired file. Each command and result validates token, request ID, client ID, session ID, and file key before a response can resolve.
+
+Protocol v1 routes typed facade actions through `stdio MCP → 127.0.0.1 host → Plugin UI → Plugin main`. It supports current selection/document/node reads, core node mutations, Component/Instance/Token actions, and Auto Layout inspect/apply/sizing/batch/validate/repair. It does not expose raw Plugin API execution. Timing metrics retain created/dispatched/received/completed timestamps and request/client/session/file correlation for the dedicated benchmark and concurrency follow-ups.
 
 The fixture adapter and `tests/fixtures/core-file.json` exercise create, update, move, resize, clone, delete preview, confirmation, and deletion through the same `FigmaBridge` contract. See [`docs/bridge-contract.md`](docs/bridge-contract.md).
 

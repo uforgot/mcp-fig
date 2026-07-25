@@ -9,18 +9,21 @@
   },
   "files": [
     "dist",
+    "plugin",
     "README.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
+    "typecheck:plugin": "tsc -p plugin/tsconfig.json",
     "lint": "biome check .",
     "format": "biome check --write .",
     "test": "vitest run",
     "test:watch": "vitest",
     "quality": "vitest run tests/quality-gates.test.ts",
     "snapshots:update": "npm run build && node scripts/update-quality-snapshots.mjs && biome format --write tests/snapshots",
-    "smoke": "npm run build && node scripts/smoke-mcp.mjs"
+    "smoke": "npm run build && node scripts/smoke-mcp.mjs",
+    "smoke:plugin": "npm run build && node scripts/smoke-plugin-bridge.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -31,6 +34,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.5",
+    "@figma/plugin-typings": "^1.131.0",
     "@types/node": "^25.0.10",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"

@@ -1,0 +1,13 @@
+{
+  "name": "MCP Fig Live Bridge",
+  "id": "mcp-fig-live-bridge",
+  "api": "1.0.0",
+  "main": "main.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": ["none"],
+    "devAllowedDomains": ["http://127.0.0.1:3847"]
+  }
+}
