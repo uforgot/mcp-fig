@@ -143,7 +143,7 @@ Copy `.env.example` when you need local profile configuration. With no credentia
 
 ### Live Desktop Plugin bridge
 
-1. Set `MCP_FIG_PLUGIN_TOKEN` to a long random value. The default port is `3847`; the server binds only to `127.0.0.1`. If you choose another port, add that exact origin to `plugin/manifest.json` `devAllowedDomains` before importing the development plugin.
+1. Set `MCP_FIG_PLUGIN_TOKEN` to a long random value. The default port is `3847`; the server binds only to `127.0.0.1`, while the Plugin connects through `http://localhost:3847` because Figma's development-domain validator does not accept the loopback IP literal. If you choose another port, add the matching `http://localhost:<port>` origin to `plugin/manifest.json` `devAllowedDomains` before importing the development plugin.
 2. In Figma Desktop, import `plugin/manifest.json` as a development plugin and run **MCP Fig Live Bridge** in the file you want to target.
 3. Enter the same port and token in the plugin UI. The UI handshakes the current file identity, then maintains a reconnecting localhost long-poll transport.
 4. Optionally set `MCP_FIG_PLUGIN_FILE_KEY` to pin the MCP process to one paired file. Each command and result validates token, request ID, client ID, session ID, and file key before a response can resolve.
