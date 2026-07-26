@@ -1,6 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { rename, rm } from "node:fs/promises";
-import { join } from "node:path";
 import {
   createOwnerOnlyFile,
   ensureServiceDirectories,
@@ -25,6 +24,21 @@ interface PairingRecord {
 export interface IssuedPairingCode {
   code: string;
   expiresAt: number;
+}
+
+export type PairingCredentialErrorCode =
+  | "PAIRING_INVALID"
+  | "PAIRING_EXPIRED"
+  | "PAIRING_USED";
+
+export class PairingCredentialError extends Error {
+  readonly code: PairingCredentialErrorCode;
+
+  constructor(code: PairingCredentialErrorCode, message: string) {
+    super(message);
+    this.name = "PairingCredentialError";
+    this.code = code;
+  }
 }
 
 function token(): string {
@@ -128,7 +142,10 @@ export async function rotateCredential(
   paths: ServicePaths,
   options: { now?: number } = {},
 ): Promise<ServiceCredential> {
-  await rm(paths.pairingPath, { force: true });
+  await Promise.all([
+    rm(paths.pairingPath, { force: true }),
+    rm(paths.pairingUsedPath, { force: true }),
+  ]);
   return writeCredential(paths, {
     version: 1,
     pluginToken: token(),
@@ -153,6 +170,7 @@ export async function issuePairingCode(
     issuedAt: now,
     expiresAt: now + ttlMs,
   };
+  await rm(paths.pairingUsedPath, { force: true });
   await writeOwnerOnlyFile(
     paths.pairingPath,
     `${JSON.stringify(record, null, 2)}\n`,
@@ -165,41 +183,65 @@ export async function consumePairingCode(
   code: string,
   options: { now?: number } = {},
 ): Promise<ServiceCredential> {
+  const rejectMissingOrUsed = async (): Promise<never> => {
+    try {
+      const used = parsePairingRecord(
+        await readOwnerOnlyFile(paths.pairingUsedPath),
+      );
+      const now = options.now ?? Date.now();
+      if (
+        now < used.expiresAt &&
+        secureEqual(used.codeHash, hashCode(paths, code))
+      ) {
+        throw new PairingCredentialError(
+          "PAIRING_USED",
+          "Pairing code was already used.",
+        );
+      }
+      if (now >= used.expiresAt) {
+        await rm(paths.pairingUsedPath, { force: true });
+      }
+    } catch (error) {
+      if (error instanceof PairingCredentialError) throw error;
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    throw new PairingCredentialError(
+      "PAIRING_INVALID",
+      "No active pairing code matches this value.",
+    );
+  };
+
   let record: PairingRecord;
   try {
     record = parsePairingRecord(await readOwnerOnlyFile(paths.pairingPath));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(
-        "No pairing code is available; it may be expired or used.",
-      );
+      return rejectMissingOrUsed();
     }
     throw error;
   }
   const now = options.now ?? Date.now();
   if (now >= record.expiresAt) {
     await rm(paths.pairingPath, { force: true });
-    throw new Error("Pairing code expired.");
+    throw new PairingCredentialError(
+      "PAIRING_EXPIRED",
+      "Pairing code expired.",
+    );
   }
   if (!secureEqual(record.codeHash, hashCode(paths, code))) {
-    throw new Error("Invalid pairing code.");
+    throw new PairingCredentialError(
+      "PAIRING_INVALID",
+      "Invalid pairing code.",
+    );
   }
 
-  const claimPath = join(
-    paths.appSupportDirectory,
-    `.pairing-claim-${process.pid}-${randomBytes(4).toString("hex")}.json`,
-  );
   try {
-    await rename(paths.pairingPath, claimPath);
+    await rename(paths.pairingPath, paths.pairingUsedPath);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error("Pairing code was already used.");
+      return rejectMissingOrUsed();
     }
     throw error;
   }
-  try {
-    return await readCredential(paths);
-  } finally {
-    await rm(claimPath, { force: true });
-  }
+  return readCredential(paths);
 }

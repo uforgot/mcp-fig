@@ -2,8 +2,12 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
+import { PLUGIN_PROTOCOL_V1 } from "../dist/bridge/plugin-protocol.js";
 import { ServiceClient } from "../dist/service/client.js";
-import { readOrCreateCredential } from "../dist/service/credential.js";
+import {
+  issuePairingCode,
+  readOrCreateCredential,
+} from "../dist/service/credential.js";
 import {
   bootoutLaunchd,
   getLaunchdStatus,
@@ -21,6 +25,7 @@ const repo = resolve(new URL("..", import.meta.url).pathname);
 const home = await mkdtemp(join("/tmp", "mcp-fig-launchd-"));
 const label = `com.uforgot.mcp-fig.smoke.${process.pid}`;
 const paths = servicePaths({ home, label });
+const runtimePaths = servicePaths({ home });
 let bootstrapped = false;
 
 function run(command, args) {
@@ -166,6 +171,33 @@ try {
     throw new Error("Service socket is not 0600.");
   }
 
+  const issued = await issuePairingCode(runtimePaths);
+  const exchange = await fetch(`http://localhost:${port}/v1/pair/exchange`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "null" },
+    body: JSON.stringify({ protocol: PLUGIN_PROTOCOL_V1, code: issued.code }),
+  });
+  if (exchange.status !== 200) {
+    throw new Error(`Pairing exchange failed with ${exchange.status}.`);
+  }
+  const paired = await exchange.json();
+  if (
+    paired.protocol !== PLUGIN_PROTOCOL_V1 ||
+    paired.credential !== credential.pluginToken
+  ) {
+    throw new Error(
+      "Pairing exchange returned an invalid credential envelope.",
+    );
+  }
+  const replay = await fetch(`http://localhost:${port}/v1/pair/exchange`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "null" },
+    body: JSON.stringify({ protocol: PLUGIN_PROTOCOL_V1, code: issued.code }),
+  });
+  if (replay.status !== 409) {
+    throw new Error(`Pairing replay returned ${replay.status}, expected 409.`);
+  }
+
   const commandLine = await run("/bin/ps", [
     "-o",
     "command=",
@@ -202,6 +234,15 @@ try {
     throw new Error("Restarted launchd PID and health PID differ.");
   }
   await assertPortOwned(port);
+  const authenticatedAfterRestart = await fetch(
+    `http://localhost:${port}/v1/broker/health`,
+    { headers: { authorization: ["Bearer", paired.credential].join(" ") } },
+  );
+  if (authenticatedAfterRestart.status !== 200) {
+    throw new Error(
+      `Saved credential failed after service restart with ${authenticatedAfterRestart.status}.`,
+    );
+  }
 
   const logsAfter = `${await readFile(paths.stdoutLogPath, "utf8")}${await readFile(paths.stderrLogPath, "utf8")}`;
   if (logsAfter.includes(credential.pluginToken)) {
@@ -227,6 +268,9 @@ try {
         socketMode: "0600",
         plistValid: true,
         secretFree: true,
+        oneTimePairing: true,
+        replayRejected: true,
+        savedCredentialAfterRestart: true,
         bootoutIdempotent: true,
       },
       null,

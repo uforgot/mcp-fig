@@ -19,6 +19,19 @@ export interface HostAddress {
   url: string;
 }
 
+export type PairingExchangeErrorCode =
+  | "PAIRING_INVALID"
+  | "PAIRING_EXPIRED"
+  | "PAIRING_USED";
+
+export type PairingExchangeResult =
+  | { ok: true; credential: string }
+  | { ok: false; code: PairingExchangeErrorCode; message: string };
+
+export type PairingCodeExchange = (
+  code: string,
+) => Promise<PairingExchangeResult>;
+
 export interface PluginHttpRouterOptions {
   token: string;
   sessions: PluginSessionRegistry;
@@ -31,6 +44,7 @@ export interface PluginHttpRouterOptions {
     options: { fileKey?: string; timeoutMs?: number },
   ) => Promise<unknown>;
   metrics: () => PluginMetric[];
+  exchangePairingCode?: PairingCodeExchange;
 }
 
 export function writeJson(
@@ -77,6 +91,28 @@ function equalToken(actual: string | undefined, expected: string): boolean {
     actualBuffer.length === expectedBuffer.length &&
     timingSafeEqual(actualBuffer, expectedBuffer)
   );
+}
+
+function isLoopbackAddress(address: string | undefined): boolean {
+  return (
+    address === "127.0.0.1" ||
+    address === "::1" ||
+    address === "::ffff:127.0.0.1"
+  );
+}
+
+function isAllowedPairingOrigin(origin: string | undefined): boolean {
+  if (origin === "null") return true;
+  if (!origin) return false;
+  try {
+    const url = new URL(origin);
+    return (
+      url.protocol === "http:" &&
+      (url.hostname === "localhost" || url.hostname === "127.0.0.1")
+    );
+  } catch {
+    return false;
+  }
 }
 
 export async function requestBrokerJson<Value>(
@@ -133,6 +169,7 @@ export class PluginHttpRouter {
   readonly #status: PluginHttpRouterOptions["status"];
   readonly #request: PluginHttpRouterOptions["request"];
   readonly #metrics: PluginHttpRouterOptions["metrics"];
+  readonly #exchangePairingCode: PairingCodeExchange | undefined;
 
   constructor(options: PluginHttpRouterOptions) {
     this.#token = options.token;
@@ -141,25 +178,48 @@ export class PluginHttpRouter {
     this.#status = options.status;
     this.#request = options.request;
     this.#metrics = options.metrics;
+    this.#exchangePairingCode = options.exchangePairingCode;
   }
 
   async route(
     request: IncomingMessage,
     response: ServerResponse,
   ): Promise<void> {
-    response.setHeader("access-control-allow-origin", "null");
+    const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    const pairingRoute = url.pathname === "/v1/pair/exchange";
+    const origin = request.headers.origin;
+    const pairingRequestAllowed =
+      isLoopbackAddress(request.socket.remoteAddress) &&
+      isAllowedPairingOrigin(origin);
+    response.setHeader(
+      "access-control-allow-origin",
+      pairingRoute && pairingRequestAllowed ? (origin ?? "null") : "null",
+    );
+    response.setHeader("vary", "Origin");
     response.setHeader(
       "access-control-allow-headers",
       "authorization, content-type",
     );
     response.setHeader("access-control-allow-methods", "GET, POST, OPTIONS");
     if (request.method === "OPTIONS") {
+      if (pairingRoute && !pairingRequestAllowed) {
+        writeJson(response, 403, {
+          error: {
+            code: "PAIRING_ORIGIN_FORBIDDEN",
+            message: "Pairing is restricted to localhost Plugin origins.",
+          },
+        });
+        return;
+      }
       response.writeHead(204);
       response.end();
       return;
     }
     try {
-      const url = new URL(request.url ?? "/", "http://127.0.0.1");
+      if (request.method === "POST" && pairingRoute) {
+        await this.#handlePairing(request, response, pairingRequestAllowed);
+        return;
+      }
       if (!this.#authorized(request)) {
         writeJson(response, 401, {
           error: { code: "UNAUTHORIZED", message: "Invalid session token." },
@@ -287,6 +347,74 @@ export class PluginHttpRouter {
         },
       });
     }
+  }
+
+  async #handlePairing(
+    request: IncomingMessage,
+    response: ServerResponse,
+    allowed: boolean,
+  ): Promise<void> {
+    if (!allowed) {
+      writeJson(response, 403, {
+        error: {
+          code: "PAIRING_ORIGIN_FORBIDDEN",
+          message: "Pairing is restricted to localhost Plugin origins.",
+        },
+      });
+      return;
+    }
+    if (!this.#exchangePairingCode) {
+      writeJson(response, 404, {
+        error: {
+          code: "PAIRING_UNAVAILABLE",
+          message: "This bridge does not support service pairing.",
+        },
+      });
+      return;
+    }
+    const body = (await readJson(request)) as {
+      protocol?: unknown;
+      code?: unknown;
+    };
+    if (body.protocol !== PLUGIN_PROTOCOL_V1) {
+      writeJson(response, 409, {
+        error: {
+          code: "PROTOCOL_MISMATCH",
+          message: `Plugin protocol must be ${PLUGIN_PROTOCOL_V1}.`,
+        },
+      });
+      return;
+    }
+    if (
+      typeof body.code !== "string" ||
+      body.code.length < 6 ||
+      body.code.length > 128
+    ) {
+      writeJson(response, 400, {
+        error: {
+          code: "PAIRING_INVALID",
+          message: "Pairing code is invalid.",
+        },
+      });
+      return;
+    }
+    const result = await this.#exchangePairingCode(body.code);
+    if (!result.ok) {
+      const status =
+        result.code === "PAIRING_EXPIRED"
+          ? 410
+          : result.code === "PAIRING_USED"
+            ? 409
+            : 400;
+      writeJson(response, status, {
+        error: { code: result.code, message: result.message },
+      });
+      return;
+    }
+    writeJson(response, 200, {
+      protocol: PLUGIN_PROTOCOL_V1,
+      credential: result.credential,
+    });
   }
 
   #authorized(request: IncomingMessage): boolean {

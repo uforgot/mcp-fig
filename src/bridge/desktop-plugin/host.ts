@@ -8,6 +8,7 @@ import {
 import type { BridgeStatus } from "../types.js";
 import {
   type HostAddress,
+  type PairingCodeExchange,
   PluginHttpRouter,
   requestBrokerJson,
   writeJson,
@@ -22,12 +23,16 @@ export interface HostOptions {
   sessionTtlMs?: number;
   maxWriteQueue?: number;
   allowProxy?: boolean;
+  exchangePairingCode?: PairingCodeExchange;
 }
+
+type ResolvedHostOptions = Required<Omit<HostOptions, "exchangePairingCode">> &
+  Pick<HostOptions, "exchangePairingCode">;
 
 export type { HostAddress } from "./http.js";
 
 export class DesktopPluginBridgeHost {
-  readonly #options: Required<HostOptions>;
+  readonly #options: ResolvedHostOptions;
   readonly #sessions: PluginSessionRegistry;
   readonly #coordinator: PluginWriteCoordinator;
   readonly #router: PluginHttpRouter;
@@ -48,6 +53,9 @@ export class DesktopPluginBridgeHost {
       sessionTtlMs: options.sessionTtlMs ?? 30_000,
       maxWriteQueue: options.maxWriteQueue ?? 100,
       allowProxy: options.allowProxy ?? true,
+      ...(options.exchangePairingCode
+        ? { exchangePairingCode: options.exchangePairingCode }
+        : {}),
     };
     this.#sessions = new PluginSessionRegistry(this.#options.sessionTtlMs);
     this.#coordinator = new PluginWriteCoordinator({
@@ -64,6 +72,9 @@ export class DesktopPluginBridgeHost {
       request: (clientId, method, params, requestOptions) =>
         this.#coordinator.request(clientId, method, params, requestOptions),
       metrics: () => this.metrics(),
+      ...(this.#options.exchangePairingCode
+        ? { exchangePairingCode: this.#options.exchangePairingCode }
+        : {}),
     });
   }
 

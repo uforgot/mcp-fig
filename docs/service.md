@@ -36,6 +36,7 @@ Production paths:
 ~/Library/Application Support/mcp-fig/service.json
 ~/Library/Application Support/mcp-fig/credential.json
 ~/Library/Application Support/mcp-fig/pairing.json      # only while a code is active
+~/Library/Application Support/mcp-fig/pairing-used.json # hashed replay marker until the next code/rotation
 ~/Library/Application Support/mcp-fig/service.sock
 ~/Library/Logs/mcp-fig/service.stdout.log
 ~/Library/Logs/mcp-fig/service.stderr.log
@@ -69,9 +70,11 @@ The production plist has no credential, token environment variable, or arbitrary
 
 `service pair` generates a high-entropy one-time code and prints only that code plus its expiry. `pairing.json` stores a label-scoped SHA-256 digest, issue time, and expiry—not the plaintext code. The maximum TTL is 120 seconds.
 
-A successful internal exchange atomically renames the pairing record before reading the long-lived credential, so concurrent attempts have one winner. Wrong codes do not consume the record; expired records are removed; used records cannot be replayed. The long-lived credential is returned only to the internal exchange caller and is never printed by the CLI.
+A `POST /v1/pair/exchange` request requires the current Plugin protocol and code. It is accepted only over the loopback listener with a `null`, `http://localhost`, or `http://127.0.0.1` Origin; missing and remote origins are rejected before the code is inspected. A successful exchange atomically renames the active record to the hashed replay marker before reading the long-lived credential, so concurrent attempts have one winner. Wrong codes do not consume the record; expired records are removed; used codes return `PAIRING_USED` and cannot be replayed.
 
-The current development Plugin UI does not yet call this exchange or persist the returned credential in Figma `clientStorage`. That UI boundary is intentionally separate. `service uninstall` never traverses or deletes Figma document or `clientStorage` locations.
+The Plugin main sandbox provides validated `bridge-config-get`, `bridge-config-set`, and `bridge-config-clear` messages backed by Figma `clientStorage`. The UI exchanges the one-time code, verifies the protocol, completes a credential-authenticated handshake, and only then persists `{version, protocol, port, credential}`. Subsequent Plugin launches reconnect automatically without showing the credential. A successful connection hides pairing inputs and exposes only **Forget** and **Re-pair**. Network failure keeps the saved config and retries with bounded backoff; protocol mismatch asks for an update; a `401` after credential rotation clears the stale config and requires an explicit re-pair.
+
+The **Manual development token** form remains available for explicit env-token canaries. `service uninstall` never traverses or deletes Figma document or `clientStorage` locations.
 
 ## Development and verification
 
@@ -86,7 +89,7 @@ npm run smoke
 npm run smoke:launchd
 ```
 
-`smoke:launchd` uses a unique temporary label and a short temporary HOME. It validates the plist with `plutil`, bootstraps it in the real login-user launchd domain, correlates launchd PID with daemon health, checks single ownership of the configured Plugin port and `0600` socket, sends `SIGKILL`, waits for a different KeepAlive PID, scans process arguments/plist/stdout/stderr for the generated credential, and performs idempotent bootout. It then removes all temporary files and leaves the production label untouched.
+`smoke:launchd` uses a unique temporary label and a short temporary HOME. It validates the plist with `plutil`, bootstraps it in the real login-user launchd domain, correlates launchd PID with daemon health, and checks single ownership of the configured Plugin port and `0600` socket. It performs a real null-origin one-time exchange, rejects immediate replay, sends `SIGKILL`, waits for a different KeepAlive PID, and verifies the saved credential still authenticates after restart. It also scans process arguments/plist/stdout/stderr for the generated credential and performs idempotent bootout. It then removes all temporary files and leaves the production label untouched.
 
 For direct in-process Plugin development, use explicit manual mode and a disposable credential:
 

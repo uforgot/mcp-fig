@@ -1,7 +1,9 @@
 import { resolve } from "node:path";
 import { ServiceClient } from "./client.js";
 import {
+  consumePairingCode,
   issuePairingCode,
+  PairingCredentialError,
   readCredential,
   readOrCreateCredential,
   rotateCredential,
@@ -235,5 +237,18 @@ export async function runInstalledService(
     port: config.port,
     socketPath: config.socketPath,
     version: config.serviceVersion,
+    exchangePairingCode: async (code) => {
+      try {
+        const exchanged = await consumePairingCode(state.paths, code, {
+          now: state.now(),
+        });
+        return { ok: true, credential: exchanged.pluginToken };
+      } catch (error) {
+        if (error instanceof PairingCredentialError) {
+          return { ok: false, code: error.code, message: error.message };
+        }
+        throw error;
+      }
+    },
   });
 }

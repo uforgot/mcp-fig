@@ -29,6 +29,7 @@ export interface ServicePaths {
   configPath: string;
   credentialPath: string;
   pairingPath: string;
+  pairingUsedPath: string;
   socketPath: string;
   launchAgentsDirectory: string;
   launchAgentPath: string;
@@ -81,6 +82,7 @@ export function servicePaths(options: ServicePathsOptions = {}): ServicePaths {
     configPath: join(appSupportDirectory, "service.json"),
     credentialPath: join(appSupportDirectory, "credential.json"),
     pairingPath: join(appSupportDirectory, "pairing.json"),
+    pairingUsedPath: join(appSupportDirectory, "pairing-used.json"),
     socketPath: join(appSupportDirectory, "service.sock"),
     launchAgentsDirectory,
     launchAgentPath: join(launchAgentsDirectory, `${label}.plist`),

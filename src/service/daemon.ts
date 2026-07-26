@@ -7,6 +7,7 @@ import {
   DesktopPluginBridgeHost,
   type HostAddress,
 } from "../bridge/desktop-plugin/host.js";
+import type { PairingCodeExchange } from "../bridge/desktop-plugin/http.js";
 import { McpFigError } from "../errors.js";
 import {
   parseServiceRequest,
@@ -35,10 +36,16 @@ export interface BrokerDaemonOptions {
   requestTimeoutMs?: number;
   sessionTtlMs?: number;
   maxWriteQueue?: number;
+  exchangePairingCode?: PairingCodeExchange;
 }
 
+type ResolvedBrokerDaemonOptions = Required<
+  Omit<BrokerDaemonOptions, "exchangePairingCode">
+> &
+  Pick<BrokerDaemonOptions, "exchangePairingCode">;
+
 export class BrokerDaemon {
-  readonly #options: Required<BrokerDaemonOptions>;
+  readonly #options: ResolvedBrokerDaemonOptions;
   readonly #host: DesktopPluginBridgeHost;
   readonly #startedAt = new Date();
   readonly #sockets = new Set<Socket>();
@@ -61,6 +68,9 @@ export class BrokerDaemon {
       requestTimeoutMs: options.requestTimeoutMs ?? 5_000,
       sessionTtlMs: options.sessionTtlMs ?? 30_000,
       maxWriteQueue: options.maxWriteQueue ?? 100,
+      ...(options.exchangePairingCode
+        ? { exchangePairingCode: options.exchangePairingCode }
+        : {}),
     };
     this.#host = new DesktopPluginBridgeHost({
       token: this.#options.token,
@@ -69,6 +79,9 @@ export class BrokerDaemon {
       sessionTtlMs: this.#options.sessionTtlMs,
       maxWriteQueue: this.#options.maxWriteQueue,
       allowProxy: false,
+      ...(this.#options.exchangePairingCode
+        ? { exchangePairingCode: this.#options.exchangePairingCode }
+        : {}),
     });
   }
 

@@ -149,6 +149,104 @@ async function call(
 }
 
 describe("Desktop Plugin bridge", () => {
+  it("exchanges one-time pairing codes only for localhost/null origins", async () => {
+    const credential = "p".repeat(43);
+    const consumed = new Set<string>();
+    const seen: string[] = [];
+    const host = new DesktopPluginBridgeHost({
+      token: credential,
+      port: 0,
+      exchangePairingCode: async (code: string) => {
+        seen.push(code);
+        if (code === "EXPIRED") {
+          return {
+            ok: false as const,
+            code: "PAIRING_EXPIRED" as const,
+            message: "Pairing code expired.",
+          };
+        }
+        if (code !== "VALID-CODE" && code !== "LOCAL-CODE") {
+          return {
+            ok: false as const,
+            code: "PAIRING_INVALID" as const,
+            message: "Invalid pairing code.",
+          };
+        }
+        if (consumed.has(code)) {
+          return {
+            ok: false as const,
+            code: "PAIRING_USED" as const,
+            message: "Pairing code was already used.",
+          };
+        }
+        consumed.add(code);
+        return { ok: true as const, credential };
+      },
+    });
+    hosts.push(host);
+    const address = await host.listen();
+    const exchange = (code: string, origin: string | null = "null") =>
+      fetch(`${address.url}/v1/pair/exchange`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(origin === null ? {} : { origin }),
+        },
+        body: JSON.stringify({ protocol: PLUGIN_PROTOCOL_V1, code }),
+      });
+
+    const forbidden = await exchange("VALID-CODE", "https://attacker.example");
+    expect(forbidden.status).toBe(403);
+    expect(seen).toEqual([]);
+
+    const missingOrigin = await exchange("VALID-CODE", null);
+    expect(missingOrigin.status).toBe(403);
+    expect(seen).toEqual([]);
+
+    const paired = await exchange("VALID-CODE");
+    expect(paired.status).toBe(200);
+    expect(await paired.json()).toEqual({
+      protocol: PLUGIN_PROTOCOL_V1,
+      credential,
+    });
+    expect(paired.headers.get("cache-control")).toBe("no-store");
+    expect(paired.headers.get("access-control-allow-origin")).toBe("null");
+
+    const replay = await exchange("VALID-CODE");
+    expect(replay.status).toBe(409);
+    expect(await replay.json()).toMatchObject({
+      error: { code: "PAIRING_USED" },
+    });
+
+    const expired = await exchange("EXPIRED");
+    expect(expired.status).toBe(410);
+    expect(await expired.json()).toMatchObject({
+      error: { code: "PAIRING_EXPIRED" },
+    });
+
+    const invalid = await exchange("WRONG");
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toMatchObject({
+      error: { code: "PAIRING_INVALID" },
+    });
+
+    const localOrigin = await exchange(
+      "LOCAL-CODE",
+      `http://localhost:${address.port}`,
+    );
+    expect(localOrigin.status).toBe(200);
+
+    const mismatch = await fetch(`${address.url}/v1/pair/exchange`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "null" },
+      body: JSON.stringify({ protocol: "mcp-fig-plugin/v0", code: "VALID" }),
+    });
+    expect(mismatch.status).toBe(409);
+    expect(await mismatch.json()).toMatchObject({
+      error: { code: "PROTOCOL_MISMATCH" },
+    });
+  });
+
   it("closes safely after a failed bind", async () => {
     const owner = new DesktopPluginBridgeHost({ token: "owner", port: 0 });
     hosts.push(owner);

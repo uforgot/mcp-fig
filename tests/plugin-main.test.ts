@@ -15,6 +15,7 @@ interface MockNode {
 function createHarness() {
   const messages: Record<string, unknown>[] = [];
   const handlers: Record<string, (...args: unknown[]) => unknown> = {};
+  const clientStorage = new Map<string, unknown>();
   let allPagesLoaded = false;
 
   const root: MockNode = {
@@ -142,6 +143,17 @@ function createHarness() {
         return [];
       },
     },
+    clientStorage: {
+      async getAsync(key: string) {
+        return clientStorage.get(key);
+      },
+      async setAsync(key: string, value: unknown) {
+        clientStorage.set(key, structuredClone(value));
+      },
+      async deleteAsync(key: string) {
+        clientStorage.delete(key);
+      },
+    },
     showUI() {},
     on(event: string, handler: (...args: unknown[]) => unknown) {
       if (event === "documentchange" && !allPagesLoaded) {
@@ -195,10 +207,91 @@ function createHarness() {
       );
   }
 
-  return { command, frame, child, handlers, messages };
+  return {
+    command,
+    frame,
+    child,
+    handlers,
+    messages,
+    clientStorage,
+    figma,
+  };
 }
 
 describe("Figma Plugin main bridge", () => {
+  it("gets, validates, stores, and clears the owner bridge config", async () => {
+    const { figma, messages, clientStorage } = createHarness();
+    const config = {
+      version: 1,
+      protocol: "mcp-fig-plugin/v1",
+      port: 3847,
+      credential: "a".repeat(43),
+    };
+
+    await figma.ui.onmessage?.({
+      type: "bridge-config-get",
+      requestId: "config-get-empty",
+    });
+    expect(messages.at(-1)).toEqual({
+      type: "bridge-config-result",
+      requestId: "config-get-empty",
+      operation: "get",
+      ok: true,
+      config: null,
+    });
+
+    await figma.ui.onmessage?.({
+      type: "bridge-config-set",
+      requestId: "config-set",
+      config,
+    });
+    expect(messages.at(-1)).toEqual({
+      type: "bridge-config-result",
+      requestId: "config-set",
+      operation: "set",
+      ok: true,
+    });
+    expect([...clientStorage.values()]).toEqual([config]);
+
+    await figma.ui.onmessage?.({
+      type: "bridge-config-get",
+      requestId: "config-get-saved",
+    });
+    expect(messages.at(-1)).toEqual({
+      type: "bridge-config-result",
+      requestId: "config-get-saved",
+      operation: "get",
+      ok: true,
+      config,
+    });
+
+    await figma.ui.onmessage?.({
+      type: "bridge-config-set",
+      requestId: "config-set-invalid",
+      config: { ...config, port: 0 },
+    });
+    expect(messages.at(-1)).toMatchObject({
+      type: "bridge-config-result",
+      requestId: "config-set-invalid",
+      operation: "set",
+      ok: false,
+      error: { code: "INVALID_CONFIG" },
+    });
+    expect([...clientStorage.values()]).toEqual([config]);
+
+    await figma.ui.onmessage?.({
+      type: "bridge-config-clear",
+      requestId: "config-clear",
+    });
+    expect(messages.at(-1)).toEqual({
+      type: "bridge-config-result",
+      requestId: "config-clear",
+      operation: "clear",
+      ok: true,
+    });
+    expect(clientStorage.size).toBe(0);
+  });
+
   it("proactively sends file identity after installing the UI handler", () => {
     const { messages } = createHarness();
 

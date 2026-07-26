@@ -259,21 +259,39 @@ describe("service lifecycle and secure credentials", () => {
     expect(pairingFile).not.toContain(issued.code);
     await expect(
       consumePairingCode(paths, "wrong-code", { now: 2_000 }),
-    ).rejects.toThrow(/invalid/i);
+    ).rejects.toMatchObject({ code: "PAIRING_INVALID" });
     const exchanged = await consumePairingCode(paths, issued.code, {
       now: 2_000,
     });
     expect(exchanged.pluginToken).toBe(
       (await readCredential(paths)).pluginToken,
     );
+    const usedRecord = await readFile(paths.pairingUsedPath, "utf8");
+    expect(usedRecord).not.toContain(issued.code);
+    expect(modeOf((await stat(paths.pairingUsedPath)).mode)).toBe(0o600);
     await expect(
       consumePairingCode(paths, issued.code, { now: 2_000 }),
-    ).rejects.toThrow(/expired|used|available/i);
+    ).rejects.toMatchObject({ code: "PAIRING_USED" });
+
+    const concurrent = await issuePairingCode(paths, { now: 5_000 });
+    const claims = await Promise.allSettled(
+      Array.from({ length: 10 }, () =>
+        consumePairingCode(paths, concurrent.code, { now: 6_000 }),
+      ),
+    );
+    expect(
+      claims.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    expect(
+      claims
+        .filter((result) => result.status === "rejected")
+        .every((result) => result.reason?.code === "PAIRING_USED"),
+    ).toBe(true);
 
     const expired = await issuePairingCode(paths, { now: 10_000 });
     await expect(
       consumePairingCode(paths, expired.code, { now: 130_000 }),
-    ).rejects.toThrow(/expired/i);
+    ).rejects.toMatchObject({ code: "PAIRING_EXPIRED" });
   });
 
   it("rotates credentials and redacts logs without touching Figma storage", async () => {

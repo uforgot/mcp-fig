@@ -287,11 +287,11 @@ Item `1107` installs the foreground daemon as a macOS per-user LaunchAgent witho
 
 The production plist is `~/Library/LaunchAgents/com.uforgot.mcp-fig.plist`. Its only program arguments are the absolute Node executable, absolute built `dist/index.js`, `service`, and `run`. It contains `RunAtLoad`, `KeepAlive.SuccessfulExit=false`, `ThrottleInterval=10`, and stdout/stderr paths. The management CLI rotates logs over 1 MB with three backups before lifecycle starts/restarts. The daemon loads `service.json` and `credential.json` from its owner-only Application Support directory; the long-lived token is not present in plist XML, process arguments, environment, status, stdout, or logs.
 
-`service pair` exposes only a random one-time code and expiry. The file stores its hash rather than plaintext, caps validity at two minutes, and atomically removes a successful claim before returning the credential to the internal exchange caller. Plugin UI/clientStorage integration remains a later boundary: uninstall deliberately removes only MCP Fig service files and never traverses Figma data locations.
+`service pair` exposes only a random one-time code and expiry. The active and replay-marker files store hashes rather than plaintext, cap validity at two minutes, and atomically select one successful exchange. The loopback endpoint rejects missing/remote origins. Plugin main persists validated config through Figma `clientStorage`; UI bootstrap reconnects automatically, distinguishes stopped service/protocol mismatch/rotated credential, and keeps explicit manual-token canaries. Uninstall still removes only MCP Fig service files and never traverses Figma data locations.
 
-The actual `smoke:launchd` acceptance uses a unique temporary label and short temporary HOME, validates the plist with `plutil`, bootstraps in `gui/<uid>`, confirms one PID owns both the configured Plugin port and `0600` service socket, kills that PID, observes a different KeepAlive PID with healthy IPC, scans process arguments/plist/logs for the generated credential, then performs idempotent bootout and removes the temporary files. It does not install or alter the production label.
+The actual `smoke:launchd` acceptance uses a unique temporary label and short temporary HOME, validates the plist with `plutil`, bootstraps in `gui/<uid>`, and confirms one PID owns both the configured Plugin port and `0600` service socket. It performs a null-origin one-time exchange, rejects replay, kills that PID, observes a different KeepAlive PID with healthy IPC, and authenticates with the saved credential after restart. It scans process arguments/plist/logs for the credential, then performs idempotent bootout and removes the temporary files. It does not install or alter the production label.
 
-Remaining risk: the current development Plugin UI does not consume the one-time exchange or persist the returned credential. A real paired Figma file was unavailable, so no live Plugin canary is claimed for this item.
+Remaining risk: a real paired Figma file was unavailable, so the Plugin main/UI behavior is covered by VM tests and the daemon exchange by real launchd HTTP smoke, but no live Figma UI canary is claimed for this item.
 
 ## Forbidden rules
 
@@ -350,7 +350,7 @@ Execute one boundary at a time; do not split all three large files in one commit
 3. **Persistent broker service — completed by item `1106`; macOS lifecycle completed by item `1107`**
    - `src/service` owns the foreground daemon, versioned IPC, owner-only socket, clients, secure paths/credentials, LaunchAgent lifecycle, and management CLI; the daemon reuses the item `1102` host/coordinator rather than creating another write path.
    - Desktop configuration selects service mode by default. Existing direct-host smoke and benchmark scripts opt into `MCP_FIG_DESKTOP_MODE=manual` explicitly.
-   - The one-time pairing exchange primitive is ready; Plugin UI/clientStorage credential persistence remains a separate boundary.
+   - Item `1108` completes one-time exchange, Plugin `clientStorage` persistence, automatic reconnect, Forget/Re-pair, and rotated-credential recovery.
 4. **Fixture extraction**
    - Preserve `src/bridge/in-memory.ts` as the compatibility entry.
    - Extract core state primitives, then layout, then design-system behavior; keep `src/bridge/layout.ts` shared.

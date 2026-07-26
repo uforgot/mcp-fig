@@ -10,23 +10,52 @@
     label { display: grid; gap: 4px; font-weight: 600; }
     input { padding: 7px 8px; border: 1px solid #8888; border-radius: 5px; background: transparent; }
     button { padding: 8px; border: 0; border-radius: 5px; background: #0d99ff; color: white; font-weight: 700; }
+    button.secondary { background: #8883; color: inherit; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    details { margin-top: 12px; }
+    details form { margin-top: 10px; }
     #status { margin-top: 12px; padding: 9px; border-radius: 5px; background: #8882; word-break: break-word; }
     .ok { color: #16a34a; } .bad { color: #dc2626; }
   </style>
 </head>
 <body>
-  <form id="pair-form">
-    <label>Bridge port <input id="port" inputmode="numeric" value="3847" /></label>
-    <label>Session token <input id="token" type="password" autocomplete="off" /></label>
-    <button type="submit">Pair with MCP Fig</button>
-  </form>
-  <div id="status">Waiting for file identity…</div>
+  <section id="pairing-panel">
+    <form id="pair-form">
+      <label>Bridge port <input id="port" inputmode="numeric" value="3847" /></label>
+      <label>One-time pairing code <input id="pair-code" autocomplete="off" /></label>
+      <button type="submit">Pair with MCP Fig</button>
+    </form>
+    <details>
+      <summary>Manual development token</summary>
+      <form id="manual-form">
+        <label>Bridge port <input id="manual-port" inputmode="numeric" value="3847" /></label>
+        <label>Session token <input id="token" type="password" autocomplete="off" /></label>
+        <button type="submit">Connect manually</button>
+      </form>
+    </details>
+  </section>
+  <section id="connected-panel" hidden>
+    <div class="actions">
+      <button id="forget" type="button" class="secondary">Forget</button>
+      <button id="repair" type="button">Re-pair</button>
+    </div>
+  </section>
+  <div id="status">Loading saved connection…</div>
   <script>
     const PROTOCOL = "mcp-fig-plugin/v1";
     const CAPABILITIES = [
       "document.read", "selection.read", "node.read", "node.write",
       "layout.write", "component.write", "instance.write", "tokens.write"
     ];
+
+    class BridgeUiError extends Error {
+      constructor(code, message, status) {
+        super(message);
+        this.code = code;
+        this.status = status;
+      }
+    }
+
     function randomId() {
       if (
         typeof crypto !== "undefined" &&
@@ -36,53 +65,109 @@
       }
       return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     }
+
     const sessionId = randomId();
     const pluginClientId = `figma-plugin-ui:${sessionId}`;
     const statusNode = document.querySelector("#status");
+    const pairingPanel = document.querySelector("#pairing-panel");
+    const connectedPanel = document.querySelector("#connected-panel");
     let file = null;
     let controller = null;
     let bootstrapTimer;
     let reconnectAttempt = 0;
     let lastDisconnectReason = "not-paired";
     let refreshIdentity = null;
+    let savedConfig = null;
+    let configLoaded = false;
+    let autoConnectStarted = false;
     const pending = new Map();
+    const configPending = new Map();
 
     function setStatus(text, ok) {
       statusNode.textContent = text;
       statusNode.className = ok === true ? "ok" : ok === false ? "bad" : "";
     }
+
     function setConnectionState(state, text, ok) {
       statusNode.dataset.state = state;
       statusNode.dataset.reconnectAttempt = String(reconnectAttempt);
       statusNode.dataset.lastDisconnectReason = lastDisconnectReason;
       setStatus(text, ok);
     }
+
+    function showPairing() {
+      pairingPanel.hidden = false;
+      connectedPanel.hidden = true;
+    }
+
+    function showConnected() {
+      pairingPanel.hidden = true;
+      connectedPanel.hidden = false;
+    }
+
     function pluginMessage(message) {
       parent.postMessage({ pluginMessage: message }, "*");
     }
-    window.onmessage = (event) => {
-      const message = event.data?.pluginMessage;
-      if (!message) return;
-      if (message.type === "bridge-bootstrap") {
-        file = message.file;
-        if (bootstrapTimer) clearInterval(bootstrapTimer);
-        setStatus(`Ready: ${file.name} (${file.key})`);
-        if (refreshIdentity) void refreshIdentity().catch(() => undefined);
+
+    function configRequest(operation, payload = {}) {
+      return new Promise((resolve, reject) => {
+        const requestId = `config-${operation}-${randomId()}`;
+        const timer = setTimeout(() => {
+          configPending.delete(requestId);
+          reject(new BridgeUiError("STORAGE_ERROR", "Figma storage request timed out."));
+        }, 5000);
+        configPending.set(requestId, { resolve, reject, timer });
+        pluginMessage({
+          type: `bridge-config-${operation}`,
+          requestId,
+          ...payload,
+        });
+      });
+    }
+
+    function validConfig(config) {
+      return (
+        config && config.version === 1 && config.protocol === PROTOCOL &&
+        Number.isInteger(config.port) && config.port >= 1 && config.port <= 65535 &&
+        typeof config.credential === "string" &&
+        config.credential.length >= 32 && config.credential.length <= 512
+      );
+    }
+
+    function parsePort(value) {
+      if (!/^\d+$/.test(value)) return null;
+      const port = Number(value);
+      return Number.isInteger(port) && port >= 1 && port <= 65535 ? port : null;
+    }
+
+    async function requestJson(url, options = {}) {
+      let response;
+      try {
+        response = await fetch(url, options);
+      } catch (error) {
+        throw new BridgeUiError(
+          "SERVICE_NOT_RUNNING",
+          error instanceof Error ? error.message : "Bridge service is unavailable.",
+        );
       }
-      if (message.type === "bridge-result") {
-        const entry = pending.get(message.requestId);
-        if (entry) {
-          pending.delete(message.requestId);
-          clearTimeout(entry.timer);
-          entry.resolve(message);
-        }
+      if (response.status === 204) return null;
+      let payload = {};
+      try {
+        payload = await response.json();
+      } catch {
+        payload = {};
       }
-    };
-    bootstrapTimer = setInterval(() => {
-      if (file) return clearInterval(bootstrapTimer);
-      pluginMessage({ type: "bridge-bootstrap" });
-    }, 250);
-    pluginMessage({ type: "bridge-bootstrap" });
+      if (!response.ok) {
+        const serverCode = payload?.error?.code;
+        const code = response.status === 401 ? "CREDENTIAL_EXPIRED" : serverCode || "REQUEST_FAILED";
+        throw new BridgeUiError(
+          code,
+          payload?.error?.message || `Bridge request failed with ${response.status}.`,
+          response.status,
+        );
+      }
+      return payload;
+    }
 
     async function sendToMain(command) {
       return new Promise((resolve, reject) => {
@@ -94,46 +179,98 @@
         pluginMessage({ type: "bridge-command", command });
       });
     }
-    async function request(url, options = {}) {
-      const response = await fetch(url, options);
-      if (!response.ok && response.status !== 204) {
-        throw new Error(`${response.status} ${await response.text()}`);
-      }
-      return response;
-    }
-    async function pair(port, token, signal) {
-      const base = `http://localhost:${port}`;
-      const auth = { authorization: ["Bearer", token].join(" "), "content-type": "application/json" };
-      const publishIdentity = () => request(`${base}/v1/session/handshake`, {
-        method: "POST", headers: auth, signal,
-        body: JSON.stringify({
-          protocol: PROTOCOL, sessionId, clientId: pluginClientId, file,
-          capabilities: CAPABILITIES, sentAt: new Date().toISOString()
-        })
+
+    function waitForReconnect(delay, signal) {
+      return new Promise((resolve) => {
+        const timer = setTimeout(resolve, delay);
+        signal.addEventListener("abort", () => {
+          clearTimeout(timer);
+          resolve();
+        }, { once: true });
       });
+    }
+
+    function recoveryForPairing(error) {
+      if (error.code === "PAIRING_EXPIRED") {
+        return "Pairing code expired. Run `mcp-fig service pair` and enter the new code.";
+      }
+      if (error.code === "PAIRING_USED") {
+        return "Pairing code was already used. Run `mcp-fig service pair` for a new code.";
+      }
+      if (error.code === "PROTOCOL_MISMATCH") {
+        return "Protocol mismatch. Update MCP Fig, then Re-pair.";
+      }
+      if (error.code === "SERVICE_NOT_RUNNING") {
+        return "Service not running. Run `mcp-fig service start`, then try the code again.";
+      }
+      return "Invalid pairing code. Run `mcp-fig service pair` and try again.";
+    }
+
+    async function clearSavedConfig() {
+      await configRequest("clear");
+      savedConfig = null;
+    }
+
+    function stopConnection() {
+      controller?.abort();
+      controller = null;
+      refreshIdentity = null;
+      reconnectAttempt = 0;
+    }
+
+    async function connectionLoop(config, signal, persistOnReady) {
+      const base = `http://localhost:${config.port}`;
+      const auth = {
+        authorization: ["Bearer", config.credential].join(" "),
+        "content-type": "application/json",
+      };
+      const publishIdentity = async () => {
+        if (!file) throw new BridgeUiError("FILE_NOT_READY", "File identity is not ready.");
+        const response = await requestJson(`${base}/v1/session/handshake`, {
+          method: "POST",
+          headers: auth,
+          signal,
+          body: JSON.stringify({
+            protocol: PROTOCOL,
+            sessionId,
+            clientId: pluginClientId,
+            file,
+            capabilities: CAPABILITIES,
+            sentAt: new Date().toISOString(),
+          }),
+        });
+        if (response?.protocol !== PROTOCOL) {
+          throw new BridgeUiError("PROTOCOL_MISMATCH", "Bridge protocol does not match the Plugin.");
+        }
+      };
       refreshIdentity = publishIdentity;
       let backoff = 250;
+      let needsPersist = persistOnReady;
+
       while (!signal.aborted) {
         try {
           setConnectionState(
             reconnectAttempt === 0 ? "connecting" : "reconnecting",
-            reconnectAttempt === 0
-              ? "Connecting…"
-              : `Reconnect attempt ${reconnectAttempt}…`,
+            reconnectAttempt === 0 ? "Connecting…" : `Reconnect attempt ${reconnectAttempt}…`,
           );
-          if (!file) throw new Error("File identity is not ready.");
           await publishIdentity();
+          if (needsPersist) {
+            await configRequest("set", { config });
+            savedConfig = config;
+            needsPersist = false;
+          }
           reconnectAttempt = 0;
           lastDisconnectReason = "none";
+          showConnected();
           setConnectionState("ready", `Connected: ${file.name}`, true);
           backoff = 250;
+
           while (!signal.aborted) {
-            const response = await request(
+            const command = await requestJson(
               `${base}/v1/session/${encodeURIComponent(sessionId)}/next`,
-              { headers: { authorization: `Bearer ${token}` }, signal },
+              { headers: { authorization: ["Bearer", config.credential].join(" ") }, signal },
             );
-            if (response.status === 204) continue;
-            const command = await response.json();
+            if (!command) continue;
             const receivedAt = new Date().toISOString();
             const pluginReceivedAt = receivedAt;
             let result;
@@ -142,62 +279,226 @@
               command.fileKey !== file.key || typeof command.requestId !== "string"
             ) {
               result = {
-                protocol: PROTOCOL, requestId: command.requestId || "invalid",
-                clientId: command.clientId || "invalid", sessionId, fileKey: file.key,
-                ok: false, error: { code: "FILE_NOT_TARGETED", message: "Command target does not match this plugin session." },
-                receivedAt, pluginReceivedAt,
+                protocol: PROTOCOL,
+                requestId: command.requestId || "invalid",
+                clientId: command.clientId || "invalid",
+                sessionId,
+                fileKey: file.key,
+                ok: false,
+                error: { code: "FILE_NOT_TARGETED", message: "Command target does not match this plugin session." },
+                receivedAt,
+                pluginReceivedAt,
                 figmaApiStartedAt: pluginReceivedAt,
                 figmaApiCompletedAt: new Date().toISOString(),
                 sceneTraversalNodeCount: 0,
-                completedAt: new Date().toISOString()
+                completedAt: new Date().toISOString(),
               };
             } else {
               const mainResult = await sendToMain(command);
               if (mainResult.revision) file.revision = mainResult.revision;
               result = {
-                protocol: PROTOCOL, requestId: command.requestId, clientId: command.clientId,
-                sessionId, fileKey: file.key, ok: mainResult.ok,
+                protocol: PROTOCOL,
+                requestId: command.requestId,
+                clientId: command.clientId,
+                sessionId,
+                fileKey: file.key,
+                ok: mainResult.ok,
                 revision: file.revision,
                 ...(mainResult.ok ? { data: mainResult.data } : { error: mainResult.error }),
                 pluginReceivedAt,
                 figmaApiStartedAt: mainResult.figmaApiStartedAt,
                 figmaApiCompletedAt: mainResult.figmaApiCompletedAt,
                 sceneTraversalNodeCount: mainResult.sceneTraversalNodeCount,
-                receivedAt, completedAt: new Date().toISOString()
+                receivedAt,
+                completedAt: new Date().toISOString(),
               };
             }
-            await request(`${base}/v1/session/${encodeURIComponent(sessionId)}/result`, {
-              method: "POST", headers: auth, signal, body: JSON.stringify(result)
+            await requestJson(`${base}/v1/session/${encodeURIComponent(sessionId)}/result`, {
+              method: "POST",
+              headers: auth,
+              signal,
+              body: JSON.stringify(result),
             });
           }
         } catch (error) {
           if (signal.aborted) return;
+          const bridgeError = error instanceof BridgeUiError
+            ? error
+            : new BridgeUiError("REQUEST_FAILED", error?.message || String(error));
+          lastDisconnectReason = bridgeError.code;
+
+          if (bridgeError.code === "CREDENTIAL_EXPIRED") {
+            await clearSavedConfig().catch(() => undefined);
+            showPairing();
+            setConnectionState(
+              "credential-expired",
+              "Credential expired or was rotated. Re-pair with a new one-time code.",
+              false,
+            );
+            return;
+          }
+          if (bridgeError.code === "PROTOCOL_MISMATCH") {
+            showPairing();
+            setConnectionState(
+              "protocol-mismatch",
+              "Protocol mismatch. Update MCP Fig, then Re-pair.",
+              false,
+            );
+            return;
+          }
+
           reconnectAttempt += 1;
-          lastDisconnectReason = error.message || String(error);
-          const delay = Math.min(
-            5000,
-            backoff + Math.floor(Math.random() * Math.max(1, backoff * 0.25)),
-          );
+          const delay = Math.min(backoff, 5000);
+          const serviceStopped = bridgeError.code === "SERVICE_NOT_RUNNING";
           setConnectionState(
-            "reconnecting",
-            `Reconnecting in ${delay}ms: ${lastDisconnectReason}`,
+            serviceStopped ? "service-not-running" : "reconnecting",
+            serviceStopped
+              ? `Service not running. Run \`mcp-fig service start\`. Retrying in ${delay}ms…`
+              : `Reconnecting in ${delay}ms…`,
             false,
           );
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          await waitForReconnect(delay, signal);
           backoff = Math.min(backoff * 2, 5000);
         }
       }
     }
+
+    function startConnection(config, persistOnReady) {
+      stopConnection();
+      autoConnectStarted = true;
+      controller = new AbortController();
+      void connectionLoop(config, controller.signal, persistOnReady);
+    }
+
+    function maybeAutoConnect() {
+      if (!file || !configLoaded || autoConnectStarted) return;
+      if (!validConfig(savedConfig)) {
+        showPairing();
+        setConnectionState("pairing-required", `Ready: ${file.name}. Enter a one-time pairing code.`);
+        return;
+      }
+      autoConnectStarted = true;
+      startConnection(savedConfig, false);
+    }
+
+    window.onmessage = (event) => {
+      const message = event.data?.pluginMessage;
+      if (!message) return;
+      if (message.type === "bridge-bootstrap") {
+        file = message.file;
+        if (bootstrapTimer) clearInterval(bootstrapTimer);
+        if (refreshIdentity) void refreshIdentity().catch(() => undefined);
+        maybeAutoConnect();
+        return;
+      }
+      if (message.type === "bridge-config-result") {
+        const entry = configPending.get(message.requestId);
+        if (!entry) return;
+        configPending.delete(message.requestId);
+        clearTimeout(entry.timer);
+        if (message.ok) entry.resolve(message);
+        else entry.reject(new BridgeUiError(message.error?.code || "STORAGE_ERROR", message.error?.message || "Storage request failed."));
+        return;
+      }
+      if (message.type === "bridge-result") {
+        const entry = pending.get(message.requestId);
+        if (entry) {
+          pending.delete(message.requestId);
+          clearTimeout(entry.timer);
+          entry.resolve(message);
+        }
+      }
+    };
+
     document.querySelector("#pair-form").onsubmit = (event) => {
       event.preventDefault();
       if (!file) return setStatus("File identity is not ready.", false);
-      const port = document.querySelector("#port").value.trim();
-      const token = document.querySelector("#token").value;
-      if (!/^\d+$/.test(port) || !token) return setStatus("Enter a valid port and session token.", false);
-      controller?.abort();
-      controller = new AbortController();
-      void pair(port, token, controller.signal);
+      const port = parsePort(document.querySelector("#port").value.trim());
+      const codeNode = document.querySelector("#pair-code");
+      const code = codeNode.value.trim();
+      codeNode.value = "";
+      if (!port || code.length < 6) {
+        return setStatus("Enter a valid port and one-time pairing code.", false);
+      }
+      stopConnection();
+      setConnectionState("pairing", "Exchanging one-time pairing code…");
+      void requestJson(`http://localhost:${port}/v1/pair/exchange`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ protocol: PROTOCOL, code }),
+      }).then((response) => {
+        if (response?.protocol !== PROTOCOL) {
+          throw new BridgeUiError("PROTOCOL_MISMATCH", "Pairing protocol does not match the Plugin.");
+        }
+        const config = {
+          version: 1,
+          protocol: PROTOCOL,
+          port,
+          credential: response?.credential,
+        };
+        if (!validConfig(config)) {
+          throw new BridgeUiError("PAIRING_INVALID", "Pairing response did not contain a valid credential.");
+        }
+        startConnection(config, true);
+      }).catch((error) => {
+        const bridgeError = error instanceof BridgeUiError
+          ? error
+          : new BridgeUiError("PAIRING_INVALID", "Pairing failed.");
+        showPairing();
+        setConnectionState("pairing-required", recoveryForPairing(bridgeError), false);
+      });
     };
+
+    document.querySelector("#manual-form").onsubmit = (event) => {
+      event.preventDefault();
+      if (!file) return setStatus("File identity is not ready.", false);
+      const port = parsePort(document.querySelector("#manual-port").value.trim());
+      const tokenNode = document.querySelector("#token");
+      const credential = tokenNode.value;
+      tokenNode.value = "";
+      if (!port || credential.length < 1) {
+        return setStatus("Enter a valid port and development token.", false);
+      }
+      const persist = credential.length >= 32 && credential.length <= 512;
+      startConnection(
+        { version: 1, protocol: PROTOCOL, port, credential },
+        persist,
+      );
+    };
+
+    async function forget(message) {
+      stopConnection();
+      await clearSavedConfig().catch(() => undefined);
+      autoConnectStarted = false;
+      showPairing();
+      setConnectionState("pairing-required", message, true);
+    }
+
+    document.querySelector("#forget").onclick = () => {
+      void forget("Forgotten. Enter a one-time pairing code to connect again.");
+    };
+    document.querySelector("#repair").onclick = () => {
+      void forget("Ready to Re-pair. Run `mcp-fig service pair` and enter the new code.");
+    };
+
+    bootstrapTimer = setInterval(() => {
+      if (file) return clearInterval(bootstrapTimer);
+      pluginMessage({ type: "bridge-bootstrap" });
+    }, 250);
+    pluginMessage({ type: "bridge-bootstrap" });
+    void configRequest("get").then((result) => {
+      savedConfig = result.config;
+      configLoaded = true;
+      maybeAutoConnect();
+    }).catch(() => {
+      configLoaded = true;
+      showPairing();
+      setConnectionState(
+        "storage-error",
+        "Could not read the saved connection. Re-open the Plugin or pair again.",
+        false,
+      );
+    });
   </script>
 </body>
 </html>

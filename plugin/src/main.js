@@ -51,6 +51,74 @@ const tokens = createTokensDomain({
   nodeById: nodeHelpers.nodeById,
 });
 
+const BRIDGE_CONFIG_KEY = "mcp-fig.bridge-config.v1";
+const BRIDGE_PROTOCOL = "mcp-fig-plugin/v1";
+
+function validBridgeConfig(value) {
+  return (
+    value &&
+    typeof value === "object" &&
+    value.version === 1 &&
+    value.protocol === BRIDGE_PROTOCOL &&
+    Number.isInteger(value.port) &&
+    value.port >= 1 &&
+    value.port <= 65535 &&
+    typeof value.credential === "string" &&
+    value.credential.length >= 32 &&
+    value.credential.length <= 512
+  );
+}
+
+async function handleBridgeConfigMessage(message) {
+  const operation = message.type.slice("bridge-config-".length);
+  const response = {
+    type: "bridge-config-result",
+    requestId:
+      typeof message.requestId === "string" ? message.requestId : "invalid",
+    operation,
+  };
+  try {
+    if (operation === "get") {
+      const stored = await figma.clientStorage.getAsync(BRIDGE_CONFIG_KEY);
+      figma.ui.postMessage({
+        ...response,
+        ok: true,
+        config: validBridgeConfig(stored) ? stored : null,
+      });
+      return;
+    }
+    if (operation === "set") {
+      if (!validBridgeConfig(message.config)) {
+        figma.ui.postMessage({
+          ...response,
+          ok: false,
+          error: {
+            code: "INVALID_CONFIG",
+            message: "Bridge config is invalid.",
+          },
+        });
+        return;
+      }
+      await figma.clientStorage.setAsync(BRIDGE_CONFIG_KEY, message.config);
+      figma.ui.postMessage({ ...response, ok: true });
+      return;
+    }
+    if (operation === "clear") {
+      await figma.clientStorage.deleteAsync(BRIDGE_CONFIG_KEY);
+      figma.ui.postMessage({ ...response, ok: true });
+    }
+  } catch {
+    figma.ui.postMessage({
+      ...response,
+      ok: false,
+      error: {
+        code: "STORAGE_ERROR",
+        message: "Figma could not access the saved bridge config.",
+      },
+    });
+  }
+}
+
 async function execute(command) {
   const identity = fileIdentity();
   if (command.fileKey !== identity.key) {
@@ -105,6 +173,14 @@ async function execute(command) {
 }
 
 figma.ui.onmessage = async (message) => {
+  if (
+    message?.type === "bridge-config-get" ||
+    message?.type === "bridge-config-set" ||
+    message?.type === "bridge-config-clear"
+  ) {
+    await handleBridgeConfigMessage(message);
+    return;
+  }
   if (message?.type === "bridge-bootstrap") {
     figma.ui.postMessage({ type: "bridge-bootstrap", file: fileIdentity() });
     return;
