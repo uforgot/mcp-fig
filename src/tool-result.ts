@@ -1,6 +1,9 @@
-import { randomUUID } from "node:crypto";
-
 import { toMcpFigError } from "./errors.js";
+import {
+  createTraceId,
+  currentTraceId,
+  runWithTrace,
+} from "./observability/trace-context.js";
 
 interface SuccessEnvelope {
   ok: true;
@@ -35,7 +38,7 @@ export function success(
     data,
     changes: options.changes ?? [],
     warnings: options.warnings ?? [],
-    traceId: randomUUID(),
+    traceId: currentTraceId() ?? createTraceId(),
   };
   return textResult(payload as unknown as Record<string, unknown>);
 }
@@ -53,7 +56,7 @@ export function failure(tool: string, action: string, error: unknown) {
         retryable: normalized.retryable,
         ...(normalized.details ? { details: normalized.details } : {}),
       },
-      traceId: randomUUID(),
+      traceId: currentTraceId() ?? createTraceId(),
     },
     true,
   );
@@ -64,9 +67,11 @@ export async function handleToolCall(
   action: string,
   operation: () => Promise<ReturnType<typeof success>>,
 ) {
-  try {
-    return await operation();
-  } catch (error) {
-    return failure(tool, action, error);
-  }
+  return runWithTrace(createTraceId(), async () => {
+    try {
+      return await operation();
+    } catch (error) {
+      return failure(tool, action, error);
+    }
+  });
 }

@@ -9,6 +9,7 @@ import {
 } from "../bridge/desktop-plugin/host.js";
 import type { PairingCodeExchange } from "../bridge/desktop-plugin/http.js";
 import { McpFigError } from "../errors.js";
+import { EventLogger, type EventSink } from "../observability/event-log.js";
 import {
   parseServiceRequest,
   SERVICE_PROTOCOL_V1,
@@ -37,16 +38,22 @@ export interface BrokerDaemonOptions {
   sessionTtlMs?: number;
   maxWriteQueue?: number;
   exchangePairingCode?: PairingCodeExchange;
+  eventLog?: EventSink;
+  eventLogPath?: string;
 }
 
 type ResolvedBrokerDaemonOptions = Required<
-  Omit<BrokerDaemonOptions, "exchangePairingCode">
+  Omit<BrokerDaemonOptions, "exchangePairingCode" | "eventLog" | "eventLogPath">
 > &
-  Pick<BrokerDaemonOptions, "exchangePairingCode">;
+  Pick<
+    BrokerDaemonOptions,
+    "exchangePairingCode" | "eventLog" | "eventLogPath"
+  >;
 
 export class BrokerDaemon {
   readonly #options: ResolvedBrokerDaemonOptions;
   readonly #host: DesktopPluginBridgeHost;
+  readonly #eventLog: EventSink | undefined;
   readonly #startedAt = new Date();
   readonly #sockets = new Set<Socket>();
   readonly #inflight = new Set<Promise<void>>();
@@ -71,7 +78,10 @@ export class BrokerDaemon {
       ...(options.exchangePairingCode
         ? { exchangePairingCode: options.exchangePairingCode }
         : {}),
+      ...(options.eventLog ? { eventLog: options.eventLog } : {}),
+      ...(options.eventLogPath ? { eventLogPath: options.eventLogPath } : {}),
     };
+    this.#eventLog = this.#options.eventLog;
     this.#host = new DesktopPluginBridgeHost({
       token: this.#options.token,
       port: this.#options.port,
@@ -82,6 +92,7 @@ export class BrokerDaemon {
       ...(this.#options.exchangePairingCode
         ? { exchangePairingCode: this.#options.exchangePairingCode }
         : {}),
+      ...(this.#eventLog ? { eventLog: this.#eventLog } : {}),
     });
   }
 
@@ -130,6 +141,11 @@ export class BrokerDaemon {
       this.#socketIdentity = await secureServiceSocket(
         this.#options.socketPath,
       );
+      this.#eventLog?.emit({
+        level: "info",
+        traceId: `daemon-${process.pid}`,
+        action: "daemon.start",
+      });
       return this.health();
     } catch (error) {
       const server = this.#server;
@@ -209,14 +225,53 @@ export class BrokerDaemon {
         : "unknown";
     try {
       const request = parseServiceRequest(raw);
+      const started = Date.now();
+      this.#eventLog?.emit({
+        level: "debug",
+        traceId: request.traceId,
+        requestId: request.requestId,
+        ...(request.method === "request"
+          ? {
+              clientId: request.params.clientId,
+              method: request.params.method,
+              ...(request.params.options?.fileKey
+                ? { fileKey: request.params.options.fileKey }
+                : {}),
+            }
+          : { method: request.method }),
+        action: "ipc.connect",
+      });
       const data = await this.#handle(request);
       const response: ServiceSuccessResponse = {
         protocol: SERVICE_PROTOCOL_V1,
+        traceId: request.traceId,
         requestId: request.requestId,
         ok: true,
         data,
       };
       this.#send(socket, response);
+      this.#eventLog?.emit({
+        level: "info",
+        traceId: request.traceId,
+        requestId: request.requestId,
+        ...(request.method === "request"
+          ? {
+              clientId: request.params.clientId,
+              method: request.params.method,
+              ...(request.params.options?.fileKey
+                ? { fileKey: request.params.options.fileKey }
+                : {}),
+            }
+          : { method: request.method }),
+        action: "service.request",
+        latencyMs: Date.now() - started,
+      });
+      this.#eventLog?.emit({
+        level: "debug",
+        traceId: request.traceId,
+        requestId: request.requestId,
+        action: "ipc.disconnect",
+      });
     } catch (error) {
       if (error instanceof McpFigError) {
         await this.#respondError(
@@ -226,15 +281,33 @@ export class BrokerDaemon {
           error.message,
           error.retryable,
           error.details,
+          raw && typeof raw === "object" && "traceId" in raw
+            ? String((raw as { traceId?: unknown }).traceId ?? requestId)
+            : requestId,
         );
       } else if (error instanceof ServiceProtocolError) {
-        await this.#respondError(socket, requestId, error.code, error.message);
+        await this.#respondError(
+          socket,
+          requestId,
+          error.code,
+          error.message,
+          undefined,
+          undefined,
+          raw && typeof raw === "object" && "traceId" in raw
+            ? String((raw as { traceId?: unknown }).traceId ?? requestId)
+            : requestId,
+        );
       } else {
         await this.#respondError(
           socket,
           requestId,
           "INTERNAL_ERROR",
           error instanceof Error ? error.message : "Service request failed.",
+          undefined,
+          undefined,
+          raw && typeof raw === "object" && "traceId" in raw
+            ? String((raw as { traceId?: unknown }).traceId ?? requestId)
+            : requestId,
         );
       }
     }
@@ -256,7 +329,7 @@ export class BrokerDaemon {
           request.params.clientId,
           request.params.method,
           request.params.params,
-          request.params.options ?? {},
+          { ...(request.params.options ?? {}), traceId: request.traceId },
         );
     }
   }
@@ -268,9 +341,19 @@ export class BrokerDaemon {
     message: string,
     retryable?: boolean,
     details?: Record<string, unknown>,
+    traceId = requestId,
   ): Promise<void> {
+    this.#eventLog?.emit({
+      level: "error",
+      traceId,
+      requestId,
+      action: "service.error",
+      errorCode: code,
+      ...(retryable !== undefined ? { retryable } : {}),
+    });
     const response: ServiceErrorResponse = {
       protocol: SERVICE_PROTOCOL_V1,
+      traceId,
       requestId,
       ok: false,
       error: {
@@ -281,6 +364,13 @@ export class BrokerDaemon {
       },
     };
     this.#send(socket, response);
+    this.#eventLog?.emit({
+      level: "debug",
+      traceId,
+      requestId,
+      action: "ipc.disconnect",
+      errorCode: code,
+    });
   }
 
   #send(
@@ -312,13 +402,25 @@ export class BrokerDaemon {
       this.#ownsSocket = false;
       this.#socketIdentity = undefined;
     }
+    this.#eventLog?.emit({
+      level: "info",
+      traceId: `daemon-${process.pid}`,
+      action: "daemon.stop",
+    });
   }
 }
 
 export async function runForegroundDaemon(
   options: BrokerDaemonOptions,
 ): Promise<void> {
-  const daemon = new BrokerDaemon(options);
+  const eventLogPath = options.eventLogPath ?? process.env.MCP_FIG_EVENT_LOG;
+  const ownedLogger = options.eventLog
+    ? undefined
+    : new EventLogger(eventLogPath ? { jsonlPath: eventLogPath } : {});
+  const daemon = new BrokerDaemon({
+    ...options,
+    ...(ownedLogger ? { eventLog: ownedLogger } : {}),
+  });
   let signalReceived: (() => void) | undefined;
   const stopped = new Promise<void>((resolveStop) => {
     signalReceived = resolveStop;
@@ -333,6 +435,7 @@ export async function runForegroundDaemon(
     process.removeListener("SIGINT", stop);
     process.removeListener("SIGTERM", stop);
     await daemon.close();
+    await ownedLogger?.flush();
   }
 }
 
@@ -361,6 +464,9 @@ if (directEntry) {
       socketPath:
         process.env.MCP_FIG_SERVICE_SOCKET ?? defaultServiceSocketPath(),
       version: process.env.MCP_FIG_VERSION ?? "0.0.0",
+      ...(process.env.MCP_FIG_EVENT_LOG
+        ? { eventLogPath: process.env.MCP_FIG_EVENT_LOG }
+        : {}),
     }).catch((error: unknown) => {
       console.error(
         `[mcp-fig-service] ${error instanceof Error ? error.message : String(error)}`,

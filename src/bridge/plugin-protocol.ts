@@ -23,6 +23,7 @@ export interface PluginFileIdentity {
 
 export interface PluginHandshake {
   protocol: typeof PLUGIN_PROTOCOL_V1;
+  traceId?: string;
   sessionId: string;
   clientId: string;
   file: PluginFileIdentity;
@@ -32,6 +33,7 @@ export interface PluginHandshake {
 
 export interface PluginCommand {
   protocol: typeof PLUGIN_PROTOCOL_V1;
+  traceId: string;
   requestId: string;
   clientId: string;
   sessionId: string;
@@ -47,6 +49,7 @@ export interface PluginCommand {
 
 export interface PluginResult {
   protocol: typeof PLUGIN_PROTOCOL_V1;
+  traceId?: string;
   requestId: string;
   clientId: string;
   sessionId: string;
@@ -69,6 +72,7 @@ export interface PluginResult {
 }
 
 export interface PluginMetric {
+  traceId: string;
   requestId: string;
   clientId: string;
   sessionId: string;
@@ -148,6 +152,10 @@ export function parseHandshake(value: unknown): PluginHandshake {
   });
   return {
     protocol: PLUGIN_PROTOCOL_V1,
+    traceId:
+      typeof input.traceId === "string" && input.traceId.length > 0
+        ? input.traceId
+        : stringField(input, "sessionId"),
     sessionId: stringField(input, "sessionId"),
     clientId: stringField(input, "clientId"),
     file: {
@@ -171,6 +179,10 @@ export function parseResult(value: unknown): PluginResult {
   }
   const base = {
     protocol: PLUGIN_PROTOCOL_V1,
+    traceId:
+      typeof input.traceId === "string" && input.traceId.length > 0
+        ? input.traceId
+        : stringField(input, "requestId"),
     requestId: stringField(input, "requestId"),
     clientId: stringField(input, "clientId"),
     sessionId: stringField(input, "sessionId"),

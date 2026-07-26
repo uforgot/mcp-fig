@@ -67,6 +67,7 @@
     }
 
     const sessionId = randomId();
+    const sessionTraceId = randomId();
     const pluginClientId = `figma-plugin-ui:${sessionId}`;
     const statusNode = document.querySelector("#status");
     const pairingPanel = document.querySelector("#pairing-panel");
@@ -232,6 +233,7 @@
           signal,
           body: JSON.stringify({
             protocol: PROTOCOL,
+            traceId: sessionTraceId,
             sessionId,
             clientId: pluginClientId,
             file,
@@ -280,6 +282,7 @@
             ) {
               result = {
                 protocol: PROTOCOL,
+                traceId: command.traceId,
                 requestId: command.requestId || "invalid",
                 clientId: command.clientId || "invalid",
                 sessionId,
@@ -298,6 +301,7 @@
               if (mainResult.revision) file.revision = mainResult.revision;
               result = {
                 protocol: PROTOCOL,
+                traceId: command.traceId,
                 requestId: command.requestId,
                 clientId: command.clientId,
                 sessionId,

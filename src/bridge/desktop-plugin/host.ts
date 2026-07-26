@@ -1,6 +1,7 @@
 import { createServer, type Server } from "node:http";
 
 import { McpFigError } from "../../errors.js";
+import type { EventSink } from "../../observability/event-log.js";
 import {
   PLUGIN_PROTOCOL_V1,
   type PluginHandshake,
@@ -14,6 +15,7 @@ import {
   writeJson,
 } from "./http.js";
 import { PluginSessionRegistry } from "./sessions.js";
+import type { PluginRequestOptions } from "./write-coordinator.js";
 import { PluginWriteCoordinator } from "./write-coordinator.js";
 
 export interface HostOptions {
@@ -24,10 +26,13 @@ export interface HostOptions {
   maxWriteQueue?: number;
   allowProxy?: boolean;
   exchangePairingCode?: PairingCodeExchange;
+  eventLog?: EventSink;
 }
 
-type ResolvedHostOptions = Required<Omit<HostOptions, "exchangePairingCode">> &
-  Pick<HostOptions, "exchangePairingCode">;
+type ResolvedHostOptions = Required<
+  Omit<HostOptions, "exchangePairingCode" | "eventLog">
+> &
+  Pick<HostOptions, "exchangePairingCode" | "eventLog">;
 
 export type { HostAddress } from "./http.js";
 
@@ -56,6 +61,7 @@ export class DesktopPluginBridgeHost {
       ...(options.exchangePairingCode
         ? { exchangePairingCode: options.exchangePairingCode }
         : {}),
+      ...(options.eventLog ? { eventLog: options.eventLog } : {}),
     };
     this.#sessions = new PluginSessionRegistry(this.#options.sessionTtlMs);
     this.#coordinator = new PluginWriteCoordinator({
@@ -63,6 +69,7 @@ export class DesktopPluginBridgeHost {
       requestTimeoutMs: this.#options.requestTimeoutMs,
       maxWriteQueue: this.#options.maxWriteQueue,
       sendJson: writeJson,
+      ...(this.#options.eventLog ? { eventLog: this.#options.eventLog } : {}),
     });
     this.#router = new PluginHttpRouter({
       token: this.#options.token,
@@ -72,6 +79,7 @@ export class DesktopPluginBridgeHost {
       request: (clientId, method, params, requestOptions) =>
         this.#coordinator.request(clientId, method, params, requestOptions),
       metrics: () => this.metrics(),
+      ...(this.#options.eventLog ? { eventLog: this.#options.eventLog } : {}),
       ...(this.#options.exchangePairingCode
         ? { exchangePairingCode: this.#options.exchangePairingCode }
         : {}),
@@ -180,7 +188,7 @@ export class DesktopPluginBridgeHost {
     clientId: string,
     method: string,
     params: unknown,
-    options: { fileKey?: string; timeoutMs?: number } = {},
+    options: PluginRequestOptions = {},
   ): Promise<unknown> {
     await this.listen();
     if (this.#proxyAddress) {

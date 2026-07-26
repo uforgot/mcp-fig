@@ -63,6 +63,7 @@ export interface ServiceRequestParams {
 export type ServiceRequest = {
   [Method in ServiceMethod]: {
     protocol: typeof SERVICE_PROTOCOL_V1;
+    traceId: string;
     requestId: string;
     method: Method;
     params: ServiceRequestParams[Method];
@@ -78,6 +79,7 @@ export type ServiceSuccessData =
 
 export interface ServiceSuccessResponse {
   protocol: typeof SERVICE_PROTOCOL_V1;
+  traceId: string;
   requestId: string;
   ok: true;
   data: ServiceSuccessData;
@@ -85,6 +87,7 @@ export interface ServiceSuccessResponse {
 
 export interface ServiceErrorResponse {
   protocol: typeof SERVICE_PROTOCOL_V1;
+  traceId: string;
   requestId: string;
   ok: false;
   error: {
@@ -166,12 +169,19 @@ export function parseServiceRequest(value: unknown): ServiceRequest {
       throw protocolError("Service request options are invalid.");
     }
   }
-  return input as ServiceRequest;
+  return {
+    ...input,
+    traceId:
+      typeof input.traceId === "string" && input.traceId.length > 0
+        ? input.traceId
+        : String(input.requestId),
+  } as ServiceRequest;
 }
 
 export function parseServiceResponse(
   value: unknown,
   expectedRequestId: string,
+  expectedTraceId?: string,
 ): ServiceResponse {
   const input = objectValue(value);
   if (!input) {
@@ -192,7 +202,19 @@ export function parseServiceResponse(
       "Service response requestId does not match.",
     );
   }
-  if (input.ok === true) return input as unknown as ServiceSuccessResponse;
+  const traceId =
+    typeof input.traceId === "string" && input.traceId.length > 0
+      ? input.traceId
+      : expectedRequestId;
+  if (expectedTraceId && traceId !== expectedTraceId) {
+    throw new ServiceProtocolError(
+      "INVALID_REQUEST",
+      "Service response traceId does not match.",
+    );
+  }
+  if (input.ok === true) {
+    return { ...input, traceId } as unknown as ServiceSuccessResponse;
+  }
   const error = objectValue(input.error);
   if (
     input.ok !== false ||
@@ -205,7 +227,7 @@ export function parseServiceResponse(
       "Service error response is invalid.",
     );
   }
-  return input as unknown as ServiceErrorResponse;
+  return { ...input, traceId } as unknown as ServiceErrorResponse;
 }
 
 export function serviceSessionIdentity(

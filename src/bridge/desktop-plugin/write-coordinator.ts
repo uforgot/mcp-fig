@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { ServerResponse } from "node:http";
 
 import { type ErrorCode, McpFigError } from "../../errors.js";
+import type { EventSink } from "../../observability/event-log.js";
 import {
   PLUGIN_PROTOCOL_V1,
   type PluginCapability,
@@ -37,6 +38,13 @@ export interface PluginWriteCoordinatorOptions {
   requestTimeoutMs: number;
   maxWriteQueue: number;
   sendJson: (response: ServerResponse, status: number, value: unknown) => void;
+  eventLog?: EventSink;
+}
+
+export interface PluginRequestOptions {
+  fileKey?: string;
+  timeoutMs?: number;
+  traceId?: string;
 }
 
 const ERROR_CODES = new Set<ErrorCode>([
@@ -167,6 +175,7 @@ export class PluginWriteCoordinator {
   readonly #requestTimeoutMs: number;
   readonly #maxWriteQueue: number;
   readonly #sendJson: PluginWriteCoordinatorOptions["sendJson"];
+  readonly #eventLog: EventSink | undefined;
   readonly #pending = new Map<string, PendingRequest>();
   readonly #metrics: PluginMetric[] = [];
   readonly #writeTails = new Map<string, Promise<void>>();
@@ -178,6 +187,7 @@ export class PluginWriteCoordinator {
     this.#requestTimeoutMs = options.requestTimeoutMs;
     this.#maxWriteQueue = options.maxWriteQueue;
     this.#sendJson = options.sendJson;
+    this.#eventLog = options.eventLog;
   }
 
   metrics(): PluginMetric[] {
@@ -188,6 +198,20 @@ export class PluginWriteCoordinator {
     for (const pending of this.#pending.values()) {
       clearTimeout(pending.timeout);
       const unknownWriteOutcome = pending.dispatched && !pending.readOnly;
+      if (unknownWriteOutcome) {
+        this.#eventLog?.emit({
+          level: "error",
+          traceId: pending.command.traceId,
+          requestId: pending.command.requestId,
+          clientId: pending.command.clientId,
+          sessionId: pending.command.sessionId,
+          fileKey: pending.command.fileKey,
+          method: pending.command.method,
+          action: "unknown_outcome",
+          errorCode: "UNKNOWN_OUTCOME",
+          retryable: false,
+        });
+      }
       pending.reject(
         new McpFigError(
           unknownWriteOutcome ? "UNKNOWN_OUTCOME" : "NOT_CONNECTED",
@@ -215,6 +239,19 @@ export class PluginWriteCoordinator {
   markDispatched(command: PluginCommand): void {
     const pending = this.#pending.get(command.requestId);
     if (pending) pending.dispatched = true;
+    this.#eventLog?.emit({
+      level: "info",
+      traceId: command.traceId,
+      requestId: command.requestId,
+      clientId: command.clientId,
+      sessionId: command.sessionId,
+      fileKey: command.fileKey,
+      method: command.method,
+      action: "dispatch",
+      ...(command.targetNodeIds
+        ? { targetNodeIds: command.targetNodeIds }
+        : {}),
+    });
   }
 
   acceptResult(
@@ -239,6 +276,30 @@ export class PluginWriteCoordinator {
     if (result.revision)
       this.#sessions.updateRevision(session, result.revision);
     this.#recordMetric(pending.command, result, responseCompletedAt);
+    this.#eventLog?.emit({
+      level: result.ok ? "info" : "error",
+      traceId: pending.command.traceId,
+      requestId: result.requestId,
+      clientId: result.clientId,
+      sessionId: result.sessionId,
+      fileKey: result.fileKey,
+      method: pending.command.method,
+      action: "figma.api.result",
+      ...(pending.command.targetNodeIds
+        ? { targetNodeIds: pending.command.targetNodeIds }
+        : {}),
+      ...(result.revision ? { revision: result.revision } : {}),
+      ...(!result.ok && result.error
+        ? {
+            errorCode: result.error.code,
+            retryable: result.error.retryable ?? false,
+          }
+        : {}),
+      latencyMs: duration(
+        result.figmaApiStartedAt ?? result.receivedAt,
+        result.figmaApiCompletedAt ?? result.completedAt,
+      ),
+    });
     if (result.ok) {
       pending.resolve(result.data);
     } else {
@@ -271,7 +332,7 @@ export class PluginWriteCoordinator {
     clientId: string,
     method: string,
     params: unknown,
-    options: { fileKey?: string; timeoutMs?: number } = {},
+    options: PluginRequestOptions = {},
   ): Promise<unknown> {
     const session = options.fileKey
       ? this.#sessions.forFile(options.fileKey)
@@ -457,11 +518,12 @@ export class PluginWriteCoordinator {
     params: unknown,
     readOnly: boolean,
     metadata: Partial<WriteMetadata>,
-    options: { fileKey?: string; timeoutMs?: number },
+    options: PluginRequestOptions,
   ): Promise<unknown> {
     const now = new Date().toISOString();
     const command: PluginCommand = {
       protocol: PLUGIN_PROTOCOL_V1,
+      traceId: options.traceId ?? randomUUID(),
       requestId: randomUUID(),
       clientId,
       sessionId: session.handshake.sessionId,
@@ -489,6 +551,20 @@ export class PluginWriteCoordinator {
         );
         if (queuedIndex >= 0) session.queue.splice(queuedIndex, 1);
         const unknownWriteOutcome = pending?.dispatched && !pending.readOnly;
+        if (unknownWriteOutcome && pending) {
+          this.#eventLog?.emit({
+            level: "error",
+            traceId: pending.command.traceId,
+            requestId: pending.command.requestId,
+            clientId: pending.command.clientId,
+            sessionId: pending.command.sessionId,
+            fileKey: pending.command.fileKey,
+            method: pending.command.method,
+            action: "unknown_outcome",
+            errorCode: "UNKNOWN_OUTCOME",
+            retryable: false,
+          });
+        }
         reject(
           new McpFigError(
             unknownWriteOutcome ? "UNKNOWN_OUTCOME" : "NOT_CONNECTED",
@@ -529,6 +605,16 @@ export class PluginWriteCoordinator {
         }
       }
       if (waiter) {
+        this.#eventLog?.emit({
+          level: "debug",
+          traceId: command.traceId,
+          requestId: command.requestId,
+          clientId: command.clientId,
+          sessionId: command.sessionId,
+          fileKey: command.fileKey,
+          method: command.method,
+          action: "waiter.close",
+        });
         this.markDispatched(command);
         this.#sendJson(waiter, 200, command);
       } else {
@@ -547,6 +633,7 @@ export class PluginWriteCoordinator {
     const figmaApiCompletedAt =
       result.figmaApiCompletedAt ?? result.completedAt;
     this.#metrics.push({
+      traceId: command.traceId,
       requestId: command.requestId,
       clientId: command.clientId,
       sessionId: command.sessionId,

@@ -292,6 +292,17 @@ describe("Figma Plugin main bridge", () => {
     expect(clientStorage.size).toBe(0);
   });
 
+  it("returns the command traceId from Plugin main", async () => {
+    const { command } = createHarness();
+    await expect(
+      command("selection.get", {}, { traceId: "trace-plugin-main" }),
+    ).resolves.toMatchObject({
+      type: "bridge-result",
+      traceId: "trace-plugin-main",
+      ok: true,
+    });
+  });
+
   it("proactively sends file identity after installing the UI handler", () => {
     const { messages } = createHarness();
 

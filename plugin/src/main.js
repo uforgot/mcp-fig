@@ -187,6 +187,7 @@ figma.ui.onmessage = async (message) => {
   }
   if (message?.type !== "bridge-command" || !message.command) return;
   const requestId = message.command.requestId;
+  const traceId = message.command.traceId || requestId;
   metrics.start();
   const figmaApiStartedAt = new Date().toISOString();
   try {
@@ -195,6 +196,7 @@ figma.ui.onmessage = async (message) => {
     figma.ui.postMessage({
       type: "bridge-result",
       requestId,
+      traceId,
       ok: true,
       data,
       revision: String(revision.current()),
@@ -212,6 +214,7 @@ figma.ui.onmessage = async (message) => {
     figma.ui.postMessage({
       type: "bridge-result",
       requestId,
+      traceId,
       ok: false,
       error: bridge,
       revision: String(revision.current()),

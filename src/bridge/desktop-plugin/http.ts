@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { type ErrorCode, McpFigError } from "../../errors.js";
+import type { EventSink } from "../../observability/event-log.js";
 import {
   PLUGIN_PROTOCOL_V1,
   type PluginMetric,
@@ -11,7 +12,10 @@ import {
 } from "../plugin-protocol.js";
 import type { BridgeStatus } from "../types.js";
 import type { PluginSessionRegistry } from "./sessions.js";
-import type { PluginWriteCoordinator } from "./write-coordinator.js";
+import type {
+  PluginRequestOptions,
+  PluginWriteCoordinator,
+} from "./write-coordinator.js";
 
 export interface HostAddress {
   host: "127.0.0.1";
@@ -41,10 +45,11 @@ export interface PluginHttpRouterOptions {
     clientId: string,
     method: string,
     params: unknown,
-    options: { fileKey?: string; timeoutMs?: number },
+    options: PluginRequestOptions,
   ) => Promise<unknown>;
   metrics: () => PluginMetric[];
   exchangePairingCode?: PairingCodeExchange;
+  eventLog?: EventSink;
 }
 
 export function writeJson(
@@ -170,6 +175,7 @@ export class PluginHttpRouter {
   readonly #request: PluginHttpRouterOptions["request"];
   readonly #metrics: PluginHttpRouterOptions["metrics"];
   readonly #exchangePairingCode: PairingCodeExchange | undefined;
+  readonly #eventLog: EventSink | undefined;
 
   constructor(options: PluginHttpRouterOptions) {
     this.#token = options.token;
@@ -179,6 +185,7 @@ export class PluginHttpRouter {
     this.#request = options.request;
     this.#metrics = options.metrics;
     this.#exchangePairingCode = options.exchangePairingCode;
+    this.#eventLog = options.eventLog;
   }
 
   async route(
@@ -428,6 +435,16 @@ export class PluginHttpRouter {
     handshake: ReturnType<typeof parseHandshake>,
   ): void {
     const accepted = this.#sessions.acceptHandshake(handshake);
+    this.#eventLog?.emit({
+      level: accepted.conflict ? "warn" : "info",
+      traceId: handshake.traceId ?? handshake.sessionId,
+      clientId: handshake.clientId,
+      sessionId: handshake.sessionId,
+      fileKey: handshake.file.key,
+      revision: handshake.file.revision,
+      action: "plugin.handshake",
+      ...(accepted.conflict ? { errorCode: "SESSION_CONFLICT" } : {}),
+    });
     if (accepted.conflict) {
       writeJson(response, 409, {
         error: {
@@ -462,9 +479,27 @@ export class PluginHttpRouter {
     }
     const removeWaiter = () => {
       const index = session.waiters.indexOf(response);
-      if (index >= 0) session.waiters.splice(index, 1);
+      if (index >= 0) {
+        session.waiters.splice(index, 1);
+        this.#eventLog?.emit({
+          level: "debug",
+          traceId: session.handshake.traceId ?? session.handshake.sessionId,
+          clientId: session.handshake.clientId,
+          sessionId,
+          fileKey: session.handshake.file.key,
+          action: "waiter.close",
+        });
+      }
     };
     session.waiters.push(response);
+    this.#eventLog?.emit({
+      level: "debug",
+      traceId: session.handshake.traceId ?? session.handshake.sessionId,
+      clientId: session.handshake.clientId,
+      sessionId,
+      fileKey: session.handshake.file.key,
+      action: "waiter.open",
+    });
     const timer = setTimeout(() => {
       removeWaiter();
       if (!response.writableEnded && !response.destroyed) {

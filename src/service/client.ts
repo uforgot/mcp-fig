@@ -4,6 +4,7 @@ import { isReadOnlyRequest } from "../bridge/desktop-plugin/write-coordinator.js
 import type { PluginHandshake } from "../bridge/plugin-protocol.js";
 import type { BridgeStatus } from "../bridge/types.js";
 import { type ErrorCode, McpFigError } from "../errors.js";
+import { traceIdOrCreate } from "../observability/trace-context.js";
 import {
   parseServiceResponse,
   SERVICE_PROTOCOL_V1,
@@ -160,6 +161,7 @@ export class ServiceClient {
     timeoutMs = this.#requestTimeoutMs,
   ): Promise<ServiceResultMap[Method]> {
     const requestId = randomUUID();
+    const traceId = traceIdOrCreate();
     try {
       await verifyServiceSocket(this.#socketPath);
     } catch (error) {
@@ -176,11 +178,13 @@ export class ServiceClient {
     const response = await this.#exchange(
       JSON.stringify({
         protocol: SERVICE_PROTOCOL_V1,
+        traceId,
         requestId,
         method,
         params,
       }),
       requestId,
+      traceId,
       timeoutMs,
     );
     if (!response.ok) {
@@ -213,6 +217,7 @@ export class ServiceClient {
   #exchange(
     payload: string,
     requestId: string,
+    traceId: string,
     timeoutMs: number,
   ): Promise<ReturnType<typeof parseServiceResponse>> {
     return new Promise((resolve, reject) => {
@@ -255,7 +260,7 @@ export class ServiceClient {
         if (newline < 0) return;
         try {
           const value = JSON.parse(buffer.slice(0, newline)) as unknown;
-          finish(undefined, parseServiceResponse(value, requestId));
+          finish(undefined, parseServiceResponse(value, requestId, traceId));
         } catch (error) {
           if (error instanceof ServiceProtocolError) {
             finish(
