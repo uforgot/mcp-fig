@@ -254,7 +254,7 @@ Item `1106` moves Plugin session and write ownership out of MCP stdio process li
 | `src/service/daemon.ts` | One `DesktopPluginBridgeHost` with proxying disabled, owner-only IPC server, secret-free health, request routing, in-flight drain, signal-safe shutdown, foreground CLI entry. |
 | `src/service/protocol.ts` | `mcp-fig-service/v1` request/response/error envelopes, runtime validation, health/session identity schema. |
 | `src/service/socket.ts` | `~/Library/Application Support/mcp-fig/service.sock`, private parent validation, owner validation, `0600` enforcement, stale-socket probe/recovery, safe unlink. |
-| `src/service/client.ts` | Short-lived isolated Unix-socket requests, response/request correlation, protocol mismatch detection, bridge-error reconstruction, daemon-independent client close. |
+| `src/service/client.ts` | Short-lived isolated Unix-socket requests, response/request correlation, protocol mismatch detection, bridge-error reconstruction, and conservative post-dispatch outcome classification. A malformed, oversized, version-mismatched, or miscorrelated response maps a read to retryable `NOT_CONNECTED` and a write to non-retryable `UNKNOWN_OUTCOME`. |
 | `src/bridge/factory.ts` | Service client first; in-process HTTP host only when config selected explicit `manual` mode. |
 | `src/config.ts` | Default service selection for Desktop Plugin configuration and separate service socket selection; Plugin token is not copied into service-client configuration. |
 

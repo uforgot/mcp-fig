@@ -30,6 +30,7 @@ export class ServiceClientError extends Error {
     | "SERVICE_UNAVAILABLE"
     | "SERVICE_TIMEOUT"
     | "PROTOCOL_MISMATCH"
+    | "INVALID_RESPONSE"
     | "INVALID_REQUEST"
     | "SOCKET_NOT_OWNER_ONLY";
 
@@ -112,7 +113,12 @@ export class ServiceClient {
     } catch (error) {
       if (
         !(error instanceof ServiceClientError) ||
-        !["SERVICE_UNAVAILABLE", "SERVICE_TIMEOUT"].includes(error.code)
+        ![
+          "SERVICE_UNAVAILABLE",
+          "SERVICE_TIMEOUT",
+          "PROTOCOL_MISMATCH",
+          "INVALID_RESPONSE",
+        ].includes(error.code)
       ) {
         throw error;
       }
@@ -239,7 +245,7 @@ export class ServiceClient {
         if (Buffer.byteLength(buffer) > 1_000_000) {
           finish(
             new ServiceClientError(
-              "INVALID_REQUEST",
+              "INVALID_RESPONSE",
               "MCP Fig service response is too large.",
             ),
           );
@@ -256,14 +262,14 @@ export class ServiceClient {
               new ServiceClientError(
                 error.code === "PROTOCOL_MISMATCH"
                   ? "PROTOCOL_MISMATCH"
-                  : "INVALID_REQUEST",
+                  : "INVALID_RESPONSE",
                 error.message,
               ),
             );
           } else {
             finish(
               new ServiceClientError(
-                "INVALID_REQUEST",
+                "INVALID_RESPONSE",
                 "MCP Fig service response is not valid JSON.",
               ),
             );

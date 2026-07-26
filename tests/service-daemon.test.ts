@@ -165,6 +165,55 @@ describe("persistent broker service", () => {
     }
   });
 
+  it("classifies an invalid post-dispatch write response as unknown outcome", async () => {
+    const socketPath = await temporarySocket();
+    const accepted = new Set<import("node:net").Socket>();
+    let requestCount = 0;
+    const server = createServer((socket) => {
+      accepted.add(socket);
+      socket.once("close", () => accepted.delete(socket));
+      let buffer = "";
+      socket.setEncoding("utf8");
+      socket.on("data", (chunk: string) => {
+        buffer += chunk;
+        if (!buffer.includes("\n")) return;
+        requestCount += 1;
+        socket.end(
+          `${JSON.stringify({
+            protocol: SERVICE_PROTOCOL_V1,
+            requestId: "wrong",
+            ok: true,
+            data: {},
+          })}\n`,
+        );
+      });
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(socketPath, resolve);
+    });
+    await chmod(socketPath, 0o600);
+    try {
+      const client = new ServiceClient({ socketPath });
+      await expect(
+        client.request(
+          "writer",
+          "node.update",
+          { nodeIds: ["2:1"], patch: { name: "possibly applied" } },
+          { fileKey: "write-file" },
+        ),
+      ).rejects.toMatchObject({
+        code: "UNKNOWN_OUTCOME",
+        retryable: false,
+        details: { serviceCode: "INVALID_RESPONSE" },
+      });
+      expect(requestCount).toBe(1);
+    } finally {
+      for (const socket of accepted) socket.destroy();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it("isolates concurrent clients behind one daemon owner", async () => {
     const socketPath = await temporarySocket();
     const daemon = new BrokerDaemon({
