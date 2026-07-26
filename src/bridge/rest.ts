@@ -19,11 +19,16 @@ import type {
   UpdateNodesInput,
 } from "./types.js";
 
-interface RestBridgeOptions {
-  accessToken: string;
+export const REST_FRESHNESS_WARNING =
+  "REST data can lag unsaved local Figma state; do not compare its revision with Plugin revisions.";
+
+export interface RestBridgeOptions {
+  accessToken?: string;
+  loadAccessToken?: () => Promise<string | undefined>;
   fileKey?: string;
   baseUrl?: string;
   fetch?: typeof globalThis.fetch;
+  timeoutMs?: number;
 }
 
 interface RestFileResponse {
@@ -202,9 +207,11 @@ function localComponents(root: FigmaNode): ComponentRecord[] {
 }
 
 export class RestFigmaBridge implements FigmaBridge {
-  readonly #accessToken: string;
+  readonly #accessToken: string | undefined;
+  readonly #loadAccessToken: (() => Promise<string | undefined>) | undefined;
   readonly #baseUrl: string;
   readonly #fetch: typeof globalThis.fetch;
+  readonly #timeoutMs: number;
   #activeFileKey: string | undefined;
   #fileName: string | undefined;
   #revision: string | undefined;
@@ -212,11 +219,16 @@ export class RestFigmaBridge implements FigmaBridge {
 
   constructor(options: RestBridgeOptions) {
     this.#accessToken = options.accessToken;
+    this.#loadAccessToken = options.loadAccessToken;
     this.#baseUrl = (options.baseUrl ?? "https://api.figma.com").replace(
       /\/$/,
       "",
     );
     this.#fetch = options.fetch ?? globalThis.fetch;
+    this.#timeoutMs = options.timeoutMs ?? 5_000;
+    if (!Number.isInteger(this.#timeoutMs) || this.#timeoutMs < 1) {
+      throw new Error("REST timeout must be a positive integer.");
+    }
     if (options.fileKey) this.#activeFileKey = options.fileKey;
   }
 
@@ -229,7 +241,18 @@ export class RestFigmaBridge implements FigmaBridge {
       ...(this.#revision ? { revision: this.#revision } : {}),
       readSource: "rest",
       writeSource: "none",
+      restAvailable: await this.isAvailable(),
+      freshnessWarning: REST_FRESHNESS_WARNING,
     };
+  }
+
+  async isAvailable(): Promise<boolean> {
+    if (this.#accessToken) return true;
+    try {
+      return Boolean(await this.#loadAccessToken?.());
+    } catch {
+      return false;
+    }
   }
 
   async listFiles(): Promise<FigmaFileSummary[]> {
@@ -259,7 +282,7 @@ export class RestFigmaBridge implements FigmaBridge {
 
   async getDocument(fileKey?: string): Promise<FigmaNode> {
     const response = await this.#loadFile(this.#requireFileKey(fileKey));
-    return toNode(response.document);
+    return this.#withMetadata(toNode(response.document));
   }
 
   async getSelection(_fileKey?: string): Promise<string[]> {
@@ -268,6 +291,7 @@ export class RestFigmaBridge implements FigmaBridge {
 
   async getChanges(fileKey?: string): Promise<ChangeRecord[]> {
     const key = this.#requireFileKey(fileKey);
+    if (!this.#revision) await this.#loadFile(key);
     const response = await this.#request<{ versions?: unknown[] }>(
       `/v1/files/${encodeURIComponent(key)}/versions`,
     );
@@ -279,11 +303,14 @@ export class RestFigmaBridge implements FigmaBridge {
         action: "version",
         nodeIds: [],
         timestamp: String(version.created_at ?? new Date(0).toISOString()),
+        source: "rest" as const,
+        freshnessWarning: REST_FRESHNESS_WARNING,
       }));
   }
 
   async getNodes(nodeIds: string[], fileKey?: string): Promise<FigmaNode[]> {
     const key = this.#requireFileKey(fileKey);
+    if (!this.#revision) await this.#loadFile(key);
     const query = new URLSearchParams({ ids: nodeIds.join(",") });
     const response = await this.#request<{
       nodes?: Record<string, { document?: Record<string, unknown> } | null>;
@@ -298,7 +325,7 @@ export class RestFigmaBridge implements FigmaBridge {
           { details: { fileKey: key, nodeId } },
         );
       }
-      return toNode(document);
+      return this.#withMetadata(toNode(document));
     });
   }
 
@@ -332,13 +359,17 @@ export class RestFigmaBridge implements FigmaBridge {
         layouts: (await this.getNodes(input.nodeIds, input.fileKey)).map(
           inspectLayoutNode,
         ),
+        ...this.#metadata(),
       };
     }
     if (input.action === "validate") {
-      return validateLayoutScope(
-        await this.getDocument(input.fileKey),
-        input.nodeIds,
-      );
+      return {
+        ...validateLayoutScope(
+          await this.getDocument(input.fileKey),
+          input.nodeIds,
+        ),
+        ...this.#metadata(),
+      };
     }
     return unsupported(`layout.${input.action}`);
   }
@@ -356,6 +387,7 @@ export class RestFigmaBridge implements FigmaBridge {
                 component.name.toLowerCase().includes(query),
               )
             : components,
+          ...this.#metadata(),
         };
       }
       const component = components.find(
@@ -369,7 +401,7 @@ export class RestFigmaBridge implements FigmaBridge {
           "Figma component was not found.",
         );
       }
-      return { component };
+      return { component, ...this.#metadata() };
     }
     return unsupported(`component.${input.action}`);
   }
@@ -404,29 +436,108 @@ export class RestFigmaBridge implements FigmaBridge {
     return key;
   }
 
+  #metadata(): {
+    source: "rest";
+    revision: string;
+    freshnessWarning: string;
+  } {
+    return {
+      source: "rest",
+      revision: this.#revision ?? "unknown",
+      freshnessWarning: REST_FRESHNESS_WARNING,
+    };
+  }
+
+  #withMetadata(node: FigmaNode): FigmaNode {
+    return { ...node, ...this.#metadata() };
+  }
+
+  async #requireAccessToken(): Promise<string> {
+    let token: string | undefined;
+    try {
+      token = this.#accessToken ?? (await this.#loadAccessToken?.());
+    } catch {
+      throw new McpFigError(
+        "NOT_CONNECTED",
+        "Figma REST fallback credential is unavailable.",
+        {
+          details: {
+            source: "rest",
+            reason: "REST_CREDENTIAL_UNAVAILABLE",
+            dispatched: false,
+          },
+        },
+      );
+    }
+    if (!token) {
+      throw new McpFigError(
+        "NOT_CONNECTED",
+        "Figma REST fallback is not configured with an owner-only access token.",
+        {
+          details: {
+            source: "rest",
+            reason: "REST_CREDENTIAL_MISSING",
+            dispatched: false,
+          },
+        },
+      );
+    }
+    return token;
+  }
+
   async #request<T>(path: string): Promise<T> {
+    const accessToken = await this.#requireAccessToken();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.#timeoutMs);
     let response: Response;
     try {
       response = await this.#fetch(`${this.#baseUrl}${path}`, {
-        headers: { "X-Figma-Token": this.#accessToken },
+        headers: { "X-Figma-Token": accessToken },
+        signal: controller.signal,
       });
     } catch (error) {
       this.#verified = false;
+      const timedOut = controller.signal.aborted;
       throw new McpFigError(
         "NOT_CONNECTED",
-        error instanceof Error ? error.message : "Figma REST request failed.",
-        { retryable: true },
+        timedOut
+          ? `Figma REST request timed out after ${this.#timeoutMs}ms.`
+          : error instanceof Error
+            ? error.message
+            : "Figma REST request failed.",
+        {
+          retryable: true,
+          details: {
+            source: "rest",
+            path,
+            ...(timedOut ? { timeoutMs: this.#timeoutMs } : {}),
+          },
+        },
       );
+    } finally {
+      clearTimeout(timeout);
     }
     if (!response.ok) {
       this.#verified = false;
-      const code = response.status === 404 ? "FILE_NOT_FOUND" : "NOT_CONNECTED";
+      const code =
+        response.status === 404
+          ? "FILE_NOT_FOUND"
+          : response.status === 429
+            ? "BUSY"
+            : "NOT_CONNECTED";
       throw new McpFigError(
         code,
         `Figma REST request failed with HTTP ${response.status}.`,
         {
-          retryable: response.status >= 500,
-          details: { status: response.status, path },
+          retryable: response.status === 429 || response.status >= 500,
+          details: {
+            source: "rest",
+            status: response.status,
+            path,
+            ...(response.headers.get("retry-after")
+              ? { retryAfter: response.headers.get("retry-after") }
+              : {}),
+          },
         },
       );
     }

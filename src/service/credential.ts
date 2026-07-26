@@ -12,6 +12,7 @@ export interface ServiceCredential {
   version: 1;
   pluginToken: string;
   rotatedAt: string;
+  figmaAccessToken?: string;
 }
 
 interface PairingRecord {
@@ -73,7 +74,10 @@ function parseCredential(raw: string): ServiceCredential {
     value.version !== 1 ||
     typeof value.pluginToken !== "string" ||
     value.pluginToken.length < 32 ||
-    typeof value.rotatedAt !== "string"
+    typeof value.rotatedAt !== "string" ||
+    (value.figmaAccessToken !== undefined &&
+      (typeof value.figmaAccessToken !== "string" ||
+        value.figmaAccessToken.length < 8))
   ) {
     throw new Error("Service credential is malformed.");
   }
@@ -118,10 +122,20 @@ export async function readCredential(
 
 export async function readOrCreateCredential(
   paths: ServicePaths,
-  options: { now?: number } = {},
+  options: { now?: number; figmaAccessToken?: string } = {},
 ): Promise<ServiceCredential> {
   try {
-    return await readCredential(paths);
+    const existing = await readCredential(paths);
+    if (
+      options.figmaAccessToken &&
+      options.figmaAccessToken !== existing.figmaAccessToken
+    ) {
+      return writeCredential(paths, {
+        ...existing,
+        figmaAccessToken: options.figmaAccessToken,
+      });
+    }
+    return existing;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
@@ -129,6 +143,9 @@ export async function readOrCreateCredential(
     version: 1,
     pluginToken: token(),
     rotatedAt: new Date(options.now ?? Date.now()).toISOString(),
+    ...(options.figmaAccessToken
+      ? { figmaAccessToken: options.figmaAccessToken }
+      : {}),
   };
   await ensureServiceDirectories(paths);
   const created = await createOwnerOnlyFile(
@@ -142,6 +159,7 @@ export async function rotateCredential(
   paths: ServicePaths,
   options: { now?: number } = {},
 ): Promise<ServiceCredential> {
+  const existing = await readCredential(paths);
   await Promise.all([
     rm(paths.pairingPath, { force: true }),
     rm(paths.pairingUsedPath, { force: true }),
@@ -150,6 +168,9 @@ export async function rotateCredential(
     version: 1,
     pluginToken: token(),
     rotatedAt: new Date(options.now ?? Date.now()).toISOString(),
+    ...(existing.figmaAccessToken
+      ? { figmaAccessToken: existing.figmaAccessToken }
+      : {}),
   });
 }
 

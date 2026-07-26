@@ -34,11 +34,17 @@ export class ServiceClientError extends Error {
     | "INVALID_RESPONSE"
     | "INVALID_REQUEST"
     | "SOCKET_NOT_OWNER_ONLY";
+  readonly dispatched: boolean;
 
-  constructor(code: ServiceClientError["code"], message: string) {
+  constructor(
+    code: ServiceClientError["code"],
+    message: string,
+    dispatched = false,
+  ) {
     super(message);
     this.name = "ServiceClientError";
     this.code = code;
+    this.dispatched = dispatched;
   }
 }
 
@@ -126,12 +132,15 @@ export class ServiceClient {
       if (isReadOnlyRequest(method, params)) {
         throw new McpFigError("NOT_CONNECTED", error.message, {
           retryable: true,
-          details: { serviceCode: error.code },
+          details: {
+            serviceCode: error.code,
+            dispatched: error.dispatched,
+          },
         });
       }
       throw new McpFigError("UNKNOWN_OUTCOME", error.message, {
         retryable: false,
-        details: { serviceCode: error.code },
+        details: { serviceCode: error.code, dispatched: error.dispatched },
       });
     }
   }
@@ -151,7 +160,7 @@ export class ServiceClient {
     throw new McpFigError(
       "NOT_CONNECTED",
       `Desktop Plugin did not pair file ${fileKey}.`,
-      { retryable: true },
+      { retryable: true, details: { fileKey, dispatched: false } },
     );
   }
 
@@ -209,6 +218,7 @@ export class ServiceClient {
             ? "INVALID_REQUEST"
             : "SERVICE_UNAVAILABLE",
         response.error.message,
+        true,
       );
     }
     return response.data as ServiceResultMap[Method];
@@ -224,6 +234,7 @@ export class ServiceClient {
       const socket = createConnection(this.#socketPath);
       let buffer = "";
       let settled = false;
+      let dispatched = false;
       const finish = (
         error?: unknown,
         value?: ReturnType<typeof parseServiceResponse>,
@@ -240,11 +251,15 @@ export class ServiceClient {
           new ServiceClientError(
             "SERVICE_TIMEOUT",
             `MCP Fig service request timed out after ${timeoutMs}ms.`,
+            dispatched,
           ),
         );
       }, timeoutMs);
       socket.setEncoding("utf8");
-      socket.once("connect", () => socket.write(`${payload}\n`));
+      socket.once("connect", () => {
+        dispatched = true;
+        socket.write(`${payload}\n`);
+      });
       socket.on("data", (chunk: string) => {
         buffer += chunk;
         if (Buffer.byteLength(buffer) > 1_000_000) {
@@ -269,6 +284,7 @@ export class ServiceClient {
                   ? "PROTOCOL_MISMATCH"
                   : "INVALID_RESPONSE",
                 error.message,
+                dispatched,
               ),
             );
           } else {
@@ -276,6 +292,7 @@ export class ServiceClient {
               new ServiceClientError(
                 "INVALID_RESPONSE",
                 "MCP Fig service response is not valid JSON.",
+                dispatched,
               ),
             );
           }
@@ -286,6 +303,7 @@ export class ServiceClient {
           new ServiceClientError(
             "SERVICE_UNAVAILABLE",
             `MCP Fig service is unavailable: ${error.code ?? error.message}.`,
+            dispatched,
           ),
         );
       });
@@ -295,6 +313,7 @@ export class ServiceClient {
             new ServiceClientError(
               "SERVICE_UNAVAILABLE",
               "MCP Fig service closed without a response.",
+              dispatched,
             ),
           );
         }

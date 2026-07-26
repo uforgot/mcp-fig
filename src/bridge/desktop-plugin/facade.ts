@@ -24,6 +24,7 @@ interface BridgeOptions {
   clientId: string;
   requestTimeoutMs?: number;
   fileKey?: string;
+  waitForSessionOnRead?: boolean;
 }
 
 export interface DesktopPluginBridgeTransport {
@@ -43,12 +44,14 @@ export class DesktopPluginFigmaBridge implements FigmaBridge {
   readonly #host: DesktopPluginBridgeTransport;
   readonly #clientId: string;
   readonly #requestTimeoutMs: number;
+  readonly #waitForSessionOnRead: boolean;
   #targetFileKey: string | undefined;
 
   constructor(host: DesktopPluginBridgeTransport, options: BridgeOptions) {
     this.#host = host;
     this.#clientId = options.clientId;
     this.#requestTimeoutMs = options.requestTimeoutMs ?? 5_000;
+    this.#waitForSessionOnRead = options.waitForSessionOnRead ?? true;
     this.#targetFileKey = options.fileKey;
   }
 
@@ -197,9 +200,11 @@ export class DesktopPluginFigmaBridge implements FigmaBridge {
     } catch (error) {
       if (
         !isReadOnlyRequest(method, params) ||
+        !this.#waitForSessionOnRead ||
         !resolvedFileKey ||
         !(error instanceof McpFigError) ||
-        error.code !== "NOT_CONNECTED"
+        error.code !== "NOT_CONNECTED" ||
+        error.details?.dispatched !== false
       )
         throw error;
       await this.#host.waitForSession(resolvedFileKey, 3_000);

@@ -8,14 +8,14 @@ MCP Fig keeps its public MCP tools independent from any one Figma transport. Dom
 
 | Capability | REST adapter | Desktop Plugin adapter | Fixture adapter |
 |---|---:|---:|---:|
-| File metadata and published document reads | Primary | Fallback/live context | Test implementation |
+| File metadata and published document reads | Pre-dispatch fallback | Primary/live context | Test implementation |
 | Node reads by ID | Supported | Supported | Supported |
 | Current selection | Not available | Primary | Supported |
 | Node create/update/move/resize/clone/delete | Not available | Primary | Supported |
 | Local unsaved state | Not available | Primary | Supported |
 | Deterministic integration tests | No | No | Primary |
 
-The facade chooses an adapter; callers do not select REST or Plugin API per action. Runtime capability discovery reports `readSource` and `writeSource` so the server does not claim write support when only REST is configured.
+The facade chooses an adapter; callers do not select REST or Plugin API per action. Service mode uses `HybridFigmaBridge`: Plugin is always primary and REST is a read-only fallback. Runtime capability discovery reports `mode=hybrid`, `pluginConnected`, `restAvailable`, `readSource`, `writeSource`, and `degradedReason` so the server does not claim write support when only REST is available.
 
 ## Core interface
 
@@ -26,7 +26,7 @@ The facade chooses an adapter; callers do not select REST or Plugin API per acti
 - typed node lifecycle mutations
 - bridge mode and explicit read/write sources
 
-`DisconnectedFigmaBridge` is the safe default. It reports health honestly and returns `NOT_CONNECTED` for document or node operations. `RestFigmaBridge` provides authenticated Figma REST document, version, and node reads while explicitly rejecting selection and writes. `InMemoryFigmaBridge` implements the full contract for fixture integration tests without pretending that a live Figma connection exists.
+`DisconnectedFigmaBridge` is the safe default. It reports health honestly and returns `NOT_CONNECTED` for document or node operations. `RestFigmaBridge` provides authenticated Figma REST document, version, node, layout-inspection/validation, and component search/inspection reads while explicitly rejecting selection and writes. REST results carry `source=rest`, a REST revision, and a freshness warning because they can lag unsaved local Plugin state. `InMemoryFigmaBridge` implements the full contract for fixture integration tests without pretending that a live Figma connection exists.
 
 `DesktopPluginFigmaBridge` is enabled with `MCP_FIG_PLUGIN_TOKEN`. Its host binds to `127.0.0.1` only and uses protocol `mcp-fig-plugin/v1`. The Plugin UI owns HTTP transport because the Figma main sandbox cannot access localhost directly; UI and main exchange typed commands with `postMessage`.
 
@@ -49,12 +49,13 @@ One Plugin UI processes its queue sequentially, so concurrent callers cannot con
 - Delete is a two-step operation: `dryRun: true` returns a short-lived token bound to the file and exact target IDs; apply consumes that token once.
 - Bridge/business errors use MCP Fig's common error envelope. JSON Schema failures remain standard MCP `-32602` errors and never reach a bridge.
 
-## Adapter implementation rules
+## Hybrid fallback policy
 
-A live hybrid adapter should:
+The hybrid adapter:
 
-1. Use REST for stable remote reads where possible.
-2. Use the Desktop Plugin connection for current selection, unsaved state, and all writes.
-3. Return `UNSUPPORTED_BY_BRIDGE` when the active adapter cannot perform an action.
-4. Never silently downgrade a write to raw execution.
-5. Preserve target file and revision information for future optimistic concurrency checks.
+1. Tries Plugin first for every action.
+2. Falls back only for `document.get`, `node.get`, changes/history, `layout.inspect`, `layout.validate`, `component.search`, and `component.inspect` when the Plugin error is `NOT_CONNECTED` with `details.dispatched=false`.
+3. Never falls back for selection, mutations, layout apply/repair, component mutation, instance, or tokens.
+4. Never retries or falls back after a dispatched request, `UNKNOWN_OUTCOME`, timeout with unknown dispatch state, or a Plugin domain error.
+5. Returns structured `NOT_CONNECTED` details when the owner-only REST credential or cloud file key is missing.
+6. Treats Plugin and REST revisions as separate domains; clients must not use a REST revision as a Plugin write precondition.

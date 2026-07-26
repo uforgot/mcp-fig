@@ -20,9 +20,10 @@ export interface ServerConfig {
   profiles: ProfileName[];
   logLevel: LogLevel;
   figmaRest?: {
-    accessToken: string;
+    accessToken?: string;
     fileKey?: string | undefined;
     baseUrl: string;
+    timeoutMs: number;
   };
   service?: {
     socketPath?: string | undefined;
@@ -55,6 +56,17 @@ function parsePluginPort(value: string | undefined): number {
     );
   }
   return port;
+}
+
+function parseRestTimeout(value: string | undefined): number {
+  if (value === undefined) return 5_000;
+  const timeoutMs = Number(value);
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 60_000) {
+    throw new Error(
+      "FIGMA_REST_TIMEOUT_MS must be an integer between 100 and 60000.",
+    );
+  }
+  return timeoutMs;
 }
 
 function parseProfiles(value: string | undefined): ProfileName[] {
@@ -104,12 +116,18 @@ export function loadConfig(
     version: env.MCP_FIG_VERSION ?? "0.0.0",
     profiles: parseProfiles(env.MCP_FIG_PROFILES),
     logLevel: parseLogLevel(env.MCP_FIG_LOG_LEVEL),
-    ...(env.FIGMA_ACCESS_TOKEN
+    ...(env.FIGMA_ACCESS_TOKEN ||
+    env.FIGMA_FILE_KEY ||
+    env.FIGMA_API_BASE_URL ||
+    env.FIGMA_REST_TIMEOUT_MS
       ? {
           figmaRest: {
-            accessToken: env.FIGMA_ACCESS_TOKEN,
+            ...(env.FIGMA_ACCESS_TOKEN
+              ? { accessToken: env.FIGMA_ACCESS_TOKEN }
+              : {}),
             fileKey: env.FIGMA_FILE_KEY,
             baseUrl: env.FIGMA_API_BASE_URL ?? "https://api.figma.com",
+            timeoutMs: parseRestTimeout(env.FIGMA_REST_TIMEOUT_MS),
           },
         }
       : {}),

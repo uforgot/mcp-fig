@@ -27,13 +27,16 @@ At `2026-07-26T23:07:52Z`, item `1105` reran `npm run canary:plugin` against the
 
 The same item built the documentation commit from a detached clean worktree with fresh `npm ci`, then exercised the production user service through uninstall, install, logs, rotate, stop, start, restart, uninstall, and a final install from the stable repository path. Final checks found one port `3847` owner, expected `0700` directories and `0600` files/socket, no credential in plist/process/status/log output, and a running service. Credential replacement intentionally left the Plugin disconnected; pairing was not automated without explicit approval.
 
+Item `1111` added the Plugin-primary, read-only REST fallback. Against the production service with no active Plugin session, the composite bridge read an existing cloud document through REST and returned `source=rest`, a revision, the unsaved-state warning, root type `DOCUMENT`, and 18 top-level children; status reported `mode=hybrid`, `pluginConnected=false`, `restAvailable=true`, `readSource=rest`, and `writeSource=none`. A temporary authenticated production-protocol session then changed status to `pluginConnected=true`, `readSource=desktop-plugin`, and `writeSource=desktop-plugin`; the service was restarted immediately afterward to remove that canary session. This proves daemon protocol routing, not a newly paired Figma GUI session. The REST token was ingested into the existing `0600` credential file and was absent from plist and service logs.
+
 Static and local integration coverage includes generated Plugin drift checking, service IPC, temporary real launchd bootstrap/crash recovery, owner and mode checks, secret scans, process lifecycle, fixture domains, trace correlation/redaction, and startup-state behavior. See [`quality-gates.md`](quality-gates.md) for the minimum command by change class.
 
 ## Not verified
 
 Do not infer these from fixture or local smoke tests:
 
-- cloud-file lifecycle behavior; the live acceptance used local Draft key `local:0:0`;
+- cloud-file mutations and full lifecycle behavior; item `1111` verified only a read-only cloud `document.get`, while mutation acceptance used local Draft key `local:0:0`;
+- actual Figma GUI re-pair and Plugin-primary transition for item `1111`; that item used a temporary production-protocol session because entering a one-time code was not automated;
 - unattended Plugin startup while Figma is closed or no safe document is open;
 - pixel/visual correctness of every mutation; fixture structural assertions are not rendered screenshots;
 - a complete live matrix for every tool/action;

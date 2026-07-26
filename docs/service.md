@@ -38,6 +38,8 @@ node dist/index.js service restart
 node dist/index.js service uninstall
 ```
 
+To enable the read-only REST fallback, provide `FIGMA_ACCESS_TOKEN` only to `service install`. Install copies it into the existing owner-only credential file; later MCP processes load it from that file rather than requiring the token in plist XML, process arguments, or the normal runtime environment. `FIGMA_FILE_KEY` may target a cloud file for the MCP process, or callers may pass a file key per supported read. REST requests default to a bounded 5-second timeout; `FIGMA_REST_TIMEOUT_MS` may set 100–60000 ms for unusually large files. Running `service rotate` preserves the REST token while replacing the Plugin credential.
+
 Calling `mcp-fig` without a service subcommand remains the MCP stdio entry. Service mode does not silently start an in-process broker when the daemon is unavailable.
 
 ## Files and permissions
@@ -60,8 +62,8 @@ Security rules:
 - Config, credential, pairing/startup state, plist, socket, and logs are owner-only `0600` where applicable.
 - Reads reject symlinks, foreign owners, non-regular files, and group/other permission bits.
 - Config and credential updates use same-directory temporary files and atomic replacement. Concurrent first installs use one atomic credential claim.
-- The long-lived credential is read from disk by the daemon. It is not placed in plist XML, process arguments, environment, status, stdout, normal logs, or documentation.
-- `service logs` redacts the current credential defensively. Log files rotate above 1 MB and retain `.1` through `.3`.
+- Long-lived Plugin and optional REST credentials are read from the owner-only credential file. They are not placed in plist XML, process arguments, status, stdout, normal logs, or documentation. `FIGMA_ACCESS_TOKEN` is only an install-time ingestion path; it is not copied into launchd.
+- `service logs` redacts both current credentials defensively. Log files rotate above 1 MB and retain `.1` through `.3`.
 
 ## LaunchAgent lifecycle
 

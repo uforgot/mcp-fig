@@ -116,7 +116,13 @@ describe("RestFigmaBridge", () => {
     });
     expect(
       await bridge.layout({ action: "validate", nodeIds: ["2:1"] }),
-    ).toEqual({ valid: true, issues: [] });
+    ).toMatchObject({
+      valid: true,
+      issues: [],
+      source: "rest",
+      revision: "42",
+      freshnessWarning: expect.stringContaining("unsaved local Figma state"),
+    });
   });
 
   it("rejects selection and writes instead of pretending REST supports them", async () => {

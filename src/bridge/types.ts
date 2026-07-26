@@ -63,6 +63,9 @@ export interface FigmaNode {
   layoutAlign?: "INHERIT" | "STRETCH" | undefined;
   layoutPositioning?: "AUTO" | "ABSOLUTE" | undefined;
   constraints?: LayoutConstraints | undefined;
+  source?: "rest" | undefined;
+  revision?: string | undefined;
+  freshnessWarning?: string | undefined;
 }
 
 export type LayoutMode = "NONE" | "HORIZONTAL" | "VERTICAL";
@@ -195,6 +198,10 @@ export interface BridgeStatus {
   revision?: string;
   readSource: "none" | "fixture" | "rest" | "desktop-plugin";
   writeSource: "none" | "fixture" | "desktop-plugin";
+  pluginConnected?: boolean;
+  restAvailable?: boolean;
+  degradedReason?: string;
+  freshnessWarning?: string;
 }
 
 export interface ChangeRecord {
@@ -202,6 +209,8 @@ export interface ChangeRecord {
   action: string;
   nodeIds: string[];
   timestamp: string;
+  source?: "rest" | undefined;
+  freshnessWarning?: string | undefined;
 }
 
 export interface NodeProps {

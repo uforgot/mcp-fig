@@ -24,7 +24,17 @@ describe("loadConfig", () => {
       accessToken: "secret",
       fileKey: "file-1",
       baseUrl: "https://figma.test",
+      timeoutMs: 5_000,
     });
+  });
+
+  it("bounds the configurable REST timeout", () => {
+    expect(
+      loadConfig({ FIGMA_REST_TIMEOUT_MS: "60000" }).figmaRest?.timeoutMs,
+    ).toBe(60_000);
+    expect(() => loadConfig({ FIGMA_REST_TIMEOUT_MS: "60001" })).toThrow(
+      "FIGMA_REST_TIMEOUT_MS",
+    );
   });
 
   it("uses the persistent service by default without forwarding the Plugin token", () => {

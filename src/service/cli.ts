@@ -56,6 +56,7 @@ export interface ServiceCliOptions {
   now?: () => number;
   stdout?: (line: string) => void;
   stderr?: (line: string) => void;
+  figmaAccessToken?: string;
 }
 
 const COMMANDS = [
@@ -85,8 +86,12 @@ async function safeRead(path: string): Promise<string> {
   }
 }
 
-function redact(text: string, secret: string | undefined): string {
-  return secret ? text.replaceAll(secret, "[REDACTED]") : text;
+function redact(text: string, secrets: (string | undefined)[]): string {
+  let redacted = text;
+  for (const secret of secrets) {
+    if (secret) redacted = redacted.replaceAll(secret, "[REDACTED]");
+  }
+  return redacted;
 }
 
 function parsePort(value: number): number {
@@ -241,7 +246,10 @@ function context(options: ServiceCliOptions): {
   now: () => number;
   stdout: (line: string) => void;
   stderr: (line: string) => void;
+  figmaAccessToken?: string;
 } {
+  const figmaAccessToken =
+    options.figmaAccessToken ?? process.env.FIGMA_ACCESS_TOKEN;
   return {
     paths: servicePaths({
       ...(options.home !== undefined ? { home: options.home } : {}),
@@ -257,6 +265,7 @@ function context(options: ServiceCliOptions): {
     now: options.now ?? Date.now,
     stdout: options.stdout ?? ((line) => process.stdout.write(`${line}\n`)),
     stderr: options.stderr ?? ((line) => process.stderr.write(`${line}\n`)),
+    ...(figmaAccessToken ? { figmaAccessToken } : {}),
   };
 }
 
@@ -278,7 +287,12 @@ export async function runServiceCli(
   switch (command) {
     case "install": {
       await ensureServiceDirectories(paths);
-      await readOrCreateCredential(paths, { now: state.now() });
+      await readOrCreateCredential(paths, {
+        now: state.now(),
+        ...(state.figmaAccessToken
+          ? { figmaAccessToken: state.figmaAccessToken }
+          : {}),
+      });
       await writeServiceConfig(paths, {
         version: 1,
         serviceVersion: state.version,
@@ -372,14 +386,15 @@ export async function runServiceCli(
       return 0;
     }
     case "logs": {
-      let secret: string | undefined;
+      let secrets: (string | undefined)[] = [];
       try {
-        secret = (await readCredential(paths)).pluginToken;
+        const credential = await readCredential(paths);
+        secrets = [credential.pluginToken, credential.figmaAccessToken];
       } catch {
-        secret = undefined;
+        secrets = [];
       }
-      const stdoutLog = redact(await safeRead(paths.stdoutLogPath), secret);
-      const stderrLog = redact(await safeRead(paths.stderrLogPath), secret);
+      const stdoutLog = redact(await safeRead(paths.stdoutLogPath), secrets);
+      const stderrLog = redact(await safeRead(paths.stderrLogPath), secrets);
       stdout("== stdout ==");
       for (const line of outputLines(stdoutLog)) stdout(line);
       stdout("== stderr ==");

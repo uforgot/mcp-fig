@@ -346,7 +346,10 @@ export class PluginWriteCoordinator {
           : "No active Figma Desktop Plugin session is paired.",
         {
           retryable: true,
-          ...(options.fileKey ? { details: { fileKey: options.fileKey } } : {}),
+          details: {
+            ...(options.fileKey ? { fileKey: options.fileKey } : {}),
+            dispatched: false,
+          },
         },
       );
     }

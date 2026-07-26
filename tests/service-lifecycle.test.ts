@@ -133,6 +133,7 @@ describe("service lifecycle and secure credentials", () => {
     const paths = servicePaths({ home });
     const launchctl = mockLaunchctl();
     const stdout: string[] = [];
+    const figmaAccessToken = "figma-owner-only-access-token";
     const options = {
       home,
       launchctl: launchctl.runner,
@@ -141,6 +142,7 @@ describe("service lifecycle and secure credentials", () => {
       version: "1.2.3",
       stdout: (line: string) => stdout.push(line),
       stderr: (_line: string) => undefined,
+      figmaAccessToken,
     };
 
     expect(await runServiceCli(["install"], options)).toBe(0);
@@ -152,10 +154,15 @@ describe("service lifecycle and secure credentials", () => {
     expect(await runServiceCli(["pair"], options)).toBe(0);
 
     expect(secondCredential.pluginToken).toBe(firstCredential.pluginToken);
+    expect(secondCredential.figmaAccessToken).toBe(figmaAccessToken);
+    expect(await runServiceCli(["rotate"], options)).toBe(0);
+    expect((await readCredential(paths)).figmaAccessToken).toBe(
+      figmaAccessToken,
+    );
     expect(launchctl.loaded()).toBe(true);
     expect(
       launchctl.calls.filter((args) => args[0] === "bootstrap"),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
     expect(modeOf((await stat(paths.appSupportDirectory)).mode)).toBe(0o700);
     expect(modeOf((await stat(paths.credentialPath)).mode)).toBe(0o600);
     expect(modeOf((await stat(paths.configPath)).mode)).toBe(0o600);
@@ -171,8 +178,15 @@ describe("service lifecycle and secure credentials", () => {
     expect(plist).toContain("/absolute/node");
     expect(plist).toContain("/absolute/dist/index.js");
     expect(plist).not.toContain(firstCredential.pluginToken);
+    expect(plist).not.toContain(figmaAccessToken);
     expect(plist).not.toContain("MCP_FIG_PLUGIN_TOKEN");
+    await writeFile(paths.stdoutLogPath, `leak=${figmaAccessToken}\n`, {
+      flag: "a",
+    });
+    expect(await runServiceCli(["logs"], options)).toBe(0);
     expect(stdout.join("\n")).not.toContain(firstCredential.pluginToken);
+    expect(stdout.join("\n")).not.toContain(figmaAccessToken);
+    expect(stdout.join("\n")).toContain("leak=[REDACTED]");
   });
 
   it("rejects malformed plist inputs and insecure credential permissions", async () => {
