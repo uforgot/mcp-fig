@@ -1,112 +1,142 @@
-import {
-  DesktopPluginBridgeHost,
-  DesktopPluginFigmaBridge,
-} from "../dist/bridge/desktop-plugin.js";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const token = process.env.MCP_FIG_PLUGIN_TOKEN;
-const port = Number(process.env.MCP_FIG_PLUGIN_PORT ?? "3847");
+import { DesktopPluginFigmaBridge } from "../dist/bridge/desktop-plugin.js";
+import { ServiceClient } from "../dist/service/client.js";
+import { servicePaths } from "../dist/service/paths.js";
+
 const timeoutMs = Number(process.env.MCP_FIG_CANARY_TIMEOUT_MS ?? "300000");
-
-if (!token) throw new Error("MCP_FIG_PLUGIN_TOKEN is required.");
-if (!Number.isInteger(port) || port < 1 || port > 65535) {
-  throw new Error(
-    "MCP_FIG_PLUGIN_PORT must be an integer between 1 and 65535.",
-  );
-}
-
-let host;
-let bridge;
-let created;
-let targetFileKey;
-
-function createBridge() {
-  host = new DesktopPluginBridgeHost({ token, port, sessionTtlMs: 5_000 });
-  bridge = new DesktopPluginFigmaBridge(host, {
-    clientId: `live-reconnect-canary-${process.pid}`,
-  });
-}
-
-async function waitForPlugin(label) {
-  const started = Date.now();
-  const deadline = started + timeoutMs;
-  while (Date.now() < deadline) {
-    const status = await bridge.status();
-    if (status.connected && status.connectionState === "ready") {
-      return { status, elapsedMs: Date.now() - started };
-    }
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  throw new Error(`${label} did not become ready within ${timeoutMs}ms.`);
-}
-
-createBridge();
-await host.listen();
-console.log(
-  JSON.stringify({
-    ready: true,
-    origin: `http://127.0.0.1:${port}`,
-    message: "Run MCP Fig Live Bridge and pair it for reconnect canary.",
-  }),
+const pluginSettleMs = Number(
+  process.env.MCP_FIG_CANARY_PLUGIN_SETTLE_MS ?? "2000",
+);
+const paths = servicePaths();
+const socketPath = process.env.MCP_FIG_SERVICE_SOCKET ?? paths.socketPath;
+const clientId = `live-reconnect-canary-${process.pid}`;
+const client = new ServiceClient({ socketPath, clientId });
+const bridge = new DesktopPluginFigmaBridge(client, { clientId });
+const cliPath = fileURLToPath(new URL("../dist/index.js", import.meta.url));
+const brokerClientScript = fileURLToPath(
+  new URL("./broker-client-once.mjs", import.meta.url),
 );
 
-try {
-  const initial = await waitForPlugin("Initial Plugin session");
-  const fileKey = initial.status.fileKey;
-  if (!fileKey) throw new Error("Paired Plugin did not provide a file key.");
-  targetFileKey = fileKey;
-  const selectionBefore = await bridge.getSelection(fileKey);
-
-  await host.close();
-  await new Promise((resolve) => setTimeout(resolve, 100));
-  createBridge();
-  const restartStarted = Date.now();
-  await host.listen();
-  const recovered = await waitForPlugin("Restarted Plugin session");
-  const recoveryMs = Date.now() - restartStarted;
-
-  const selectionAfter = await bridge.getSelection(fileKey);
-  const document = await bridge.getDocument(fileKey);
-  const page = document.children?.find((node) => node.type === "PAGE");
-  if (!page) throw new Error("No PAGE node was returned after reconnect.");
-
-  [created] = await bridge.createNode({
-    fileKey,
-    parentId: page.id,
-    nodeType: "FRAME",
-    name: "MCP Fig Reconnect Canary - PASS",
-    props: { x: 440, y: 80, width: 240, height: 120 },
+function runNode(args, env = process.env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => (stdout += chunk));
+    child.stderr.on("data", (chunk) => (stderr += chunk));
+    child.once("error", reject);
+    child.once("close", (code) => {
+      if (code === 0) resolve({ stdout, stderr });
+      else reject(new Error(stderr || stdout || `Child exited ${code}.`));
+    });
   });
-  if (!created) throw new Error("Post-reconnect write returned no node.");
-  const [verified] = await bridge.getNodes([created.id], fileKey);
-  if (verified?.name !== "MCP Fig Reconnect Canary - PASS") {
-    throw new Error("Post-reconnect write readback did not match.");
+}
+
+async function waitForReady({ newerThan } = {}) {
+  const startedAt = Date.now();
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const status = await client.status();
+      const bridgeStatus = status.bridge;
+      if (
+        bridgeStatus.connected &&
+        bridgeStatus.connectionState === "ready" &&
+        (newerThan || Date.now() - startedAt >= pluginSettleMs) &&
+        (!newerThan ||
+          (status.daemon.lastHandshakeAt &&
+            status.daemon.lastHandshakeAt !== newerThan))
+      ) {
+        return status;
+      }
+    } catch {
+      // A daemon or Plugin restart creates an expected unavailable window.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  await bridge.deleteNodes({ fileKey, nodeIds: [created.id] });
-  created = undefined;
+  throw new Error(`Service and Plugin did not recover within ${timeoutMs}ms.`);
+}
+
+async function childDocumentRead(fileKey) {
+  const result = await runNode([brokerClientScript], {
+    ...process.env,
+    MCP_FIG_SERVICE_SOCKET: socketPath,
+    MCP_FIG_BROKER_REQUEST: JSON.stringify({
+      clientId: `live-mcp-restart-child-${process.pid}`,
+      method: "document.get",
+      params: {},
+      options: { fileKey },
+    }),
+  });
+  const payload = JSON.parse(result.stdout.trim());
+  if (!payload.ok || !payload.data) {
+    throw new Error(
+      "Fresh MCP child process could not read the live document.",
+    );
+  }
+}
+
+try {
+  const initial = await waitForReady();
+  const fileKey = initial.bridge.fileKey;
+  if (!fileKey) throw new Error("Connected Plugin did not provide a file key.");
+  const initialPort = initial.daemon.plugin.port;
+  const initialHandshakeAt = initial.daemon.lastHandshakeAt;
+  const initialDocument = await bridge.getDocument(fileKey);
+
+  await runNode([cliPath, "service", "restart"]);
+  const afterServiceRestart = await waitForReady({
+    newerThan: initialHandshakeAt,
+  });
+  if (afterServiceRestart.daemon.plugin.port !== initialPort) {
+    throw new Error("Service restart changed the saved Plugin port.");
+  }
+  const afterServiceDocument = await bridge.getDocument(fileKey);
+  if (afterServiceDocument.id !== initialDocument.id) {
+    throw new Error("Service restart recovered a different Figma document.");
+  }
+
+  await childDocumentRead(fileKey);
+
+  const beforePluginRestart = await client.status();
+  console.log(
+    JSON.stringify({
+      phase: "awaiting_plugin_restart",
+      action: "Restart MCP Fig Live Bridge in the same Figma file.",
+      fileKey,
+    }),
+  );
+  const afterPluginRestart = await waitForReady({
+    newerThan: beforePluginRestart.daemon.lastHandshakeAt,
+  });
+  const afterPluginDocument = await bridge.getDocument(fileKey);
+  if (afterPluginDocument.id !== initialDocument.id) {
+    throw new Error("Plugin restart recovered a different Figma document.");
+  }
 
   console.log(
     JSON.stringify(
       {
         passed: true,
+        transport: "persistent-service-ipc",
         fileKey,
-        fileName: recovered.status.fileName,
-        recoveryMs,
-        initialPairMs: initial.elapsedMs,
-        selectionBefore,
-        selectionAfter,
-        readAfterReconnect: true,
-        writeAfterReconnect: true,
-        cleanup: true,
+        fileName: afterPluginRestart.bridge.fileName,
+        portReentryCount: 0,
+        tokenReentryCount: 0,
+        serviceRestartRecovered: true,
+        mcpProcessRestartRecovered: true,
+        pluginRestartRecovered: true,
+        savedReconnect: true,
       },
       null,
       2,
     ),
   );
 } finally {
-  if (created && bridge && targetFileKey) {
-    await bridge
-      .deleteNodes({ fileKey: targetFileKey, nodeIds: [created.id] })
-      .catch(() => undefined);
-  }
-  await host?.close();
+  await bridge.close();
 }

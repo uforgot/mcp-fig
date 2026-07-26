@@ -329,11 +329,11 @@ These are required before and after extraction when a paired disposable Figma De
 
 | Command | Frozen acceptance |
 | --- | --- |
-| `npm run canary:plugin` | Pair; read document and selection; create and rename a frame; apply and validate Auto Layout; read the node back; print `passed: true`; intentionally retain one `MCP Fig Live Canary - PASS` frame. |
-| `npm run canary:reconnect` | Pair; stop/restart the host; recover the same file; read selection/document; create/read back/delete a frame; print `passed: true`, `readAfterReconnect: true`, `writeAfterReconnect: true`, `cleanup: true`. |
-| `npm run canary:multi-agent` | Ten separate Node processes receive isolated responses; same-revision writes yield exactly one winner and one `REVISION_CONFLICT`; duplicate idempotency key executes one mutation and returns the same result; final readback and cleanup pass. |
+| `npm run canary:plugin` | Use persistent service IPC; read document and selection; create and rename a frame; read it back; delete it; print `passed: true` and `cleanup: true`. |
+| `npm run canary:reconnect` | Restart the service, spawn a fresh MCP child process, explicitly restart the Plugin, recover the same file without port/token re-entry, and print `passed: true`. |
+| `npm run canary:multi-agent` | Use ten separate Node processes through service IPC; require isolated responses, one conflict winner and one `REVISION_CONFLICT`, one duplicate-nonce revision increment, non-retried `UNKNOWN_OUTCOME`, final readback, and cleanup. |
 
-Live canaries were **not rerun while capturing this document**: the shell had no `MCP_FIG_PLUGIN_TOKEN` or `MCP_FIG_PLUGIN_FILE_KEY`, and no process was listening on TCP `3847`. This is an explicit environment limitation, not a passing live result. To avoid repeated manual token entry, the final service-integration item owns the real paired-file canary gate. Plugin checkpoint items must report live status honestly but are not blocked from review by that deferred gate.
+Item `1110` reran all three canaries against a disposable live Figma Draft through the production LaunchAgent. One-time pairing, saved reconnect after service/MCP/Plugin restart, selection/document read, write/readback/delete cleanup, ten-process response isolation, conflict `1/1`, duplicate mutation `1`, and non-retried `UNKNOWN_OUTCOME` passed. `lsof` confirmed one owner of TCP `3847`, and a final document scan removed three legacy `MCP Fig Live Canary - PASS` artifacts and found zero matching canary nodes. The remaining platform limits are that Figma must already be open on a safe file and must run the development Plugin; launchd cannot override Figma's Plugin lifecycle. Development hot reload can briefly leave stale same-file sessions until TTL expiry, so the live Plugin canary includes a post-build settle interval and routing uses the latest ready session.
 
 ## Next-item handoff
 

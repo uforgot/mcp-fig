@@ -3,6 +3,8 @@ function createPluginRevisionRuntime({ cloneData }) {
   let revision = 1;
   const changes = [];
   const revisionReadCache = new Map();
+  const pendingInternalChanges = [];
+  const internalChangeWindowMs = 2000;
 
   function current() {
     return revision;
@@ -21,6 +23,10 @@ function createPluginRevisionRuntime({ cloneData }) {
   function recordChange(action, nodeIds) {
     revision += 1;
     revisionReadCache.clear();
+    pendingInternalChanges.push({
+      timestamp: Date.now(),
+      nodeIds: new Set(nodeIds),
+    });
     changes.push({
       revision: String(revision),
       action,
@@ -30,7 +36,43 @@ function createPluginRevisionRuntime({ cloneData }) {
     if (changes.length > 500) changes.splice(0, changes.length - 500);
   }
 
-  function recordExternalChange() {
+  function recordExternalChange(event) {
+    const cutoff = Date.now() - internalChangeWindowMs;
+    while (pendingInternalChanges[0]?.timestamp < cutoff) {
+      pendingInternalChanges.shift();
+    }
+    const documentChanges = event?.documentChanges;
+    if (!Array.isArray(documentChanges) || documentChanges.length === 0) {
+      revision += 1;
+      revisionReadCache.clear();
+      return;
+    }
+    const matchedIndexes = new Set();
+    const claimedIdsByIndex = new Map();
+    let isInternalBatch = true;
+    for (const change of documentChanges) {
+      if (change.origin !== "LOCAL") {
+        isInternalBatch = false;
+        continue;
+      }
+      const matchingIndex = pendingInternalChanges.findIndex(
+        (pending, index) =>
+          pending.nodeIds.has(change.id) &&
+          !claimedIdsByIndex.get(index)?.has(change.id),
+      );
+      if (matchingIndex < 0) {
+        isInternalBatch = false;
+        continue;
+      }
+      const claimedIds = claimedIdsByIndex.get(matchingIndex) ?? new Set();
+      claimedIds.add(change.id);
+      claimedIdsByIndex.set(matchingIndex, claimedIds);
+      matchedIndexes.add(matchingIndex);
+    }
+    for (const index of [...matchedIndexes].sort((a, b) => b - a)) {
+      pendingInternalChanges.splice(index, 1);
+    }
+    if (isInternalBatch) return;
     revision += 1;
     revisionReadCache.clear();
   }

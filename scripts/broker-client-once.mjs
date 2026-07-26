@@ -1,17 +1,14 @@
-import { DesktopPluginBridgeHost } from "../dist/bridge/desktop-plugin.js";
+import { ServiceClient } from "../dist/service/client.js";
+import { servicePaths } from "../dist/service/paths.js";
 
-const token = process.env.MCP_FIG_PLUGIN_TOKEN;
-const port = Number(process.env.MCP_FIG_PLUGIN_PORT ?? "3847");
-const encodedRequest = process.env.MCP_FIG_BROKER_REQUEST;
-
-if (!token) throw new Error("MCP_FIG_PLUGIN_TOKEN is required.");
-if (!encodedRequest) throw new Error("MCP_FIG_BROKER_REQUEST is required.");
-const request = JSON.parse(encodedRequest);
-const host = new DesktopPluginBridgeHost({ token, port });
+const request = JSON.parse(process.env.MCP_FIG_BROKER_REQUEST ?? "{}");
+const client = new ServiceClient({
+  socketPath: process.env.MCP_FIG_SERVICE_SOCKET ?? servicePaths().socketPath,
+  clientId: request.clientId,
+});
 
 try {
-  await host.listen();
-  const data = await host.request(
+  const data = await client.request(
     request.clientId,
     request.method,
     request.params,
@@ -23,14 +20,13 @@ try {
     `${JSON.stringify({
       ok: false,
       error: {
-        code: error?.code ?? "INTERNAL_ERROR",
-        message: error instanceof Error ? error.message : String(error),
-        retryable: error?.retryable ?? false,
+        code: error?.code,
+        message: error?.message,
         details: error?.details,
       },
     })}\n`,
   );
   process.exitCode = 1;
 } finally {
-  await host.close();
+  await client.close();
 }

@@ -1,26 +1,19 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import {
-  DesktopPluginBridgeHost,
-  DesktopPluginFigmaBridge,
-} from "../dist/bridge/desktop-plugin.js";
+import { DesktopPluginFigmaBridge } from "../dist/bridge/desktop-plugin.js";
+import { ServiceClient } from "../dist/service/client.js";
+import { servicePaths } from "../dist/service/paths.js";
 
-const token = process.env.MCP_FIG_PLUGIN_TOKEN;
-const port = Number(process.env.MCP_FIG_PLUGIN_PORT ?? "3847");
 const timeoutMs = Number(process.env.MCP_FIG_CANARY_TIMEOUT_MS ?? "300000");
-
-if (!token) throw new Error("MCP_FIG_PLUGIN_TOKEN is required.");
-if (!Number.isInteger(port) || port < 1 || port > 65535) {
-  throw new Error(
-    "MCP_FIG_PLUGIN_PORT must be an integer between 1 and 65535.",
-  );
-}
-
-const host = new DesktopPluginBridgeHost({ token, port });
-const bridge = new DesktopPluginFigmaBridge(host, {
-  clientId: `live-multi-agent-canary-${process.pid}`,
-});
+const pluginSettleMs = Number(
+  process.env.MCP_FIG_CANARY_PLUGIN_SETTLE_MS ?? "2000",
+);
+const socketPath =
+  process.env.MCP_FIG_SERVICE_SOCKET ?? servicePaths().socketPath;
+const clientId = `live-multi-agent-canary-${process.pid}`;
+const client = new ServiceClient({ socketPath, clientId });
+const bridge = new DesktopPluginFigmaBridge(client, { clientId });
 let created;
 let fileKey;
 const brokerClientScript = fileURLToPath(
@@ -37,50 +30,75 @@ function findPage(node) {
 }
 
 async function waitForPlugin() {
+  const startedAt = Date.now();
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const status = await bridge.status();
-    if (status.connected && status.connectionState === "ready") return status;
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    if (
+      status.connected &&
+      status.connectionState === "ready" &&
+      Date.now() - startedAt >= pluginSettleMs
+    ) {
+      return status;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error(`Plugin did not pair within ${timeoutMs}ms.`);
+  throw new Error(
+    `Plugin did not connect to the service within ${timeoutMs}ms.`,
+  );
+}
+
+async function waitForDeleted(nodeId, targetFileKey) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const [node] = await bridge.getNodes([nodeId], targetFileKey);
+      if (!node) return;
+    } catch (error) {
+      if (error?.code === "NODE_NOT_FOUND") return;
+      if (error?.code !== "NOT_CONNECTED") throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`Multi-agent canary node ${nodeId} remained after cleanup.`);
 }
 
 async function stableRevision() {
   let previous;
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
     const revision = (await bridge.status()).revision;
     if (revision && revision === previous) return revision;
     previous = revision;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  throw new Error("Live revision did not stabilize before conflict test.");
+  throw new Error("Live revision did not stabilize.");
 }
 
-function brokerRequest(clientId, method, params, targetFileKey) {
+function brokerRequest(
+  clientIdForRequest,
+  method,
+  params,
+  targetFileKey,
+  options = {},
+) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [brokerClientScript], {
       env: {
         ...process.env,
-        MCP_FIG_PLUGIN_TOKEN: token,
-        MCP_FIG_PLUGIN_PORT: String(port),
+        MCP_FIG_SERVICE_SOCKET: socketPath,
         MCP_FIG_BROKER_REQUEST: JSON.stringify({
-          clientId,
+          clientId: clientIdForRequest,
           method,
           params,
-          options: { fileKey: targetFileKey },
+          options: { fileKey: targetFileKey, ...options },
         }),
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk;
-    });
+    child.stdout.on("data", (chunk) => (stdout += chunk));
+    child.stderr.on("data", (chunk) => (stderr += chunk));
     child.once("error", reject);
     child.once("close", (code) => {
       let payload;
@@ -103,19 +121,11 @@ function brokerRequest(clientId, method, params, targetFileKey) {
   });
 }
 
-await host.listen();
-console.log(
-  JSON.stringify({
-    ready: true,
-    origin: `http://127.0.0.1:${port}`,
-    message: "Run MCP Fig Live Bridge and pair it for multi-agent canary.",
-  }),
-);
-
 try {
+  await client.health();
   const connected = await waitForPlugin();
   fileKey = connected.fileKey;
-  if (!fileKey) throw new Error("Paired Plugin did not provide a file key.");
+  if (!fileKey) throw new Error("Connected Plugin did not provide a file key.");
   const document = await bridge.getDocument(fileKey);
   const page = findPage(document);
   if (!page) throw new Error("No PAGE node was returned by the live document.");
@@ -153,8 +163,6 @@ try {
   });
 
   const revisionBeforeConflict = await stableRevision();
-  if (!revisionBeforeConflict)
-    throw new Error("No live revision was reported.");
   const conflicts = await Promise.allSettled([
     brokerRequest(
       "live-conflict-winner",
@@ -190,9 +198,9 @@ try {
       `Same-revision conflict did not produce one winner and one loser: ${JSON.stringify(
         conflicts.map((result) =>
           result.status === "fulfilled"
-            ? { status: "fulfilled" }
+            ? { status: result.status, value: result.value }
             : {
-                status: "rejected",
+                status: result.status,
                 code: result.reason?.code,
                 message: result.reason?.message,
                 details: result.reason?.details,
@@ -210,40 +218,79 @@ try {
     patch: { name: "MCP Fig Duplicate Nonce - PASS" },
     idempotencyKey: `live-duplicate-${process.pid}`,
   };
-  const metricCountBefore = host
-    .metrics()
-    .filter((metric) => metric.method === "node.update").length;
+  const duplicateRevisionBefore = Number(await stableRevision());
   const duplicateResults = await Promise.all([
     brokerRequest("live-duplicate-a", "node.update", duplicateParams, fileKey),
     brokerRequest("live-duplicate-b", "node.update", duplicateParams, fileKey),
   ]);
-  const metricCountAfter = host
-    .metrics()
-    .filter((metric) => metric.method === "node.update").length;
+  const duplicateRevisionAfter = Number(await stableRevision());
   if (
     JSON.stringify(duplicateResults[0]) !== JSON.stringify(duplicateResults[1])
   ) {
     throw new Error("Duplicate nonce callers did not receive the same result.");
   }
-  if (metricCountAfter - metricCountBefore !== 1) {
-    throw new Error("Duplicate nonce executed more than one Plugin mutation.");
+  const duplicateMutationCount =
+    duplicateRevisionAfter - duplicateRevisionBefore;
+  if (duplicateMutationCount !== 1) {
+    throw new Error(
+      `Duplicate nonce changed Plugin revision ${duplicateMutationCount} times.`,
+    );
+  }
+
+  // Let the duplicate write tail fully settle so the one-millisecond probe is
+  // dispatched instead of expiring while waiting behind a completed write.
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const unknownRevisionBefore = Number(await stableRevision());
+  let unknownOutcomeCode;
+  let unknownOutcomeDetails;
+  try {
+    await brokerRequest(
+      "live-unknown-outcome",
+      "node.update",
+      {
+        nodeIds: [created.id],
+        patch: { name: "MCP Fig Unknown Outcome Probe" },
+        idempotencyKey: `live-unknown-outcome-${process.pid}`,
+      },
+      fileKey,
+      { timeoutMs: 1 },
+    );
+  } catch (error) {
+    unknownOutcomeCode = error?.code;
+    unknownOutcomeDetails = error?.details;
+  }
+  if (unknownOutcomeCode !== "UNKNOWN_OUTCOME") {
+    throw new Error(
+      `Expected UNKNOWN_OUTCOME from the one-shot timeout probe, got ${unknownOutcomeCode ?? "success"}: ${JSON.stringify(unknownOutcomeDetails)}`,
+    );
+  }
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const unknownRevisionAfter = Number(await stableRevision());
+  const unknownOutcomeMutationCount =
+    unknownRevisionAfter - unknownRevisionBefore;
+  if (unknownOutcomeMutationCount < 0 || unknownOutcomeMutationCount > 1) {
+    throw new Error(
+      `Unknown-outcome probe changed Plugin revision ${unknownRevisionBefore} -> ${unknownRevisionAfter} (${unknownOutcomeMutationCount}).`,
+    );
   }
 
   const [verified] = await bridge.getNodes([created.id], fileKey);
-  if (verified?.name !== "MCP Fig Duplicate Nonce - PASS") {
-    throw new Error("Final live readback did not match.");
-  }
+  if (!verified)
+    throw new Error("Final live readback returned no canary node.");
+  const deletedId = created.id;
   await bridge.deleteNodes({
     fileKey,
-    nodeIds: [created.id],
+    nodeIds: [deletedId],
     idempotencyKey: `live-cleanup-${process.pid}`,
   });
   created = undefined;
+  await waitForDeleted(deletedId, fileKey);
 
   console.log(
     JSON.stringify(
       {
         passed: true,
+        transport: "persistent-service-ipc",
         fileKey,
         fileName: connected.fileName,
         agentCount,
@@ -251,7 +298,10 @@ try {
         isolatedResponses: true,
         conflictWinnerCount: fulfilledConflicts.length,
         revisionConflictCount: rejectedConflicts.length,
-        duplicateMutationCount: metricCountAfter - metricCountBefore,
+        duplicateMutationCount,
+        unknownOutcomeAttempts: 1,
+        unknownOutcomeRetryCount: 0,
+        unknownOutcomeMutationCount,
         finalReadback: true,
         cleanup: true,
       },
@@ -269,5 +319,5 @@ try {
       })
       .catch(() => undefined);
   }
-  await host.close();
+  await bridge.close();
 }

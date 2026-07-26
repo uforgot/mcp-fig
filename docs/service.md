@@ -91,6 +91,24 @@ npm run smoke:launchd
 
 `smoke:launchd` uses a unique temporary label and a short temporary HOME. It validates the plist with `plutil`, bootstraps it in the real login-user launchd domain, correlates launchd PID with daemon health, and checks single ownership of the configured Plugin port and `0600` socket. It performs a real null-origin one-time exchange, rejects immediate replay, sends `SIGKILL`, waits for a different KeepAlive PID, and verifies the saved credential still authenticates after restart. It also scans process arguments/plist/stdout/stderr for the generated credential and performs idempotent bootout. It then removes all temporary files and leaves the production label untouched.
 
+## Live Figma acceptance
+
+Item `1110` closed the deferred live gate in a disposable Figma Desktop file using the production LaunchAgent and owner-only service IPC:
+
+- fresh service installation and one-time pairing reached a ready Plugin session without exposing the long-lived credential;
+- service restart, a fresh MCP child process, and an explicit Plugin restart recovered the same file with zero port or token re-entry;
+- the Plugin canary read selection/document state, created and renamed a frame, read it back, deleted it, and verified cleanup;
+- ten separate Node processes received isolated responses; same-revision writes produced one winner and one `REVISION_CONFLICT`; a duplicate nonce advanced the Plugin revision once; a one-shot post-dispatch timeout returned non-retryable `UNKNOWN_OUTCOME` and was not retried;
+- one process owned `127.0.0.1:3847`, and all matching canary artifacts were removed from the file.
+
+The production canaries in `scripts/live-*.mjs` are service IPC clients. They do not bind a second Plugin HTTP host or require `MCP_FIG_PLUGIN_TOKEN`. `canary:plugin` waits briefly after its build because Figma development hot reload can replace the Plugin session just after the bundle changes.
+
+Known limits:
+
+- launchd keeps the broker alive but cannot make Figma automatically run a development Plugin; the Plugin must be started in an already-open safe file, manually or through the bounded agent startup adapter;
+- Figma hot reload may leave older same-file session records visible until their TTL expires; requests target the latest ready session;
+- this acceptance used a disposable local Draft (`local:0:0`), so it does not claim cloud-file lifecycle behavior or unattended startup while Figma is closed.
+
 For direct in-process Plugin development, use explicit manual mode and a disposable credential:
 
 ```bash

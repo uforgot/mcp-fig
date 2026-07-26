@@ -324,6 +324,80 @@ describe("Figma Plugin main bridge", () => {
     expect(handlers.documentchange).toBeTypeOf("function");
   });
 
+  it("does not count the Plugin's own documentchange event twice", async () => {
+    const { command, handlers } = createHarness();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const first = await command("node.update", {
+      nodeIds: ["2:1"],
+      patch: { name: "Internal change" },
+    });
+    expect(first).toMatchObject({ ok: true, revision: "2" });
+
+    handlers.documentchange?.({
+      documentChanges: [{ id: "2:1", origin: "LOCAL" }],
+    });
+    const second = await command(
+      "node.update",
+      { nodeIds: ["2:1"], patch: { name: "Second change" } },
+      { expectedRevision: "2" },
+    );
+    expect(second).toMatchObject({ ok: true, revision: "3" });
+  });
+
+  it("matches consecutive same-node Plugin changes one event at a time", async () => {
+    const { command, handlers } = createHarness();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    await command("node.update", {
+      nodeIds: ["2:1"],
+      patch: { name: "First internal change" },
+    });
+    const second = await command(
+      "node.update",
+      { nodeIds: ["2:1"], patch: { name: "Second internal change" } },
+      { expectedRevision: "2" },
+    );
+    expect(second).toMatchObject({ ok: true, revision: "3" });
+
+    const event = {
+      documentChanges: [{ id: "2:1", origin: "LOCAL" }],
+    };
+    handlers.documentchange?.(event);
+    handlers.documentchange?.(event);
+    const third = await command(
+      "node.update",
+      { nodeIds: ["2:1"], patch: { name: "Third internal change" } },
+      { expectedRevision: "3" },
+    );
+    expect(third).toMatchObject({ ok: true, revision: "4" });
+  });
+
+  it("does not suppress an unrelated external document change", async () => {
+    const { command, handlers } = createHarness();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const first = await command("node.update", {
+      nodeIds: ["2:1"],
+      patch: { name: "Internal change" },
+    });
+    expect(first).toMatchObject({ ok: true, revision: "2" });
+
+    handlers.documentchange?.({
+      documentChanges: [{ id: "2:2", origin: "LOCAL" }],
+    });
+    const stale = await command(
+      "node.update",
+      { nodeIds: ["2:1"], patch: { name: "Must not apply" } },
+      { expectedRevision: "2" },
+    );
+    expect(stale).toMatchObject({
+      ok: false,
+      error: { code: "REVISION_CONFLICT" },
+      revision: "3",
+    });
+  });
+
   it("rejects a stale revision in the Plugin immediately before mutation", async () => {
     const { command, child, handlers } = createHarness();
     await new Promise((resolve) => setTimeout(resolve, 0));

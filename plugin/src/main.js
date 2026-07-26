@@ -235,8 +235,8 @@ figma.on("selectionchange", () => {
 
 async function initializeDocumentChangeTracking() {
   await figma.loadAllPagesAsync();
-  figma.on("documentchange", () => {
-    revision.recordExternalChange();
+  figma.on("documentchange", (event) => {
+    revision.recordExternalChange(event);
     figma.ui.postMessage({ type: "bridge-bootstrap", file: fileIdentity() });
   });
 }

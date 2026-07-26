@@ -1,25 +1,19 @@
-import {
-  DesktopPluginBridgeHost,
-  DesktopPluginFigmaBridge,
-} from "../dist/bridge/desktop-plugin.js";
+import { DesktopPluginFigmaBridge } from "../dist/bridge/desktop-plugin.js";
+import { ServiceClient } from "../dist/service/client.js";
+import { servicePaths } from "../dist/service/paths.js";
 
-const token = process.env.MCP_FIG_PLUGIN_TOKEN;
-const port = Number(process.env.MCP_FIG_PLUGIN_PORT ?? "3847");
 const timeoutMs = Number(process.env.MCP_FIG_CANARY_TIMEOUT_MS ?? "300000");
-
-if (!token) {
-  throw new Error("MCP_FIG_PLUGIN_TOKEN is required.");
-}
-if (!Number.isInteger(port) || port < 1 || port > 65535) {
-  throw new Error(
-    "MCP_FIG_PLUGIN_PORT must be an integer between 1 and 65535.",
-  );
-}
-
-const host = new DesktopPluginBridgeHost({ token, port });
-const bridge = new DesktopPluginFigmaBridge(host, {
-  clientId: `live-canary-${process.pid}`,
+const pluginSettleMs = Number(
+  process.env.MCP_FIG_CANARY_PLUGIN_SETTLE_MS ?? "2000",
+);
+const clientId = `live-plugin-canary-${process.pid}`;
+const client = new ServiceClient({
+  socketPath: process.env.MCP_FIG_SERVICE_SOCKET ?? servicePaths().socketPath,
+  clientId,
 });
+const bridge = new DesktopPluginFigmaBridge(client, { clientId });
+let created;
+let fileKey;
 
 function findPage(node) {
   if (node.type === "PAGE") return node;
@@ -31,78 +25,113 @@ function findPage(node) {
 }
 
 async function waitForPlugin() {
+  const startedAt = Date.now();
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const status = await bridge.status();
-    if (status.connected) return status;
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    if (
+      status.connected &&
+      status.connectionState === "ready" &&
+      Date.now() - startedAt >= pluginSettleMs
+    ) {
+      return status;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error(`Plugin did not pair within ${timeoutMs}ms.`);
+  throw new Error(
+    `Plugin did not connect to the service within ${timeoutMs}ms.`,
+  );
 }
 
-await host.listen();
-console.log(
-  JSON.stringify({
-    ready: true,
-    origin: `http://127.0.0.1:${port}`,
-    message: "Run MCP Fig Live Bridge in a blank Figma file and pair it.",
-  }),
-);
+async function waitForDeleted(nodeId, targetFileKey) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const [node] = await bridge.getNodes([nodeId], targetFileKey);
+      if (!node) return;
+    } catch (error) {
+      if (error?.code === "NODE_NOT_FOUND") return;
+      if (error?.code !== "NOT_CONNECTED") throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`Canary node ${nodeId} remained after cleanup.`);
+}
 
 try {
+  const health = await client.health();
   const connected = await waitForPlugin();
-  const document = await bridge.getDocument(connected.fileKey);
+  fileKey = connected.fileKey;
+  if (!fileKey) throw new Error("Connected Plugin did not provide a file key.");
+
+  const initialSelection = await bridge.getSelection(fileKey);
+  const document = await bridge.getDocument(fileKey);
   const page = findPage(document);
   if (!page) throw new Error("No PAGE node was returned by the live document.");
 
-  const selectionBefore = await bridge.getSelection(connected.fileKey);
-  const [created] = await bridge.createNode({
-    fileKey: connected.fileKey,
+  [created] = await bridge.createNode({
+    fileKey,
     parentId: page.id,
     nodeType: "FRAME",
-    name: "MCP Fig Live Canary",
-    props: { x: 80, y: 80, width: 320, height: 160 },
+    name: "MCP Fig Persistent Service Canary",
+    props: { x: 80, y: 80, width: 320, height: 180 },
+    idempotencyKey: `live-create-${process.pid}`,
   });
   if (!created) throw new Error("Live create returned no node.");
 
-  const [updated] = await bridge.updateNodes({
-    fileKey: connected.fileKey,
+  await bridge.updateNodes({
+    fileKey,
     nodeIds: [created.id],
-    patch: { name: "MCP Fig Live Canary - PASS" },
-  });
-  await bridge.layout({
-    action: "apply",
-    fileKey: connected.fileKey,
-    nodeIds: [created.id],
-    layout: {
-      layoutMode: "HORIZONTAL",
-      gap: 12,
-      padding: 16,
-      primaryAxisSizingMode: "FIXED",
-      counterAxisSizingMode: "FIXED",
+    patch: {
+      name: "MCP Fig Persistent Service Canary - PASS",
+      opacity: 0.72,
     },
+    idempotencyKey: `live-update-${process.pid}`,
   });
-  const validation = await bridge.layout({
-    action: "validate",
-    fileKey: connected.fileKey,
-    nodeIds: [created.id],
+  const [readback] = await bridge.getNodes([created.id], fileKey);
+  if (readback?.name !== "MCP Fig Persistent Service Canary - PASS") {
+    throw new Error(
+      `Live write/readback did not match: ${JSON.stringify(readback)}`,
+    );
+  }
+
+  const deletedId = created.id;
+  await bridge.deleteNodes({
+    fileKey,
+    nodeIds: [deletedId],
+    idempotencyKey: `live-cleanup-${process.pid}`,
   });
-  const [verified] = await bridge.getNodes([created.id], connected.fileKey);
+  created = undefined;
+  await waitForDeleted(deletedId, fileKey);
 
   console.log(
     JSON.stringify(
       {
         passed: true,
-        fileKey: connected.fileKey,
+        transport: "persistent-service-ipc",
+        servicePid: health.pid,
+        fileKey,
         fileName: connected.fileName,
-        selectionBefore,
-        node: verified ?? updated,
-        validation,
+        initialSelectionCount: initialSelection.length,
+        selection: true,
+        read: true,
+        write: true,
+        readback: true,
+        cleanup: true,
       },
       null,
       2,
     ),
   );
 } finally {
-  await host.close();
+  if (created && fileKey) {
+    await bridge
+      .deleteNodes({
+        fileKey,
+        nodeIds: [created.id],
+        idempotencyKey: `live-cleanup-finally-${process.pid}`,
+      })
+      .catch(() => undefined);
+  }
+  await bridge.close();
 }
