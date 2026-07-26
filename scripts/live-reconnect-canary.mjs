@@ -38,23 +38,32 @@ function runNode(args, env = process.env) {
 }
 
 async function waitForReady({ newerThan } = {}) {
-  const startedAt = Date.now();
   const deadline = Date.now() + timeoutMs;
+  let candidateHandshake;
+  let candidateSince;
   while (Date.now() < deadline) {
     try {
       const status = await client.status();
       const bridgeStatus = status.bridge;
-      if (
+      const handshake = status.daemon.lastHandshakeAt;
+      const qualifies =
         bridgeStatus.connected &&
         bridgeStatus.connectionState === "ready" &&
-        (newerThan || Date.now() - startedAt >= pluginSettleMs) &&
-        (!newerThan ||
-          (status.daemon.lastHandshakeAt &&
-            status.daemon.lastHandshakeAt !== newerThan))
-      ) {
-        return status;
+        handshake &&
+        (!newerThan || handshake !== newerThan);
+      if (qualifies) {
+        if (candidateHandshake !== handshake) {
+          candidateHandshake = handshake;
+          candidateSince = Date.now();
+        }
+        if (Date.now() - candidateSince >= pluginSettleMs) return status;
+      } else {
+        candidateHandshake = undefined;
+        candidateSince = undefined;
       }
     } catch {
+      candidateHandshake = undefined;
+      candidateSince = undefined;
       // A daemon or Plugin restart creates an expected unavailable window.
     }
     await new Promise((resolve) => setTimeout(resolve, 100));

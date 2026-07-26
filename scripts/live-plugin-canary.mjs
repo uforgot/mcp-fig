@@ -14,6 +14,9 @@ const client = new ServiceClient({
 const bridge = new DesktopPluginFigmaBridge(client, { clientId });
 let created;
 let fileKey;
+let cleanupStarted = false;
+let runError;
+let cleanupError;
 
 function findPage(node) {
   if (node.type === "PAGE") return node;
@@ -96,6 +99,7 @@ try {
   }
 
   const deletedId = created.id;
+  cleanupStarted = true;
   await bridge.deleteNodes({
     fileKey,
     nodeIds: [deletedId],
@@ -123,15 +127,38 @@ try {
       2,
     ),
   );
+} catch (error) {
+  runError = error;
 } finally {
   if (created && fileKey) {
-    await bridge
-      .deleteNodes({
-        fileKey,
-        nodeIds: [created.id],
-        idempotencyKey: `live-cleanup-finally-${process.pid}`,
-      })
-      .catch(() => undefined);
+    try {
+      if (!cleanupStarted) {
+        cleanupStarted = true;
+        await bridge.deleteNodes({
+          fileKey,
+          nodeIds: [created.id],
+          idempotencyKey: `live-cleanup-finally-${process.pid}`,
+        });
+      }
+      await waitForDeleted(created.id, fileKey);
+      created = undefined;
+    } catch (error) {
+      cleanupError = error;
+    }
   }
-  await bridge.close();
+  try {
+    await bridge.close();
+  } catch (error) {
+    cleanupError ??= error;
+  }
 }
+if (cleanupError) {
+  if (runError) {
+    throw new AggregateError(
+      [runError, cleanupError],
+      "Live Plugin canary failed and cleanup did not complete.",
+    );
+  }
+  throw cleanupError;
+}
+if (runError) throw runError;
