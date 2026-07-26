@@ -1,55 +1,54 @@
 # Quality gates
 
-MCP Fig measures its compact facade and representative workflows through the
-real MCP client/server transport. The gates run in `tests/quality-gates.test.ts`
-and are configured by `tests/fixtures/workflow-benchmarks.json`.
+Use the smallest gate that proves the changed boundary, then run the full static/test/build gate before commit. A fixture pass is never live Figma evidence.
 
-## Baseline
+## Full gate
+
+```bash
+npm run typecheck && npm test && npm run lint && npm run build
+npm run smoke
+npm run smoke:plugin
+```
+
+`npm test` includes generated Plugin drift checking. `npm run smoke` exercises the built stdio server. `npm run smoke:plugin` uses a deterministic fake Plugin transport and checks process cleanup.
+
+## Minimum gate by change class
+
+| Change class | Minimum focused gate | Additional required evidence |
+| --- | --- | --- |
+| Pure refactor | Relevant targeted Vitest files; `git diff --check`; no unintended `tests/snapshots/*` diff | Full gate. Plugin source refactors also run `npm run check:plugin-bundle`; fixture splits run core/layout/layout-validation/design-system/quality-gate tests. |
+| Service protocol, socket, daemon, lifecycle, credential, or launchd | `npx vitest run tests/service-daemon.test.ts tests/service-lifecycle.test.ts tests/desktop-plugin-bridge.test.ts tests/config.test.ts` | `npm run smoke:service` and `npm run smoke:launchd`; protocol mismatch, malformed request, permissions, secret scan, shutdown, and unknown-write classification must remain covered. |
+| Mutation semantics | Domain integration tests plus `tests/desktop-plugin-bridge.test.ts` and relevant Plugin tests | `npm run smoke:plugin`; for production behavior, `npm run canary:plugin` on a disposable Figma file with create/update/readback/delete and `cleanup: true`. Dry-run, revision, confirmation, idempotency, rollback, and unknown outcomes must match the touched action. |
+| Reconnect/session routing | `npx vitest run tests/desktop-plugin-bridge.test.ts tests/service-daemon.test.ts tests/service-lifecycle.test.ts tests/plugin-ui.test.ts` | `npm run canary:reconnect`; verify service, MCP process, and Plugin restart paths recover without port/token re-entry and target the latest ready session. |
+| Multi-process/write coordination | `npx vitest run tests/desktop-plugin-bridge.test.ts tests/service-daemon.test.ts tests/trace-correlation.test.ts` | `npm run canary:multi-agent`; require ten isolated clients, conflict winner/loser 1/1, duplicate mutation count 1, readback, cleanup, and no automatic retry of `UNKNOWN_OUTCOME`. |
+| Vision-assisted startup/status | `npx vitest run tests/startup-state.test.ts tests/agent-status.test.ts tests/agent-startup-cli.test.ts tests/service-lifecycle.test.ts` | `hermes computer-use doctor`; actual background Figma capture/menu action when available; foreground only after a returned escalation signal; final `service status --json` with running service, non-zero Plugin session/files, handshake, and `startupState=verified`. Never click permissions or type credentials. |
+
+## Compact facade and snapshots
+
+`tests/quality-gates.test.ts` runs through the real MCP client/server transport using `tests/fixtures/workflow-benchmarks.json`. The committed fixture baseline is:
 
 | Gate | Required | Current fixture baseline |
 | --- | ---: | ---: |
 | Core tools | 15 or fewer | 8 |
 | Calls per workflow | 5 or fewer | 5 maximum |
-| Auto Layout without `figma_execute` | at least 90% | 10/10 (100%) |
-| Representative workflow success | all fixtures | 12/12 (100%) |
+| Auto Layout without raw execution | at least 90% | 10/10 |
+| Representative fixture workflows | all | 12/12 |
 
-The representative set contains two general workflows and ten Auto Layout
-workflows. It covers selection inspection, component → instance → token binding,
-layout inspection, dry-run, nested batch ordering, validation, safe repair, and
-atomic rollback.
+`tests/snapshots/core-tool-schemas.json` freezes MCP-visible tool schemas. `tests/snapshots/auto-layout-structural-visual.json` freezes normalized layout structure. The latter is not a rendered pixel screenshot.
 
-## Schema regression
-
-`tests/snapshots/core-tool-schemas.json` captures the complete MCP-visible schema
-for every enabled core tool. The test fails when a tool is added, removed, or
-changes its title, description, annotations, action discriminator, or input
-fields. It also rejects empty object schemas so strict internal unions cannot
-accidentally become unusable to MCP hosts.
-
-MCP requires an object at the root of every tool input schema. MCP Fig keeps its
-strict action-specific Zod unions for validation and uses `src/mcp-schema.ts` to
-expose a merged object schema to clients. Unknown or action-incompatible fields
-are still rejected by the original union.
-
-## Structural visual regression
-
-`tests/fixtures/auto-layout-visual-workflow.json` applies a nested parent/card/text
-layout through one typed `figma_layout.batch` call. The resulting normalized
-layout, sizing, padding, alignment, constraints, and hierarchy are compared with
-`tests/snapshots/auto-layout-structural-visual.json`.
-
-This is a deterministic structural visual assertion, not a rendered pixel
-screenshot. Pixel comparison remains a live Desktop Plugin bridge responsibility;
-the fixture gate prevents semantic Auto Layout regressions in CI without
-pretending that REST or in-memory nodes are rendered by Figma.
-
-## Commands
+Update snapshots only for an intentional reviewed contract change:
 
 ```bash
-npm run quality
 npm run snapshots:update
 ```
 
-Run `npm run snapshots:update` only for an intentional contract change, review
-the resulting JSON diff, then run the complete test suite. CI runs the quality
-gates and regenerates both snapshots to ensure committed outputs are current.
+Review every generated diff and rerun the full gate.
+
+## Live evidence rules
+
+- Use a disposable safe file and record the exact canary output.
+- Require cleanup confirmation; do not leave canary nodes.
+- Do not report fixture/fake transport as live Plugin success.
+- Do not report a UI label as broker success; verify `service status --json`.
+- Never paste credentials, pairing codes, Authorization headers, socket payloads, or full documents into evidence.
+- No guessed benchmark. Report only observed counts/timings and label the environment.
