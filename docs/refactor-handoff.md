@@ -270,10 +270,28 @@ The daemon is the only process allowed to bind Plugin TCP transport in service m
 
 Remaining risks:
 
-- launchd installation, restart policy, log routing, and uninstall are not implemented here.
-- Plugin token storage and Plugin UI credential persistence are not implemented here; the foreground daemon currently receives the token through its environment.
 - The legacy same-port HTTP proxy remains available only inside explicit manual/canary mode for compatibility. Service mode does not fall back to it when the daemon is unavailable.
 - No live paired Figma file was available for this checkpoint. `smoke:service` exercises the built daemon, ten separate client processes, a fake protocol-v1 Plugin, response isolation, owner count, permissions, and shutdown without claiming real Figma acceptance.
+
+## macOS LaunchAgent lifecycle checkpoint
+
+Item `1107` installs the foreground daemon as a macOS per-user LaunchAgent without placing the Plugin credential in launchd metadata or process-visible arguments/environment.
+
+| File | Owned responsibility |
+| --- | --- |
+| `src/service/paths.ts` | Canonical Application Support, LaunchAgents, and Logs paths; `0700` private directories; atomic `0600` files; config validation; three-backup log rotation. |
+| `src/service/credential.ts` | Atomic credential create/rotate, strict owner-only reads, SHA-256 one-time pairing records, two-minute maximum TTL, and atomic consume. |
+| `src/service/launchd.ts` | Secret-free plist generation/validation, absolute executable paths, login-user `gui/<uid>` targeting, bootstrap/bootout/kickstart, bounded unload wait, crash-only KeepAlive, and restart throttling. |
+| `src/service/cli.ts` | `install`, `start`, `stop`, `restart`, `status`, `logs`, `uninstall`, `rotate`, and `pair`; installed-daemon startup reads config and credential files internally. |
+| `scripts/smoke-launchd-service.mjs` | Real temporary LaunchAgent bootstrap, `plutil`, health/PID correlation, `SIGKILL` crash restart, port/socket ownership, process/plist/log secret scan, and idempotent bootout. |
+
+The production plist is `~/Library/LaunchAgents/com.uforgot.mcp-fig.plist`. Its only program arguments are the absolute Node executable, absolute built `dist/index.js`, `service`, and `run`. It contains `RunAtLoad`, `KeepAlive.SuccessfulExit=false`, `ThrottleInterval=10`, and stdout/stderr paths. The management CLI rotates logs over 1 MB with three backups before lifecycle starts/restarts. The daemon loads `service.json` and `credential.json` from its owner-only Application Support directory; the long-lived token is not present in plist XML, process arguments, environment, status, stdout, or logs.
+
+`service pair` exposes only a random one-time code and expiry. The file stores its hash rather than plaintext, caps validity at two minutes, and atomically removes a successful claim before returning the credential to the internal exchange caller. Plugin UI/clientStorage integration remains a later boundary: uninstall deliberately removes only MCP Fig service files and never traverses Figma data locations.
+
+The actual `smoke:launchd` acceptance uses a unique temporary label and short temporary HOME, validates the plist with `plutil`, bootstraps in `gui/<uid>`, confirms one PID owns both the configured Plugin port and `0600` service socket, kills that PID, observes a different KeepAlive PID with healthy IPC, scans process arguments/plist/logs for the generated credential, then performs idempotent bootout and removes the temporary files. It does not install or alter the production label.
+
+Remaining risk: the current development Plugin UI does not consume the one-time exchange or persist the returned credential. A real paired Figma file was unavailable, so no live Plugin canary is claimed for this item.
 
 ## Forbidden rules
 
@@ -329,10 +347,10 @@ Execute one boundary at a time; do not split all three large files in one commit
    - `src/bridge/desktop-plugin.ts` is a compatibility export entry; the five internal files own HTTP, sessions, write coordination, host lifecycle, and facade mapping.
    - The existing same-port proxy remains behavior-compatible but is not the persistent service architecture.
    - Any daemon follow-up must reuse `host.ts` as the single owner and must not create a parallel coordinator.
-3. **Persistent broker service — completed by item `1106`**
-   - `src/service` owns the foreground daemon, versioned IPC, owner-only socket, and clients; the daemon reuses the item `1102` host/coordinator rather than creating another write path.
+3. **Persistent broker service — completed by item `1106`; macOS lifecycle completed by item `1107`**
+   - `src/service` owns the foreground daemon, versioned IPC, owner-only socket, clients, secure paths/credentials, LaunchAgent lifecycle, and management CLI; the daemon reuses the item `1102` host/coordinator rather than creating another write path.
    - Desktop configuration selects service mode by default. Existing direct-host smoke and benchmark scripts opt into `MCP_FIG_DESKTOP_MODE=manual` explicitly.
-   - launchd and credential persistence remain separate follow-up items.
+   - The one-time pairing exchange primitive is ready; Plugin UI/clientStorage credential persistence remains a separate boundary.
 4. **Fixture extraction**
    - Preserve `src/bridge/in-memory.ts` as the compatibility entry.
    - Extract core state primitives, then layout, then design-system behavior; keep `src/bridge/layout.ts` shared.

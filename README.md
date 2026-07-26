@@ -141,18 +141,37 @@ npm run smoke:plugin
 
 Copy `.env.example` when you need local profile configuration. With no credentials, the server safely reports the bridge as `not-configured`. Setting `FIGMA_ACCESS_TOKEN` and `FIGMA_FILE_KEY` enables authenticated REST document and node reads. REST-only mode returns `UNSUPPORTED_BY_BRIDGE` instead of pretending a mutation succeeded.
 
-### Live Desktop Plugin bridge
+### Persistent Desktop Plugin service (macOS)
 
-1. Set `MCP_FIG_PLUGIN_TOKEN` to a long random value. The default port is `3847`; the server binds only to `127.0.0.1`, while the Plugin connects through `http://localhost:3847` because Figma's development-domain validator does not accept the loopback IP literal. If you choose another port, add the matching `http://localhost:<port>` origin to `plugin/manifest.json` `devAllowedDomains` before importing the development plugin.
-2. In Figma Desktop, import `plugin/manifest.json` as a development plugin and run **MCP Fig Live Bridge** in the file you want to target.
-3. Enter the same port and token in the plugin UI. The UI handshakes the current file identity, then maintains a reconnecting localhost long-poll transport.
-4. Optionally set `MCP_FIG_PLUGIN_FILE_KEY` to pin the MCP process to one paired file. Each command and result validates token, request ID, client ID, session ID, and file key before a response can resolve.
+Build the repository, then install the foreground broker as a per-user LaunchAgent:
 
-When several MCP stdio processes use the same token and port, the first process owns the Plugin connection and acts as the localhost broker. Later processes authenticate to that broker instead of competing for port `3847`. Reads remain concurrent; writes are serialized per file with optional `expectedRevision` and `idempotencyKey` controls. A dispatched write with an unknown result is never retried automatically.
+```bash
+npm run build
+node dist/index.js service install
+node dist/index.js service status
+```
+
+An installed package exposes the same commands as `mcp-fig service <command>`:
+
+```text
+install | start | stop | restart | status | logs | uninstall | rotate | pair
+```
+
+Calling `mcp-fig` with no arguments remains the MCP stdio entry. Desktop mode connects to the persistent service by default; it does not silently create an in-process broker when the daemon is unavailable.
+
+Installation writes `~/Library/LaunchAgents/com.uforgot.mcp-fig.plist` with `RunAtLoad`, crash-only `KeepAlive`, a 10-second restart throttle, absolute executable/script paths, and stdout/stderr log paths. Lifecycle starts and restarts rotate logs over 1 MB with three backups. The Plugin credential and service config live under `~/Library/Application Support/mcp-fig` with a `0700` directory and `0600` files. The credential is read by the daemon from disk: it is not placed in the plist, process arguments, environment, status, stdout, or logs. `service rotate` replaces it without printing it and restarts a loaded service. `service logs` redacts the current credential defensively. `service uninstall` removes only MCP Fig service files and does not delete Figma documents or Plugin `clientStorage`.
+
+`service pair` prints a random one-time code that expires after two minutes. Only its SHA-256 digest is stored, and successful exchange consumes it atomically. The long-lived credential is returned only through the internal exchange boundary; the current development Plugin UI does not yet consume that boundary or persist the credential.
+
+For direct development canaries, set `MCP_FIG_DESKTOP_MODE=manual` and `MCP_FIG_PLUGIN_TOKEN` explicitly. The default port is `3847`; the host binds only to `127.0.0.1`, while the Plugin connects through `http://localhost:3847` because Figma's development-domain validator does not accept the loopback IP literal. If you choose another port, add the matching `http://localhost:<port>` origin to `plugin/manifest.json` `devAllowedDomains` before importing the development plugin.
+
+In manual mode, import `plugin/manifest.json` as a development plugin, run **MCP Fig Live Bridge**, and enter the matching port and token. Optionally set `MCP_FIG_PLUGIN_FILE_KEY` to pin the MCP process to one paired file. Each command and result validates token, request ID, client ID, session ID, and file key before a response can resolve.
+
+The persistent daemon owns the only Plugin HTTP host, session registry, and per-file write coordinator. Multiple MCP stdio processes connect over its owner-only `0600` Unix socket. Reads remain concurrent; writes are serialized per file with optional `expectedRevision` and `idempotencyKey` controls. A dispatched write with an unknown result is never retried automatically.
 
 For a disposable blank Figma draft, run `npm run canary:plugin`. After the Plugin pairs, the script reads live selection, creates and renames a frame, applies Auto Layout, validates it, and prints the verified node. It intentionally leaves one `MCP Fig Live Canary - PASS` frame as visible evidence. Run `npm run canary:reconnect` for host restart recovery or `npm run canary:multi-agent` for 10 separate Node processes sharing one broker; the multi-agent canary verifies response isolation, one-winner revision conflict handling, idempotent retry, readback, and cleanup.
 
-Protocol v1 routes typed facade actions through `stdio MCP → 127.0.0.1 host → Plugin UI → Plugin main`. It supports current selection/document/node reads, core node mutations, Component/Instance/Token actions, and Auto Layout inspect/apply/sizing/batch/validate/repair. It does not expose raw Plugin API execution. Timing metrics retain created/dispatched/received/completed timestamps and request/client/session/file correlation for the dedicated benchmark and concurrency follow-ups.
+Protocol v1 routes typed facade actions through `stdio MCP → owner-only service IPC → 127.0.0.1 daemon host → Plugin UI → Plugin main`. It supports current selection/document/node reads, core node mutations, Component/Instance/Token actions, and Auto Layout inspect/apply/sizing/batch/validate/repair. It does not expose raw Plugin API execution. Timing metrics retain created/dispatched/received/completed timestamps and request/client/session/file correlation for the dedicated benchmark and concurrency follow-ups.
 
 The fixture adapter and `tests/fixtures/core-file.json` exercise create, update, move, resize, clone, delete preview, confirmation, and deletion through the same `FigmaBridge` contract. See [`docs/bridge-contract.md`](docs/bridge-contract.md).
 

@@ -5,8 +5,17 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createDefaultBridge } from "./bridge/factory.js";
 import { loadConfig } from "./config.js";
 import { createMcpServer } from "./server.js";
+import { runInstalledService, runServiceCli } from "./service/cli.js";
 
 async function main(): Promise<void> {
+  if (process.argv[2] === "service") {
+    if (process.argv[3] === "run") {
+      await runInstalledService();
+      return;
+    }
+    process.exitCode = await runServiceCli(process.argv.slice(3));
+    return;
+  }
   const config = loadConfig();
   const bridge = createDefaultBridge(config);
   const server = createMcpServer(config, { bridge });
