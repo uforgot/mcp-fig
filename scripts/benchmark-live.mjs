@@ -93,6 +93,7 @@ async function launch() {
       ? {
           ...process.env,
           MCP_FIG_BRIDGE: "desktop-plugin",
+          MCP_FIG_DESKTOP_MODE: "manual",
           MCP_FIG_PLUGIN_TOKEN: pluginToken,
           MCP_FIG_PLUGIN_PORT: "3847",
           MCP_FIG_LOG_LEVEL: "error",

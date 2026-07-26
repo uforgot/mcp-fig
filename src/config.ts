@@ -24,12 +24,27 @@ export interface ServerConfig {
     fileKey?: string | undefined;
     baseUrl: string;
   };
+  service?: {
+    socketPath?: string | undefined;
+    clientId: string;
+    fileKey?: string | undefined;
+  };
   desktopPlugin?: {
     token: string;
     port: number;
     clientId: string;
     fileKey?: string | undefined;
   };
+}
+
+function parseDesktopMode(
+  value: string | undefined,
+): "service" | "manual" | undefined {
+  if (value === undefined) return undefined;
+  if (value !== "service" && value !== "manual") {
+    throw new Error("MCP_FIG_DESKTOP_MODE must be service or manual.");
+  }
+  return value;
 }
 
 function parsePluginPort(value: string | undefined): number {
@@ -73,6 +88,18 @@ function parseLogLevel(value: string | undefined): LogLevel {
 export function loadConfig(
   env: Record<string, string | undefined> = process.env,
 ): ServerConfig {
+  const requestedMode = parseDesktopMode(env.MCP_FIG_DESKTOP_MODE);
+  const desktopMode =
+    requestedMode ??
+    (env.MCP_FIG_PLUGIN_TOKEN || env.MCP_FIG_SERVICE_SOCKET
+      ? "service"
+      : undefined);
+  if (desktopMode === "manual" && !env.MCP_FIG_PLUGIN_TOKEN) {
+    throw new Error("MCP_FIG_PLUGIN_TOKEN is required for manual mode.");
+  }
+  if (env.MCP_FIG_PLUGIN_TOKEN) parsePluginPort(env.MCP_FIG_PLUGIN_PORT);
+  const clientId = env.MCP_FIG_PLUGIN_CLIENT_ID ?? `mcp-fig-${process.pid}`;
+
   return {
     version: env.MCP_FIG_VERSION ?? "0.0.0",
     profiles: parseProfiles(env.MCP_FIG_PROFILES),
@@ -86,12 +113,25 @@ export function loadConfig(
           },
         }
       : {}),
-    ...(env.MCP_FIG_PLUGIN_TOKEN
+    ...(desktopMode === "service"
+      ? {
+          service: {
+            ...(env.MCP_FIG_SERVICE_SOCKET
+              ? { socketPath: env.MCP_FIG_SERVICE_SOCKET }
+              : {}),
+            clientId,
+            ...(env.MCP_FIG_PLUGIN_FILE_KEY
+              ? { fileKey: env.MCP_FIG_PLUGIN_FILE_KEY }
+              : {}),
+          },
+        }
+      : {}),
+    ...(desktopMode === "manual" && env.MCP_FIG_PLUGIN_TOKEN
       ? {
           desktopPlugin: {
             token: env.MCP_FIG_PLUGIN_TOKEN,
             port: parsePluginPort(env.MCP_FIG_PLUGIN_PORT),
-            clientId: env.MCP_FIG_PLUGIN_CLIENT_ID ?? `mcp-fig-${process.pid}`,
+            clientId,
             ...(env.MCP_FIG_PLUGIN_FILE_KEY
               ? { fileKey: env.MCP_FIG_PLUGIN_FILE_KEY }
               : {}),

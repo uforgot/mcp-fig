@@ -27,7 +27,7 @@ describe("loadConfig", () => {
     });
   });
 
-  it("loads the localhost Desktop Plugin bridge pairing configuration", () => {
+  it("uses the persistent service by default without forwarding the Plugin token", () => {
     const config = loadConfig({
       MCP_FIG_PLUGIN_TOKEN: "pair-secret",
       MCP_FIG_PLUGIN_PORT: "4938",
@@ -35,11 +35,39 @@ describe("loadConfig", () => {
       MCP_FIG_PLUGIN_FILE_KEY: "file-live",
     });
 
+    expect(config.service).toEqual({
+      clientId: "agent-a",
+      fileKey: "file-live",
+    });
+    expect(config.desktopPlugin).toBeUndefined();
+  });
+
+  it("allows the in-process host only in explicit manual mode", () => {
+    const config = loadConfig({
+      MCP_FIG_DESKTOP_MODE: "manual",
+      MCP_FIG_PLUGIN_TOKEN: "pair-secret",
+      MCP_FIG_PLUGIN_PORT: "4938",
+      MCP_FIG_PLUGIN_CLIENT_ID: "agent-a",
+    });
+
+    expect(config.service).toBeUndefined();
     expect(config.desktopPlugin).toEqual({
       token: "pair-secret",
       port: 4938,
       clientId: "agent-a",
-      fileKey: "file-live",
+    });
+  });
+
+  it("connects to an explicit service socket without a Plugin token", () => {
+    const config = loadConfig({
+      MCP_FIG_DESKTOP_MODE: "service",
+      MCP_FIG_SERVICE_SOCKET: "/tmp/mcp-fig-test.sock",
+      MCP_FIG_PLUGIN_CLIENT_ID: "agent-b",
+    });
+
+    expect(config.service).toEqual({
+      socketPath: "/tmp/mcp-fig-test.sock",
+      clientId: "agent-b",
     });
   });
 

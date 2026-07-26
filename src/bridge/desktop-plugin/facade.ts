@@ -1,4 +1,5 @@
 import { McpFigError } from "../../errors.js";
+import type { PluginHandshake } from "../plugin-protocol.js";
 import type {
   BridgeStatus,
   ChangeRecord,
@@ -17,7 +18,6 @@ import type {
   TokenActionInput,
   UpdateNodesInput,
 } from "../types.js";
-import type { DesktopPluginBridgeHost } from "./host.js";
 import { isReadOnlyRequest } from "./write-coordinator.js";
 
 interface BridgeOptions {
@@ -26,13 +26,26 @@ interface BridgeOptions {
   fileKey?: string;
 }
 
+export interface DesktopPluginBridgeTransport {
+  close(): Promise<void>;
+  statusAsync(fileKey?: string): Promise<BridgeStatus>;
+  sessionsAsync(): Promise<PluginHandshake[]>;
+  waitForSession(fileKey: string, timeoutMs?: number): Promise<PluginHandshake>;
+  request(
+    clientId: string,
+    method: string,
+    params: unknown,
+    options?: { fileKey?: string; timeoutMs?: number },
+  ): Promise<unknown>;
+}
+
 export class DesktopPluginFigmaBridge implements FigmaBridge {
-  readonly #host: DesktopPluginBridgeHost;
+  readonly #host: DesktopPluginBridgeTransport;
   readonly #clientId: string;
   readonly #requestTimeoutMs: number;
   #targetFileKey: string | undefined;
 
-  constructor(host: DesktopPluginBridgeHost, options: BridgeOptions) {
+  constructor(host: DesktopPluginBridgeTransport, options: BridgeOptions) {
     this.#host = host;
     this.#clientId = options.clientId;
     this.#requestTimeoutMs = options.requestTimeoutMs ?? 5_000;
@@ -68,7 +81,7 @@ export class DesktopPluginFigmaBridge implements FigmaBridge {
   }
 
   async targetFile(fileKey: string): Promise<BridgeStatus> {
-    const status = this.#host.status(fileKey);
+    const status = await this.#host.statusAsync(fileKey);
     if (!status.connected) {
       throw new McpFigError(
         "FILE_NOT_FOUND",

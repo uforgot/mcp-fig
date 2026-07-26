@@ -21,6 +21,7 @@ export interface HostOptions {
   requestTimeoutMs?: number;
   sessionTtlMs?: number;
   maxWriteQueue?: number;
+  allowProxy?: boolean;
 }
 
 export type { HostAddress } from "./http.js";
@@ -46,6 +47,7 @@ export class DesktopPluginBridgeHost {
       requestTimeoutMs: options.requestTimeoutMs ?? 5_000,
       sessionTtlMs: options.sessionTtlMs ?? 30_000,
       maxWriteQueue: options.maxWriteQueue ?? 100,
+      allowProxy: options.allowProxy ?? true,
     };
     this.#sessions = new PluginSessionRegistry(this.#options.sessionTtlMs);
     this.#coordinator = new PluginWriteCoordinator({
@@ -198,6 +200,7 @@ export class DesktopPluginBridgeHost {
     } catch (error) {
       server.removeAllListeners();
       if (
+        this.#options.allowProxy &&
         this.#options.port > 0 &&
         error &&
         typeof error === "object" &&

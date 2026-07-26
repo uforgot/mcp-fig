@@ -245,6 +245,36 @@ Remaining risks:
 - The coordinator remains intentionally cohesive because pending correlation, unknown-write outcome, queue deadlines, revision checks, and idempotency must share one write state owner.
 - Live Figma acceptance remains deferred to final service integration as recorded above; this extraction is covered by localhost characterization and process smoke tests only.
 
+## Persistent broker service checkpoint
+
+Item `1106` moves Plugin session and write ownership out of MCP stdio process lifetime into one foreground daemon. It does not install launchd, persist credentials, or change the Plugin HTTP protocol.
+
+| File | Owned responsibility |
+| --- | --- |
+| `src/service/daemon.ts` | One `DesktopPluginBridgeHost` with proxying disabled, owner-only IPC server, secret-free health, request routing, in-flight drain, signal-safe shutdown, foreground CLI entry. |
+| `src/service/protocol.ts` | `mcp-fig-service/v1` request/response/error envelopes, runtime validation, health/session identity schema. |
+| `src/service/socket.ts` | `~/Library/Application Support/mcp-fig/service.sock`, private parent validation, owner validation, `0600` enforcement, stale-socket probe/recovery, safe unlink. |
+| `src/service/client.ts` | Short-lived isolated Unix-socket requests, response/request correlation, protocol mismatch detection, bridge-error reconstruction, daemon-independent client close. |
+| `src/bridge/factory.ts` | Service client first; in-process HTTP host only when config selected explicit `manual` mode. |
+| `src/config.ts` | Default service selection for Desktop Plugin configuration and separate service socket selection; Plugin token is not copied into service-client configuration. |
+
+Service dependency direction is one way:
+
+```text
+factory -> service/client -> service/protocol + service/socket + read/write classifier
+service/daemon -> desktop-plugin/host + service/protocol + service/socket
+desktop-plugin/facade -> host-shaped transport interface
+```
+
+The daemon is the only process allowed to bind Plugin TCP transport in service mode (`allowProxy: false`), so all MCP processes share its single session registry and write coordinator. Agent IPC authorization is the Unix socket owner and mode; the Plugin bearer token remains confined to the daemon's HTTP side and is never included in IPC payloads, health, stdout, or process arguments.
+
+Remaining risks:
+
+- launchd installation, restart policy, log routing, and uninstall are not implemented here.
+- Plugin token storage and Plugin UI credential persistence are not implemented here; the foreground daemon currently receives the token through its environment.
+- The legacy same-port HTTP proxy remains available only inside explicit manual/canary mode for compatibility. Service mode does not fall back to it when the daemon is unavailable.
+- No live paired Figma file was available for this checkpoint. `smoke:service` exercises the built daemon, ten separate client processes, a fake protocol-v1 Plugin, response isolation, owner count, permissions, and shutdown without claiming real Figma acceptance.
+
 ## Forbidden rules
 
 1. No new public MCP tool or action; no profile expansion.
@@ -299,11 +329,15 @@ Execute one boundary at a time; do not split all three large files in one commit
    - `src/bridge/desktop-plugin.ts` is a compatibility export entry; the five internal files own HTTP, sessions, write coordination, host lifecycle, and facade mapping.
    - The existing same-port proxy remains behavior-compatible but is not the persistent service architecture.
    - Any daemon follow-up must reuse `host.ts` as the single owner and must not create a parallel coordinator.
-3. **Fixture extraction**
+3. **Persistent broker service — completed by item `1106`**
+   - `src/service` owns the foreground daemon, versioned IPC, owner-only socket, and clients; the daemon reuses the item `1102` host/coordinator rather than creating another write path.
+   - Desktop configuration selects service mode by default. Existing direct-host smoke and benchmark scripts opt into `MCP_FIG_DESKTOP_MODE=manual` explicitly.
+   - launchd and credential persistence remain separate follow-up items.
+4. **Fixture extraction**
    - Preserve `src/bridge/in-memory.ts` as the compatibility entry.
    - Extract core state primitives, then layout, then design-system behavior; keep `src/bridge/layout.ts` shared.
    - Run core, layout, layout-validation, design-system, and quality-gate tests after each domain move.
-4. **Final acceptance for every extraction commit**
+5. **Final acceptance for every extraction commit**
    - Confirm `git diff -- tests/snapshots/core-tool-schemas.json` is empty.
    - Run `npm run typecheck && npm test && npm run lint && npm run build`.
    - Run `npm run smoke` and `npm run smoke:plugin` for the built artifacts.

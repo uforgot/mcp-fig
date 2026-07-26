@@ -135,6 +135,7 @@ const transport = new StdioClientTransport({
   args: [new URL("../dist/index.js", import.meta.url).pathname],
   env: {
     ...process.env,
+    MCP_FIG_DESKTOP_MODE: "manual",
     MCP_FIG_PLUGIN_TOKEN: token,
     MCP_FIG_PLUGIN_PORT: String(port),
     MCP_FIG_PLUGIN_CLIENT_ID: "stdio-smoke-client",

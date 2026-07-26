@@ -1,4 +1,5 @@
 import type { ServerConfig } from "../config.js";
+import { ServiceClient } from "../service/client.js";
 import {
   DesktopPluginBridgeHost,
   DesktopPluginFigmaBridge,
@@ -8,6 +9,18 @@ import { RestFigmaBridge } from "./rest.js";
 import type { FigmaBridge } from "./types.js";
 
 export function createDefaultBridge(config: ServerConfig): FigmaBridge {
+  if (config.service) {
+    const service = new ServiceClient({
+      ...(config.service.socketPath
+        ? { socketPath: config.service.socketPath }
+        : {}),
+      clientId: config.service.clientId,
+    });
+    return new DesktopPluginFigmaBridge(service, {
+      clientId: config.service.clientId,
+      ...(config.service.fileKey ? { fileKey: config.service.fileKey } : {}),
+    });
+  }
   if (config.desktopPlugin) {
     const plugin = config.desktopPlugin;
     const host = new DesktopPluginBridgeHost({

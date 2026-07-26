@@ -71,6 +71,7 @@ const child = spawn(process.execPath, ["dist/index.js"], {
   cwd: repo,
   env: {
     ...process.env,
+    MCP_FIG_DESKTOP_MODE: "manual",
     MCP_FIG_PLUGIN_TOKEN: token,
     MCP_FIG_PLUGIN_PORT: String(port),
   },
