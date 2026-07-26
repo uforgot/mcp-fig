@@ -721,12 +721,26 @@ export class DesktopPluginBridgeHost {
         dispatched: false,
         readOnly,
       });
-      const waiter = session.waiters.shift();
-      if (waiter && !waiter.writableEnded) {
+      let waiter: ServerResponse | undefined;
+      for (;;) {
+        const candidate = session.waiters.shift();
+        if (!candidate) break;
+        if (
+          !candidate.writableEnded &&
+          !candidate.destroyed &&
+          !candidate.req.aborted
+        ) {
+          waiter = candidate;
+          break;
+        }
+      }
+      if (waiter) {
         const pending = this.#pending.get(command.requestId);
         if (pending) pending.dispatched = true;
         writeJson(waiter, 200, command);
-      } else session.queue.push(command);
+      } else {
+        session.queue.push(command);
+      }
     });
   }
 
@@ -883,16 +897,26 @@ export class DesktopPluginBridgeHost {
           writeJson(response, 200, command);
           return;
         }
-        session.waiters.push(response);
-        const timer = setTimeout(() => {
+        const removeWaiter = () => {
           const index = session.waiters.indexOf(response);
           if (index >= 0) session.waiters.splice(index, 1);
-          if (!response.writableEnded) {
+        };
+        session.waiters.push(response);
+        const timer = setTimeout(() => {
+          removeWaiter();
+          if (!response.writableEnded && !response.destroyed) {
             response.writeHead(204, { "cache-control": "no-store" });
             response.end();
           }
         }, 1_000);
-        response.once("close", () => clearTimeout(timer));
+        response.once("close", () => {
+          clearTimeout(timer);
+          removeWaiter();
+        });
+        request.once("aborted", () => {
+          clearTimeout(timer);
+          removeWaiter();
+        });
         return;
       }
       if (request.method === "POST" && action === "heartbeat") {

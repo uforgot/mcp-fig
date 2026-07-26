@@ -178,6 +178,78 @@ describe("Desktop Plugin bridge", () => {
     expect(await listening).toBe("closed");
   });
 
+  it("skips an aborted long-poll waiter and dispatches to the next live waiter", async () => {
+    const host = new DesktopPluginBridgeHost({
+      token: "waiter-secret",
+      port: 0,
+      requestTimeoutMs: 1_000,
+    });
+    hosts.push(host);
+    const address = await host.listen();
+    await json(`${address.url}/v1/session/handshake`, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer waiter-secret",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        protocol: PLUGIN_PROTOCOL_V1,
+        sessionId: "waiter-session",
+        clientId: "figma-plugin-ui",
+        file: { key: "waiter-file", name: "Waiter file", revision: "1" },
+        capabilities: ["selection.read"],
+        sentAt: new Date().toISOString(),
+      }),
+    });
+
+    const stale = new AbortController();
+    const stalePoll = fetch(`${address.url}/v1/session/waiter-session/next`, {
+      headers: { authorization: "Bearer waiter-secret" },
+      signal: stale.signal,
+    }).catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    stale.abort();
+    await stalePoll;
+
+    const livePoll = fetch(`${address.url}/v1/session/waiter-session/next`, {
+      headers: { authorization: "Bearer waiter-secret" },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const request = host.request(
+      "agent-waiter",
+      "selection.get",
+      {},
+      { fileKey: "waiter-file" },
+    );
+    const response = await livePoll;
+    expect(response.status).toBe(200);
+    const command = (await response.json()) as PluginCommand;
+    expect(command.method).toBe("selection.get");
+
+    const result: PluginResult = {
+      protocol: PLUGIN_PROTOCOL_V1,
+      requestId: command.requestId,
+      clientId: command.clientId,
+      sessionId: command.sessionId,
+      fileKey: command.fileKey,
+      ok: true,
+      revision: "1",
+      data: [],
+      pluginReceivedAt: command.dispatchedAt,
+      receivedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+    };
+    await json(`${address.url}/v1/session/waiter-session/result`, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer waiter-secret",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(result),
+    });
+    await expect(request).resolves.toEqual([]);
+  });
+
   it("rejects a wrong token, target file, and mismatched result correlation", async () => {
     const host = new DesktopPluginBridgeHost({ token: "pair-secret", port: 0 });
     hosts.push(host);

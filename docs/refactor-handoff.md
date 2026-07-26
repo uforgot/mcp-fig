@@ -123,6 +123,24 @@ src/bridge/
 
 `plugin/main.js` remains a self-contained Figma sandbox artifact because the current manifest/runtime does not establish an ES-module contract. `scripts/build-plugin.mjs` assembles the ordered source modules above without runtime imports or new dependencies. `npm run build:plugin` writes the artifact and `npm run check:plugin-bundle` rejects source/artifact drift. Tests continue to execute the shipped `plugin/main.js`; the manifest path is unchanged.
 
+The generated order is fixed and reviewed as:
+
+1. `plugin/shared/data.js`
+2. `plugin/runtime/errors.js`
+3. `plugin/runtime/metrics.js`
+4. `plugin/runtime/revision.js`
+5. `plugin/runtime/identity.js`
+6. `plugin/runtime/idempotency.js`
+7. `plugin/shared/node.js`
+8. `plugin/domains/core-node.js`
+9. `plugin/domains/layout.js`
+10. `plugin/domains/component.js`
+11. `plugin/domains/instance.js`
+12. `plugin/domains/tokens.js`
+13. `plugin/src/main.js`
+
+`plugin/main.js` is build output, not an edit source. A Plugin behavior change starts in one of the 13 source modules, runs `npm run build:plugin`, and must leave `npm run check:plugin-bundle` green. A diff that changes only generated `plugin/main.js` is invalid.
+
 ## Dependency direction
 
 Allowed dependencies point inward/downward only:
@@ -204,7 +222,8 @@ Remaining risks:
 - `plugin/main.js` is generated and committed. Every source edit must run `npm run build:plugin`; CI/review should also run `npm run check:plugin-bundle` so a stale artifact cannot ship.
 - Source modules intentionally use injected factory dependencies rather than runtime imports. `plugin/main.js` is the only checkJs target because it is the executable global-script scope; isolated source files are linted and the assembled artifact is type checked.
 - Layout remains the largest domain because validation, preview, dependency ordering, mutation, and rollback are one atomic behavior boundary. Splitting it further requires a separate item with targeted rollback/order tests.
-- Live Desktop acceptance still depends on an explicit token and a paired disposable Figma file. Do not infer live success from the VM harness.
+- Live Desktop acceptance still depends on an explicit token and a paired disposable Figma file. Repeated manual-token canary runs are deferred to the final service-integration item; this checkpoint does not claim a live pass from the VM harness.
+- Desktop `/next` long-poll responses can close or abort while queued. The host must remove those waiters on both response close and request abort, and dispatch must skip any stale waiter before selecting the next live response. `tests/desktop-plugin-bridge.test.ts` freezes this behavior.
 
 ## Forbidden rules
 
@@ -246,7 +265,7 @@ These are required before and after extraction when a paired disposable Figma De
 | `npm run canary:reconnect` | Pair; stop/restart the host; recover the same file; read selection/document; create/read back/delete a frame; print `passed: true`, `readAfterReconnect: true`, `writeAfterReconnect: true`, `cleanup: true`. |
 | `npm run canary:multi-agent` | Ten separate Node processes receive isolated responses; same-revision writes yield exactly one winner and one `REVISION_CONFLICT`; duplicate idempotency key executes one mutation and returns the same result; final readback and cleanup pass. |
 
-Live canaries were **not rerun while capturing this document**: the shell had no `MCP_FIG_PLUGIN_TOKEN` or `MCP_FIG_PLUGIN_FILE_KEY`, and no process was listening on TCP `3847`. This is an explicit environment limitation, not a passing live result. The next extraction item must attach real `passed: true` output from all three canaries or remain blocked from review.
+Live canaries were **not rerun while capturing this document**: the shell had no `MCP_FIG_PLUGIN_TOKEN` or `MCP_FIG_PLUGIN_FILE_KEY`, and no process was listening on TCP `3847`. This is an explicit environment limitation, not a passing live result. To avoid repeated manual token entry, the final service-integration item owns the real paired-file canary gate. Plugin checkpoint items must report live status honestly but are not blocked from review by that deferred gate.
 
 ## Next-item handoff
 
@@ -268,7 +287,7 @@ Execute one boundary at a time; do not split all three large files in one commit
    - Confirm `git diff -- tests/snapshots/core-tool-schemas.json` is empty.
    - Run `npm run typecheck && npm test && npm run lint && npm run build`.
    - Run `npm run smoke` and `npm run smoke:plugin` for the built artifacts.
-   - With the live prerequisites present, run the three frozen canaries and retain their JSON evidence.
+   - For the final service-integration item, run the three frozen canaries with the live prerequisites and retain their JSON evidence. Earlier checkpoints record the gate as deferred without claiming success.
    - Stage only the boundary being reviewed and commit atomically.
 
 Stop and open a separate contract task if any extraction requires a new action, altered schema/protocol, changed live semantics, or a manifest/UI transport change.
