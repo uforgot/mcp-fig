@@ -118,6 +118,10 @@ export class DesktopPluginBridgeHost {
     return this.#sessions.list();
   }
 
+  lastHandshakeAt(): string | null {
+    return this.#sessions.lastHandshakeAt();
+  }
+
   async sessionsAsync(): Promise<PluginHandshake[]> {
     await this.listen();
     if (!this.#proxyAddress) return this.sessions();

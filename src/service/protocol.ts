@@ -36,6 +36,7 @@ export interface ServiceHealth {
   version: string;
   startedAt: string;
   uptimeMs: number;
+  lastHandshakeAt?: string | null;
   plugin: {
     host: "127.0.0.1";
     port: number;

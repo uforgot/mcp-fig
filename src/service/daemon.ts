@@ -114,6 +114,7 @@ export class BrokerDaemon {
       version: this.#options.version,
       startedAt: this.#startedAt.toISOString(),
       uptimeMs: Math.max(0, Date.now() - this.#startedAt.getTime()),
+      lastHandshakeAt: this.#host.lastHandshakeAt(),
       plugin: {
         host: this.#pluginAddress.host,
         port: this.#pluginAddress.port,

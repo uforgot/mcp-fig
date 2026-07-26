@@ -165,6 +165,8 @@ Installation writes `~/Library/LaunchAgents/com.uforgot.mcp-fig.plist` with `Run
 
 Each MCP tool call now carries one `traceId` through service IPC, Plugin dispatch, and the Figma API result. Daemon events go to stderr; rotating JSONL is opt-in through `MCP_FIG_EVENT_LOG`, and MCP stdio stdout remains protocol-only. Generate a redacted focused report with `npm run bug:report -- --trace <id> --log <events.jsonl>`. See [`docs/observability.md`](docs/observability.md) for the schema, forbidden fields, and capture → reproduce → failing test → minimal fix → focused test → live canary loop.
 
+For background-first agent startup, stable `service status --json` fields, retry/circuit timing, GUI fallbacks, and credential safety boundaries, see [`docs/agent-startup.md`](docs/agent-startup.md).
+
 For direct development canaries, set `MCP_FIG_DESKTOP_MODE=manual` and `MCP_FIG_PLUGIN_TOKEN` explicitly. The default port is `3847`; the host binds only to `127.0.0.1`, while the Plugin connects through `http://localhost:3847` because Figma's development-domain validator does not accept the loopback IP literal. If you choose another port, add the matching `http://localhost:<port>` origin to `plugin/manifest.json` `devAllowedDomains` before importing the development plugin.
 
 In manual mode, import `plugin/manifest.json` as a development plugin, run **MCP Fig Live Bridge**, and use the **Manual development token** form with the matching port and token. Optionally set `MCP_FIG_PLUGIN_FILE_KEY` to pin the MCP process to one paired file. Each command and result validates token, request ID, client ID, session ID, and file key before a response can resolve.

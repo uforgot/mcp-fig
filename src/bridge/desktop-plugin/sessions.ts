@@ -27,6 +27,7 @@ export function latestRevision(current: string, incoming: string): string {
 export class PluginSessionRegistry {
   readonly #sessions = new Map<string, PluginSessionState>();
   readonly #sessionTtlMs: number;
+  #lastHandshakeAt: string | null = null;
 
   constructor(sessionTtlMs: number) {
     this.#sessionTtlMs = sessionTtlMs;
@@ -66,6 +67,7 @@ export class PluginSessionRegistry {
       waiters: existing?.waiters ?? [],
     };
     this.#sessions.set(handshake.sessionId, session);
+    this.#lastHandshakeAt = now;
     return { conflict: false, now, session };
   }
 
@@ -87,6 +89,10 @@ export class PluginSessionRegistry {
     return [...this.#sessions.values()]
       .filter((session) => session.state === "ready")
       .map((session) => structuredClone(session.handshake));
+  }
+
+  lastHandshakeAt(): string | null {
+    return this.#lastHandshakeAt;
   }
 
   forFile(fileKey: string): PluginSessionState | undefined {
