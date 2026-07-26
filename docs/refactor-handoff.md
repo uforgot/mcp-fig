@@ -107,12 +107,11 @@ plugin/
 src/bridge/
   desktop-plugin.ts                    # compatibility re-export only
   desktop-plugin/
-    host-transport.ts                  # loopback HTTP server, JSON/auth/CORS/routes only
-    session.ts                         # handshake/session identity, heartbeat, expiry, file targeting, command queues
-    broker.ts                          # host-owner discovery and secondary-process request forwarding
+    http.ts                            # CORS/auth routes, JSON/proxy helpers, Plugin long-poll waiter lifecycle
+    sessions.ts                        # handshake/session identity, heartbeat, expiry, file targeting, command queues
     write-coordinator.ts               # per-file serialization, revision checks, idempotency, unknown-outcome policy
-    metrics.ts                         # bounded metric collection and timestamp/latency calculation
-    facade.ts                          # DesktopPluginBridgeHost composition + DesktopPluginFigmaBridge mapping
+    host.ts                            # loopback listener/proxy lifecycle and module composition
+    facade.ts                          # DesktopPluginFigmaBridge method-to-protocol mapping
   in-memory.ts                         # compatibility re-export only
   in-memory/
     core.ts                            # InMemory state, file/tree/node lifecycle, revision/change bookkeeping
@@ -170,18 +169,19 @@ plugin/src/main.js
 Desktop rules:
 
 ```text
-facade.ts -> {host-transport, session, broker, write-coordinator, metrics}.ts
-host-transport.ts -> {session, broker} interfaces + plugin-protocol.ts
-broker.ts -> session.ts + plugin-protocol.ts
-write-coordinator.ts -> session.ts + plugin-protocol.ts
-metrics.ts -> plugin-protocol.ts
+desktop-plugin.ts -> {host, facade}.ts
+facade.ts -> host.ts + write-coordinator.ts(read classification only)
+host.ts -> {http, sessions, write-coordinator}.ts
+http.ts -> {sessions, write-coordinator}.ts + plugin-protocol.ts
+write-coordinator.ts -> sessions.ts + plugin-protocol.ts
+sessions.ts -> plugin-protocol.ts
 ```
 
-- Transport does not decide revision/idempotency policy.
-- Session storage does not perform HTTP or MCP facade mapping.
-- Broker forwarding does not execute Plugin writes directly; it enters the same coordinator path as the owning host.
-- Metrics observe completed operations and never alter queue outcomes.
-- `facade.ts` is the only internal module that implements `FigmaBridge` or assembles the public host.
+- HTTP does not decide revision/idempotency policy; it delegates command results to the coordinator.
+- Session storage does not perform HTTP, write coordination, or MCP facade mapping.
+- Same-port broker forwarding enters the owner host's HTTP request route and therefore the same coordinator path as local requests.
+- Metrics are bounded inside the coordinator, observe completed operations, and never alter queue outcomes.
+- `host.ts` is the only module that assembles listener, session registry, HTTP router, and coordinator. `facade.ts` is the only internal module that implements `FigmaBridge`.
 
 Fixture rules:
 
@@ -224,6 +224,26 @@ Remaining risks:
 - Layout remains the largest domain because validation, preview, dependency ordering, mutation, and rollback are one atomic behavior boundary. Splitting it further requires a separate item with targeted rollback/order tests.
 - Live Desktop acceptance still depends on an explicit token and a paired disposable Figma file. Repeated manual-token canary runs are deferred to the final service-integration item; this checkpoint does not claim a live pass from the VM harness.
 - Desktop `/next` long-poll responses can close or abort while queued. The host must remove those waiters on both response close and request abort, and dispatch must skip any stale waiter before selecting the next live response. `tests/desktop-plugin-bridge.test.ts` freezes this behavior.
+
+## Desktop host extraction checkpoint
+
+Item `1102` separates the current in-process Desktop bridge into service-ready state owners without adding a daemon, launchd installation, credential store, endpoint, or protocol field.
+
+| File | Owned responsibility |
+| --- | --- |
+| `src/bridge/desktop-plugin/http.ts` | Constant-time bearer authentication, CORS, bounded JSON parsing, owner-broker routes, Plugin handshake/result/heartbeat routes, live long-poll waiter registration and removal, proxy HTTP JSON. |
+| `src/bridge/desktop-plugin/sessions.ts` | Session map, identity conflict check, monotonic revision merge, heartbeat state, TTL expiry, latest/file targeting, queue/waiter storage and shutdown cleanup. |
+| `src/bridge/desktop-plugin/write-coordinator.ts` | Capability/read-write classification, pending request correlation, per-file write tails/depth, expected revision, bounded idempotency, timeout/unknown-outcome policy, command dispatch and bounded metrics. |
+| `src/bridge/desktop-plugin/host.ts` | Loopback listener lifecycle, same-port owner discovery/proxy selection, registry/router/coordinator composition, public host status/session/request methods. |
+| `src/bridge/desktop-plugin/facade.ts` | `FigmaBridge` compatibility facade, target selection, typed action mapping, reconnect read retry policy. |
+| `src/bridge/desktop-plugin.ts` | Compatibility exports only; no implementation or state. |
+
+Remaining risks:
+
+- Same-port ownership is still elected by whichever MCP process binds first. The persistent daemon item must move host/coordinator ownership out of stdio process lifetime instead of adding a second write path.
+- Secondary hosts still authenticate to the owner HTTP broker with the Plugin token. Dedicated owner-only agent IPC and separate credentials belong to the daemon item; do not extend protocol v1 Plugin routes for that purpose.
+- The coordinator remains intentionally cohesive because pending correlation, unknown-write outcome, queue deadlines, revision checks, and idempotency must share one write state owner.
+- Live Figma acceptance remains deferred to final service integration as recorded above; this extraction is covered by localhost characterization and process smoke tests only.
 
 ## Forbidden rules
 
@@ -275,10 +295,10 @@ Execute one boundary at a time; do not split all three large files in one commit
    - `plugin/runtime`, `plugin/domains`, and `plugin/shared` own the extracted behavior; `plugin/src/main.js` owns composition/dispatch/UI lifecycle.
    - `scripts/build-plugin.mjs` keeps `plugin/main.js` as the deterministic shipped artifact, and Plugin tests execute that artifact.
    - Any follow-up must preserve the checkpoint and remaining-risk notes above.
-2. **Desktop host extraction**
-   - Preserve `src/bridge/desktop-plugin.ts` as the compatibility entry.
-   - Extract pure metrics/write metadata first, then session, coordinator, broker, and HTTP transport; move facade composition last.
-   - After each move run `tests/desktop-plugin-bridge.test.ts`, `scripts/smoke-plugin-bridge.mjs`, and `scripts/smoke-process-lifecycle.mjs` through their npm script/build path.
+2. **Desktop host extraction — completed by item `1102`**
+   - `src/bridge/desktop-plugin.ts` is a compatibility export entry; the five internal files own HTTP, sessions, write coordination, host lifecycle, and facade mapping.
+   - The existing same-port proxy remains behavior-compatible but is not the persistent service architecture.
+   - Any daemon follow-up must reuse `host.ts` as the single owner and must not create a parallel coordinator.
 3. **Fixture extraction**
    - Preserve `src/bridge/in-memory.ts` as the compatibility entry.
    - Extract core state primitives, then layout, then design-system behavior; keep `src/bridge/layout.ts` shared.
