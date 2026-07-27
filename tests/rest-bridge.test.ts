@@ -33,7 +33,34 @@ describe("RestFigmaBridge", () => {
                   layoutMode: "HORIZONTAL",
                   width: 80,
                   height: 40,
-                  children: [],
+                  children: [
+                    {
+                      id: "2:2",
+                      type: "RECTANGLE",
+                      name: "Remote rectangle",
+                      opacity: 0.75,
+                      cornerRadius: 8,
+                      rectangleCornerRadii: [8, 8, 8, 8],
+                      fills: [
+                        {
+                          type: "SOLID",
+                          color: { r: 0.1, g: 0.2, b: 0.3 },
+                        },
+                      ],
+                      effects: [
+                        {
+                          type: "DROP_SHADOW",
+                          color: { r: 0, g: 0, b: 0, a: 0.25 },
+                          offset: { x: 1, y: 2 },
+                          radius: 4,
+                          visible: true,
+                          blendMode: "NORMAL",
+                        },
+                      ],
+                      blendMode: "MULTIPLY",
+                      constraints: { horizontal: "RIGHT", vertical: "BOTTOM" },
+                    },
+                  ],
                 },
               ],
             },
@@ -89,6 +116,47 @@ describe("RestFigmaBridge", () => {
     expect(await bridge.getDocument()).toMatchObject({
       id: "0:0",
       name: "REST fixture",
+    });
+    expect(
+      await bridge.queryNodes({
+        path: ["Remote frame", "Remote rectangle"],
+        nodeType: "RECTANGLE",
+        maxDepth: 2,
+        limit: 5,
+      }),
+    ).toEqual({
+      matches: [
+        {
+          path: ["Remote frame", "Remote rectangle"],
+          node: expect.objectContaining({
+            id: "2:2",
+            name: "Remote rectangle",
+            opacity: 0.75,
+            cornerRadius: 8,
+            cornerRadii: {
+              topLeft: 8,
+              topRight: 8,
+              bottomRight: 8,
+              bottomLeft: 8,
+            },
+            fills: [{ type: "SOLID", color: { r: 0.1, g: 0.2, b: 0.3 } }],
+            effects: [
+              {
+                type: "DROP_SHADOW",
+                color: { r: 0, g: 0, b: 0, a: 0.25 },
+                offset: { x: 1, y: 2 },
+                radius: 4,
+                visible: true,
+                blendMode: "NORMAL",
+              },
+            ],
+            blendMode: "MULTIPLY",
+            constraints: { horizontal: "RIGHT", vertical: "BOTTOM" },
+          }),
+        },
+      ],
+      limit: 5,
+      truncated: false,
     });
     expect(await bridge.getNodes(["2:1"])).toEqual([
       expect.objectContaining({

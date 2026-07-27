@@ -75,6 +75,16 @@ function createHarness() {
     y: 0,
     visible: true,
     locked: false,
+    fills: [],
+    strokes: [],
+    opacity: 1,
+    cornerRadius: 0,
+    topLeftRadius: 0,
+    topRightRadius: 0,
+    bottomRightRadius: 0,
+    bottomLeftRadius: 0,
+    effects: [],
+    blendMode: "PASS_THROUGH",
     layoutSizingHorizontal: "FIXED",
     layoutSizingVertical: "FIXED",
     layoutPositioning: "AUTO",
@@ -411,6 +421,127 @@ describe("Figma Plugin main bridge", () => {
         },
       ],
     });
+  });
+
+  it("queries nodes in deterministic bounded preorder", async () => {
+    const { command } = createHarness();
+
+    await expect(
+      command("node.query", {
+        rootId: "1:0",
+        name: "Child",
+        nodeType: "RECTANGLE",
+        path: ["Parent", "Child"],
+        maxDepth: 3,
+        limit: 10,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: {
+        matches: [
+          {
+            path: ["Parent", "Child"],
+            node: { id: "2:1", type: "RECTANGLE", name: "Child" },
+          },
+        ],
+        limit: 10,
+        truncated: false,
+      },
+    });
+
+    await expect(
+      command("node.query", {
+        rootId: "1:0",
+        nodeType: "RECTANGLE",
+        maxDepth: 0,
+        limit: 10,
+      }),
+    ).resolves.toMatchObject({ ok: true, data: { matches: [] } });
+  });
+
+  it("round-trips visual properties and serializes mixed values explicitly", async () => {
+    const { command, child, figma } = createHarness();
+    const patch = {
+      fills: [
+        { type: "SOLID", color: { r: 0.2, g: 0.3, b: 0.4 }, opacity: 0.8 },
+      ],
+      strokes: [{ type: "SOLID", color: { r: 1, g: 1, b: 1 }, opacity: 0.6 }],
+      opacity: 0.7,
+      cornerRadius: 14,
+      effects: [{ type: "LAYER_BLUR", radius: 6, visible: true }],
+      blendMode: "MULTIPLY",
+      constraints: { horizontal: "CENTER", vertical: "BOTTOM" },
+    };
+
+    await expect(
+      command("node.update", { nodeIds: ["2:1"], patch }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: [{ id: "2:1", ...patch }],
+    });
+    expect(child).toMatchObject({
+      ...patch,
+      constraints: { horizontal: "CENTER", vertical: "MAX" },
+    });
+
+    child.cornerRadius = figma.mixed;
+    child.topLeftRadius = 1;
+    child.topRightRadius = 2;
+    child.bottomRightRadius = 3;
+    child.bottomLeftRadius = 4;
+    await expect(
+      command("node.get", { nodeIds: ["2:1"] }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: [
+        {
+          cornerRadius: { mixed: true },
+          cornerRadii: {
+            topLeft: 1,
+            topRight: 2,
+            bottomRight: 3,
+            bottomLeft: 4,
+          },
+        },
+      ],
+    });
+  });
+
+  it("validates the whole visual-property batch before mutating any node", async () => {
+    const { command, child } = createHarness();
+
+    await expect(
+      command("node.update", {
+        nodeIds: ["2:1", "2:2"],
+        patch: { cornerRadius: 9 },
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ARGUMENT" },
+    });
+    expect(child.cornerRadius).toBe(0);
+  });
+
+  it("rolls back the visual batch when a Figma setter fails mid-apply", async () => {
+    const { command, child, text } = createHarness();
+    let textOpacity = 1;
+    Object.defineProperty(text, "opacity", {
+      configurable: true,
+      get: () => textOpacity,
+      set: (value: number) => {
+        if (value === 0.4) throw new Error("Figma setter rejected opacity");
+        textOpacity = value;
+      },
+    });
+
+    await expect(
+      command("node.update", {
+        nodeIds: ["2:1", "2:2"],
+        patch: { opacity: 0.4 },
+      }),
+    ).resolves.toMatchObject({ ok: false });
+    expect(child.opacity).toBe(1);
+    expect(textOpacity).toBe(1);
   });
 
   it("exports a node with typed image settings and base64 data", async () => {

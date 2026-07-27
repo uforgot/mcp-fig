@@ -1,4 +1,5 @@
 import { McpFigError } from "../../errors.js";
+import { querySerializedNodes } from "../node-query.js";
 import type {
   BridgeStatus,
   ChangeRecord,
@@ -8,6 +9,9 @@ import type {
   FigmaFileSummary,
   FigmaNode,
   MoveNodesInput,
+  NodeProps,
+  NodeQueryResult,
+  QueryNodesInput,
   ResizeNodesInput,
   UpdateNodesInput,
 } from "../types.js";
@@ -20,6 +24,57 @@ import {
 
 function canHaveChildren(type: FigmaNode["type"]): boolean {
   return ["DOCUMENT", "PAGE", "FRAME", "GROUP", "COMPONENT"].includes(type);
+}
+
+const sceneNodeTypes = new Set([
+  "FRAME",
+  "GROUP",
+  "RECTANGLE",
+  "ELLIPSE",
+  "LINE",
+  "TEXT",
+  "COMPONENT",
+  "INSTANCE",
+]);
+const cornerNodeTypes = new Set([
+  "FRAME",
+  "RECTANGLE",
+  "COMPONENT",
+  "INSTANCE",
+]);
+
+function validateProps(
+  node: Pick<FigmaNode, "id" | "type">,
+  props?: NodeProps,
+): void {
+  if (!props) return;
+  for (const key of ["fills", "strokes"] as const) {
+    if (props[key] !== undefined && !sceneNodeTypes.has(node.type)) {
+      throw new McpFigError(
+        "INVALID_ARGUMENT",
+        `Node ${node.id} does not support ${key}.`,
+      );
+    }
+  }
+  for (const key of [
+    "opacity",
+    "effects",
+    "blendMode",
+    "constraints",
+  ] as const) {
+    if (props[key] !== undefined && !sceneNodeTypes.has(node.type)) {
+      throw new McpFigError(
+        "INVALID_ARGUMENT",
+        `Node ${node.id} does not support ${key}.`,
+      );
+    }
+  }
+  if (props.cornerRadius !== undefined && !cornerNodeTypes.has(node.type)) {
+    throw new McpFigError(
+      "INVALID_ARGUMENT",
+      `Node ${node.id} does not support cornerRadius.`,
+    );
+  }
 }
 
 export class InMemoryCore {
@@ -79,9 +134,18 @@ export class InMemoryCore {
     return nodeIds.map((nodeId) => clone(this.store.requireNode(file, nodeId)));
   }
 
+  async queryNodes(input: QueryNodesInput): Promise<NodeQueryResult> {
+    const file = this.store.requireFile(input.fileKey);
+    const root = input.rootId
+      ? this.store.requireNode(file, input.rootId)
+      : file.document;
+    return clone(querySerializedNodes(root, input));
+  }
+
   async createNode(input: CreateNodeInput): Promise<FigmaNode[]> {
     const file = this.store.workingFile(input.fileKey, input.dryRun);
     const parent = this.store.requireNode(file, input.parentId);
+    validateProps({ id: "preview:new", type: input.nodeType }, input.props);
     const node: FigmaNode = {
       id: this.store.newNodeId(file),
       type: input.nodeType,
@@ -101,6 +165,7 @@ export class InMemoryCore {
     const nodes = input.nodeIds.map((nodeId) =>
       this.store.requireNode(file, nodeId),
     );
+    for (const node of nodes) validateProps(node, input.patch);
     for (const node of nodes) Object.assign(node, clone(input.patch));
     this.store.record(file, "update", input.nodeIds, input.dryRun);
     return clone(nodes);

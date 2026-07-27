@@ -52,7 +52,7 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 | `figma_connection` | `status`, `list_files`, `target`, `reconnect`, `capabilities` |
 | `figma_document` | `inspect`, `summary`, `changes` |
 | `figma_selection` | `get`, `inspect` |
-| `figma_node` | `get`, `export`, `create`, `update`, `move`, `resize`, `clone`, `delete` |
+| `figma_node` | `get`, `query`, `export`, `create`, `update`, `move`, `resize`, `clone`, `delete` |
 | `figma_layout` | `inspect`, `apply`, `sizing`, `batch`, `validate`, `repair` |
 | `figma_component` | `search`, `inspect`, `create_set`, `arrange_set`, `set_description`, `property_add`, `property_update`, `property_delete`, `slots`, `slot_create`; `libraries` profile에서 `library_search`, `library_inspect` 추가 |
 | `figma_instance` | `create`, `update`, `slot_append`, `slot_reset` |
@@ -66,8 +66,8 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 |---|---|---|---|---|---|---|
 | 단일 Figma Desktop 연결·파일 target | status, open files, navigate, reconnect | `figma_connection` 5 actions; persistent service와 Plugin session live 연결 확인 | **complete** | P0 | `1158`에서 장시간 운영 회귀 | `status → list_files → target → representative read`가 같은 file을 가리키고 credential 재입력 없이 성공 |
 | Document·selection inspect | selection, file data, summary, design changes | `figma_document`, `figma_selection`; live selection/read가 canary에서 통과 | **complete** | P0 | `1159` 최종 E2E | current selection의 exact IDs/nodes와 document context를 1–2 calls로 읽고 Console fallback 0 |
-| Node 검색·bounded traversal | component search 외 일반 node는 raw execute 의존 | exact ID `figma_node.get`만 있음. name/type/path query schema 없음 | **missing** | P0 | `1153` | name/type/path query가 bounded limit/depth를 지키고 deterministic order, exact IDs, unsupported query error를 반환 |
-| Node create/update와 visual properties | create child, move/resize, fill/stroke/image fill, rename/text | create/move/resize/clone/delete, fills/strokes, whole-node text/typography가 typed schema에 있음. opacity/corner radius/effects/blend/constraints 등 P0 visual property가 MCP schema에 없음 | **partial** | P0 | `1153` | disposable nodes에서 P0 property create/update → exact readback → mixed/unsupported rejection → cleanup. tool schema와 bridge direct capability가 일치 |
+| Node 검색·bounded traversal | component search 외 일반 node는 raw execute 의존 | `figma_node.query`: name/type/root-relative exact path selector, deterministic preorder, `maxDepth 0..20`, `limit 1..100`, `limit+1` early stop와 `truncated`; Plugin/REST/in-memory 구현 | **complete** | P0 | `1153` | live disposable frame/rectangle에서 exact path/ID, deterministic order, cleanup query 0; invalid/unbounded schema tests 통과 |
+| Node create/update와 visual properties | create child, move/resize, fill/stroke/image fill, rename/text | SOLID+4 gradient fill/stroke, opacity, uniform/per-corner readback, common shadow/blur effects, blend mode, canonical constraints를 typed create/update/readback. mixed sentinel, unsupported schema, capability preflight, setter rollback 구현 | **complete** | P0 | image/range 확장은 `1154` | live create/update exact canonical readback, unsupported two-node batch mutation 0, cleanup query 0. 세부 계약은 `docs/node-query-visual-properties.md` |
 | Whole-node typography | set text + raw execute | `fontName`, `fontSize`, `lineHeight`, `letterSpacing`, horizontal/vertical alignment; mixed-font 보호 test 있음 | **partial** | P0 | `1154` | 실제 mixed-font text에서 whole-node update와 range update를 분리 검증하고, untouched ranges가 byte-for-byte 보존됨 |
 | Text range styling | raw execute | range 입력/action 없음 | **missing** | P0 | `1154` | bounded ranges의 font/size/line-height/letter-spacing/fill read/write exact readback; invalid range와 mixed-font regression 통과 |
 | Image import·image fill | image fill setter + raw execute | node export는 PNG/JPG/SVG/PDF 지원. local/URL image import와 image metadata inspect는 없음 | **partial** | P0 | `1154` | 허용 MIME/size/path/network 제한 아래 import → fill replace → export round trip → cleanup; malformed/oversized input 차단 |
@@ -121,6 +121,7 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 - live generic canary: selection/read/create/update/exact readback/delete/cleanup passed through persistent service IPC
 - live node export canary: disposable rectangle → PNG export → private artifact save → MIME/213-byte payload/PNG signature 확인 → node/artifact cleanup
 - live Auto Layout canary: the first invalid root-HUG attempt produced `HUG_WITHOUT_AUTO_LAYOUT_PARENT`; fixed-root retry returned `valid: true`, `issues: []`, exact `HORIZONTAL`, gap `17`, padding `13`, cleanup true
+- live node query/visual canary: persistent service IPC에서 disposable frame/rectangle 생성, exact name/type/path query와 ID 일치, gradient create readback, fill/stroke/opacity/corner radius/shadow/blend/constraints update canonical exact readback, unsupported two-node batch `INVALID_ARGUMENT`와 선행 mutation 0, delete 후 query 0
 
 명시적 한계:
 

@@ -261,8 +261,125 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
       : node.parent?.id;
   }
 
+  function toPluginConstraints(constraints) {
+    const horizontal = {
+      LEFT: "MIN",
+      RIGHT: "MAX",
+      CENTER: "CENTER",
+      LEFT_RIGHT: "STRETCH",
+      SCALE: "SCALE",
+    };
+    const vertical = {
+      TOP: "MIN",
+      BOTTOM: "MAX",
+      CENTER: "CENTER",
+      TOP_BOTTOM: "STRETCH",
+      SCALE: "SCALE",
+    };
+    return {
+      horizontal: horizontal[constraints.horizontal],
+      vertical: vertical[constraints.vertical],
+    };
+  }
+
+  function fromPluginConstraints(constraints) {
+    const horizontal = {
+      MIN: "LEFT",
+      MAX: "RIGHT",
+      CENTER: "CENTER",
+      STRETCH: "LEFT_RIGHT",
+      SCALE: "SCALE",
+    };
+    const vertical = {
+      MIN: "TOP",
+      MAX: "BOTTOM",
+      CENTER: "CENTER",
+      STRETCH: "TOP_BOTTOM",
+      SCALE: "SCALE",
+    };
+    return {
+      horizontal: horizontal[constraints.horizontal] ?? constraints.horizontal,
+      vertical: vertical[constraints.vertical] ?? constraints.vertical,
+    };
+  }
+
+  function normalizeVisual(value) {
+    if (typeof value === "number")
+      return Math.round(value * 1_000_000) / 1_000_000;
+    if (Array.isArray(value)) return value.map(normalizeVisual);
+    if (value && typeof value === "object")
+      return Object.fromEntries(
+        Object.entries(value).map(([key, item]) => [
+          key,
+          normalizeVisual(item),
+        ]),
+      );
+    return value;
+  }
+
+  function mixedValue(value) {
+    return value === figma.mixed ? { mixed: true } : normalizeVisual(value);
+  }
+
+  function serializePaint(paint) {
+    if (
+      paint.type !== "SOLID" &&
+      ![
+        "GRADIENT_LINEAR",
+        "GRADIENT_RADIAL",
+        "GRADIENT_ANGULAR",
+        "GRADIENT_DIAMOND",
+      ].includes(paint.type)
+    )
+      return normalizeVisual(paint);
+    const output = { type: paint.type };
+    if (paint.type === "SOLID") output.color = normalizeVisual(paint.color);
+    else {
+      output.gradientTransform = normalizeVisual(paint.gradientTransform);
+      output.gradientStops = normalizeVisual(paint.gradientStops).map(
+        (stop) => ({
+          position: stop.position,
+          color: stop.color,
+        }),
+      );
+    }
+    if (paint.opacity !== undefined && paint.opacity !== 1)
+      output.opacity = normalizeVisual(paint.opacity);
+    if (paint.visible === false) output.visible = false;
+    if (paint.blendMode && paint.blendMode !== "NORMAL")
+      output.blendMode = paint.blendMode;
+    return output;
+  }
+
   function serializePaints(paints) {
-    return paints === figma.mixed ? undefined : paints;
+    if (paints === figma.mixed) return { mixed: true };
+    return paints.map(serializePaint);
+  }
+
+  function serializeEffects(effects) {
+    if (effects === figma.mixed) return { mixed: true };
+    return effects.map((effect) => {
+      if (effect.type === "DROP_SHADOW" || effect.type === "INNER_SHADOW")
+        return {
+          type: effect.type,
+          color: normalizeVisual(effect.color),
+          offset: normalizeVisual(effect.offset),
+          radius: normalizeVisual(effect.radius),
+          ...(effect.spread !== undefined
+            ? { spread: normalizeVisual(effect.spread) }
+            : {}),
+          visible: effect.visible,
+          blendMode: effect.blendMode,
+        };
+      if (effect.type === "LAYER_BLUR" || effect.type === "BACKGROUND_BLUR")
+        return {
+          type: effect.type,
+          radius: normalizeVisual(effect.radius),
+          visible: effect.visible,
+          blurType: effect.blurType,
+        };
+      return normalizeVisual(effect);
+    });
   }
 
   const typographyKeys = [
@@ -314,8 +431,8 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
     );
   }
 
-  async function serializeNode(node, deep = false) {
-    countSceneTraversal();
+  async function serializeNode(node, deep = false, countTraversal = true) {
+    if (countTraversal) countSceneTraversal();
     const output = { id: node.id, type: node.type, name: node.name };
     const parent = parentId(node);
     if (parent) output.parentId = parent;
@@ -332,6 +449,25 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
     }
     if ("fills" in node) output.fills = serializePaints(node.fills);
     if ("strokes" in node) output.strokes = serializePaints(node.strokes);
+    for (const key of ["opacity", "cornerRadius", "blendMode"]) {
+      if (key in node && node[key] !== undefined)
+        output[key] = mixedValue(node[key]);
+    }
+    if ("effects" in node && node.effects !== undefined)
+      output.effects = serializeEffects(node.effects);
+    if (
+      "topLeftRadius" in node &&
+      "topRightRadius" in node &&
+      "bottomRightRadius" in node &&
+      "bottomLeftRadius" in node
+    ) {
+      output.cornerRadii = {
+        topLeft: normalizeVisual(node.topLeftRadius),
+        topRight: normalizeVisual(node.topRightRadius),
+        bottomRight: normalizeVisual(node.bottomRightRadius),
+        bottomLeft: normalizeVisual(node.bottomLeftRadius),
+      };
+    }
     if (node.type === "COMPONENT") {
       output.componentKey = node.key;
       output.componentSource = "local";
@@ -377,7 +513,6 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
       "maxHeight",
       "layoutAlign",
       "layoutPositioning",
-      "constraints",
     ]) {
       if (
         key in node &&
@@ -386,6 +521,8 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
       )
         output[key] = node[key];
     }
+    if ("constraints" in node && node.constraints !== undefined)
+      output.constraints = fromPluginConstraints(node.constraints);
     if (deep && hasChildren(node))
       output.children = await Promise.all(
         node.children.map((child) => serializeNode(child, true)),
@@ -416,6 +553,11 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
     if (props.fills !== undefined && "fills" in node) node.fills = props.fills;
     if (props.strokes !== undefined && "strokes" in node)
       node.strokes = props.strokes;
+    for (const key of ["opacity", "cornerRadius", "effects", "blendMode"]) {
+      if (props[key] !== undefined && key in node) node[key] = props[key];
+    }
+    if (props.constraints !== undefined && "constraints" in node)
+      node.constraints = toPluginConstraints(props.constraints);
   }
 
   async function validateProps(node, props) {
@@ -430,6 +572,16 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
       fail("INVALID_ARGUMENT", `Node ${node.id} does not support fills.`);
     if (props.strokes !== undefined && !("strokes" in node))
       fail("INVALID_ARGUMENT", `Node ${node.id} does not support strokes.`);
+    for (const key of [
+      "opacity",
+      "cornerRadius",
+      "effects",
+      "blendMode",
+      "constraints",
+    ]) {
+      if (props[key] !== undefined && !(key in node))
+        fail("INVALID_ARGUMENT", `Node ${node.id} does not support ${key}.`);
+    }
   }
 
   function createByType(type) {
@@ -462,6 +614,8 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
     nodeById,
     hasChildren,
     parentId,
+    toPluginConstraints,
+    fromPluginConstraints,
     serializeNode,
     applyProps,
     validateProps,
@@ -495,6 +649,126 @@ function createCoreNodeDomain({
   };
   const maxExportBytes = 650_000;
 
+  async function queryNodes(input) {
+    const maxDepth = input.maxDepth ?? 8;
+    const limit = input.limit ?? 50;
+    if (!Number.isInteger(maxDepth) || maxDepth < 0 || maxDepth > 20)
+      fail(
+        "INVALID_ARGUMENT",
+        "node.query maxDepth must be an integer from 0 to 20.",
+      );
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100)
+      fail(
+        "INVALID_ARGUMENT",
+        "node.query limit must be an integer from 1 to 100.",
+      );
+    if (
+      input.name === undefined &&
+      input.nodeType === undefined &&
+      input.path === undefined
+    )
+      fail("INVALID_ARGUMENT", "node.query requires name, nodeType, or path.");
+    if (
+      input.path !== undefined &&
+      (!Array.isArray(input.path) ||
+        input.path.length < 1 ||
+        input.path.length > 20 ||
+        input.path.some((segment) => typeof segment !== "string" || !segment))
+    )
+      fail(
+        "INVALID_ARGUMENT",
+        "node.query path must contain 1 to 20 non-empty segments.",
+      );
+
+    const root = input.rootId ? await nodeById(input.rootId) : figma.root;
+    if (root.type === "DOCUMENT") await figma.loadAllPagesAsync();
+    const caseSensitive = input.caseSensitive ?? true;
+    const nameMatch = input.nameMatch ?? "exact";
+    const normalize = (value) =>
+      caseSensitive ? value : value.toLocaleLowerCase("en-US");
+    const expectedName =
+      input.name === undefined ? undefined : normalize(input.name);
+    const samePath = (actual) =>
+      input.path === undefined ||
+      (actual.length === input.path.length &&
+        actual.every(
+          (segment, index) =>
+            normalize(segment) === normalize(input.path[index]),
+        ));
+    const matches = [];
+    let truncated = false;
+
+    const visit = async (node, path, depth) => {
+      if (depth > maxDepth) return false;
+      countSceneTraversal();
+      const actualName = normalize(node.name);
+      const matchesName =
+        expectedName === undefined ||
+        (nameMatch === "contains"
+          ? actualName.includes(expectedName)
+          : actualName === expectedName);
+      if (
+        matchesName &&
+        (input.nodeType === undefined || node.type === input.nodeType) &&
+        samePath(path)
+      ) {
+        if (matches.length === limit) {
+          truncated = true;
+          return true;
+        }
+        matches.push({
+          node: await serializeNode(node, false, false),
+          path: [...path],
+        });
+      }
+      if (depth === maxDepth || !hasChildren(node)) return false;
+      for (const child of node.children) {
+        if (await visit(child, [...path, child.name], depth + 1)) return true;
+      }
+      return false;
+    };
+
+    if (hasChildren(root)) {
+      for (const child of root.children) {
+        if (await visit(child, [child.name], 1)) break;
+      }
+    }
+    return { matches, limit, truncated };
+  }
+
+  function snapshotValue(value) {
+    return typeof value === "symbol" ? value : cloneData(value);
+  }
+
+  function capturePatchState(node, patch) {
+    const state = {};
+    for (const key of Object.keys(patch)) {
+      if (key === "width" || key === "height") continue;
+      const property = key === "text" ? "characters" : key;
+      if (property in node) state[property] = snapshotValue(node[property]);
+    }
+    if (
+      (patch.width !== undefined || patch.height !== undefined) &&
+      "resize" in node
+    )
+      state.size = { width: node.width, height: node.height };
+    return state;
+  }
+
+  async function restorePatchState(node, state) {
+    if (
+      node.type === "TEXT" &&
+      state.fontName &&
+      typeof state.fontName !== "symbol"
+    )
+      await figma.loadFontAsync(state.fontName);
+    if (state.size && "resize" in node)
+      node.resize(state.size.width, state.size.height);
+    for (const [key, value] of Object.entries(state)) {
+      if (key !== "size") node[key] = snapshotValue(value);
+    }
+  }
+
   async function coreCommand(method, input) {
     if (method === "document.summary") {
       return revisionCached("document.summary", async () => {
@@ -526,6 +800,7 @@ function createCoreNodeDomain({
     if (method === "selection.get")
       return figma.currentPage.selection.map((node) => node.id);
     if (method === "changes.get") return getChanges();
+    if (method === "node.query") return queryNodes(input);
     if (method === "node.get") {
       assertNodeIds(input.nodeIds);
       return Promise.all(
@@ -686,7 +961,22 @@ function createCoreNodeDomain({
     }
     if (method === "node.update") {
       await Promise.all(nodes.map((node) => validateProps(node, input.patch)));
-      for (const node of nodes) await applyProps(node, input.patch);
+      const snapshots = new Map(
+        nodes.map((node) => [node.id, capturePatchState(node, input.patch)]),
+      );
+      try {
+        for (const node of nodes) await applyProps(node, input.patch);
+      } catch (error) {
+        const rollback = await Promise.allSettled(
+          nodes.map((node) => restorePatchState(node, snapshots.get(node.id))),
+        );
+        if (rollback.some((result) => result.status === "rejected"))
+          fail(
+            "UNKNOWN_OUTCOME",
+            "Node update failed and rollback could not restore every node.",
+          );
+        throw error;
+      }
       recordChange("update", input.nodeIds);
       return Promise.all(nodes.map((node) => serializeNode(node)));
     }
@@ -770,6 +1060,8 @@ function createLayoutDomain({
   nodeById,
   hasChildren,
   parentId,
+  toPluginConstraints,
+  fromPluginConstraints,
 }) {
   function padding(layout) {
     if (typeof layout.padding === "number") {
@@ -883,7 +1175,7 @@ function createLayoutDomain({
       },
       constraints:
         "constraints" in node
-          ? node.constraints
+          ? fromPluginConstraints(node.constraints)
           : { horizontal: "LEFT", vertical: "TOP" },
     };
   }
@@ -1366,7 +1658,7 @@ function createLayoutDomain({
         if (operation.op === "apply") applyLayout(node, operation.layout);
         else if (operation.op === "sizing") applySizing(node, operation.sizing);
         else if ("constraints" in node)
-          node.constraints = operation.constraints;
+          node.constraints = toPluginConstraints(operation.constraints);
       }
       const after = targetNodes.map(layoutSnapshot);
       recordChange(`layout.${input.action}`, targetIds);

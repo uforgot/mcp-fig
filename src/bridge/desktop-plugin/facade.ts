@@ -16,6 +16,8 @@ import type {
   LayoutActionInput,
   MoveNodesInput,
   NodeExportPayload,
+  NodeQueryResult,
+  QueryNodesInput,
   ResizeNodesInput,
   TokenActionInput,
   UpdateNodesInput,
@@ -126,6 +128,14 @@ export class DesktopPluginFigmaBridge implements FigmaBridge {
 
   async getNodes(nodeIds: string[], fileKey?: string): Promise<FigmaNode[]> {
     return this.#rpc("node.get", { nodeIds }, fileKey) as Promise<FigmaNode[]>;
+  }
+
+  async queryNodes(input: QueryNodesInput): Promise<NodeQueryResult> {
+    return this.#rpc(
+      "node.query",
+      input,
+      input.fileKey,
+    ) as Promise<NodeQueryResult>;
   }
 
   async createNode(input: CreateNodeInput): Promise<FigmaNode[]> {

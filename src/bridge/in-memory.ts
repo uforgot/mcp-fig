@@ -19,6 +19,8 @@ import type {
   LayoutActionInput,
   MoveNodesInput,
   NodeExportPayload,
+  NodeQueryResult,
+  QueryNodesInput,
   ResizeNodesInput,
   TokenActionInput,
   UpdateNodesInput,
@@ -59,6 +61,9 @@ export class InMemoryFigmaBridge implements FigmaBridge {
   }
   getNodes(nodeIds: string[], fileKey?: string): Promise<FigmaNode[]> {
     return this.#core.getNodes(nodeIds, fileKey);
+  }
+  queryNodes(input: QueryNodesInput): Promise<NodeQueryResult> {
+    return this.#core.queryNodes(input);
   }
   createNode(input: CreateNodeInput): Promise<FigmaNode[]> {
     return this.#core.createNode(input);

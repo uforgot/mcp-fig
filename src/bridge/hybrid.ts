@@ -16,6 +16,8 @@ import type {
   LayoutActionInput,
   MoveNodesInput,
   NodeExportPayload,
+  NodeQueryResult,
+  QueryNodesInput,
   ResizeNodesInput,
   TokenActionInput,
   UpdateNodesInput,
@@ -32,6 +34,7 @@ export const HYBRID_REST_CAPABILITY_TABLE = Object.freeze({
     "getDocument",
     "getChanges",
     "getNodes",
+    "queryNodes",
     "layout",
     "component",
   ]),
@@ -157,6 +160,14 @@ export class HybridFigmaBridge implements FigmaBridge {
       "getNodes",
       () => this.#plugin.getNodes(nodeIds, fileKey),
       () => this.#rest?.getNodes(nodeIds, fileKey),
+    );
+  }
+
+  async queryNodes(input: QueryNodesInput): Promise<NodeQueryResult> {
+    return this.#read(
+      "queryNodes",
+      () => this.#plugin.queryNodes(input),
+      () => this.#rest?.queryNodes(input),
     );
   }
 

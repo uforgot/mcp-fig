@@ -148,6 +148,146 @@ describe("Core Figma facade", () => {
     });
   });
 
+  it("queries nodes by bounded name, type, and exact path", async () => {
+    const client = await createConnectedClient();
+
+    const exact = await call(client, "figma_node", {
+      action: "query",
+      rootId: "1:0",
+      name: "Card",
+      nodeType: "FRAME",
+      path: ["Layout root", "Card"],
+      maxDepth: 4,
+      limit: 10,
+    });
+    expect(exact.payload.data).toMatchObject({
+      matches: [
+        {
+          path: ["Layout root", "Card"],
+          node: { id: "4:1", type: "FRAME", name: "Card" },
+        },
+      ],
+      limit: 10,
+      truncated: false,
+    });
+
+    const bounded = await call(client, "figma_node", {
+      action: "query",
+      rootId: "1:0",
+      nodeType: "FRAME",
+      maxDepth: 4,
+      limit: 2,
+    });
+    expect(bounded.payload.data).toMatchObject({
+      matches: [
+        { node: { id: "2:0" }, path: ["Destination"] },
+        { node: { id: "4:0" }, path: ["Layout root"] },
+      ],
+      limit: 2,
+      truncated: true,
+    });
+
+    const invalid = CallToolResultSchema.parse(
+      await client.callTool({
+        name: "figma_node",
+        arguments: { action: "query", rootId: "1:0", limit: 10 },
+      }),
+    );
+    expect(invalid.isError).toBe(true);
+  });
+
+  it("creates and updates typed visual properties with exact readback", async () => {
+    const client = await createConnectedClient();
+    const visual = {
+      fills: [
+        {
+          type: "SOLID",
+          color: { r: 0.1, g: 0.2, b: 0.3 },
+          opacity: 0.9,
+        },
+        {
+          type: "GRADIENT_LINEAR",
+          gradientTransform: [
+            [1, 0, 0],
+            [0, 1, 0],
+          ],
+          gradientStops: [
+            { position: 0, color: { r: 1, g: 0, b: 0, a: 1 } },
+            { position: 1, color: { r: 0, g: 0, b: 1, a: 1 } },
+          ],
+        },
+      ],
+      strokes: [{ type: "SOLID", color: { r: 1, g: 1, b: 1 }, opacity: 0.5 }],
+      opacity: 0.75,
+      cornerRadius: 12,
+      effects: [
+        {
+          type: "DROP_SHADOW",
+          color: { r: 0, g: 0, b: 0, a: 0.2 },
+          offset: { x: 0, y: 4 },
+          radius: 8,
+          spread: 1,
+        },
+      ],
+      blendMode: "MULTIPLY",
+      constraints: { horizontal: "CENTER", vertical: "TOP" },
+    };
+    const created = await call(client, "figma_node", {
+      action: "create",
+      parentId: "1:0",
+      nodeType: "RECTANGLE",
+      name: "Visual parity",
+      props: visual,
+    });
+    const nodeId = created.payload.data.nodes[0].id as string;
+    expect(created.payload.data.nodes[0]).toMatchObject(visual);
+
+    const updated = await call(client, "figma_node", {
+      action: "update",
+      nodeIds: [nodeId],
+      patch: {
+        opacity: 0.5,
+        cornerRadius: 20,
+        blendMode: "SCREEN",
+        constraints: { horizontal: "SCALE", vertical: "BOTTOM" },
+      },
+    });
+    expect(updated.payload.data.nodes[0]).toMatchObject({
+      opacity: 0.5,
+      cornerRadius: 20,
+      blendMode: "SCREEN",
+      constraints: { horizontal: "SCALE", vertical: "BOTTOM" },
+    });
+
+    const readback = await call(client, "figma_node", {
+      action: "get",
+      nodeIds: [nodeId],
+    });
+    expect(readback.payload.data.nodes[0]).toEqual(
+      updated.payload.data.nodes[0],
+    );
+  });
+
+  it("rejects mixed and unsupported visual writes at the MCP boundary", async () => {
+    const client = await createConnectedClient();
+    const patches = [
+      { opacity: 1.1 },
+      { cornerRadius: { mixed: true } },
+      { fills: [{ type: "IMAGE", imageHash: "hash" }] },
+      { effects: [{ type: "NOISE", noiseSize: 1 }] },
+    ];
+
+    for (const patch of patches) {
+      const result = CallToolResultSchema.parse(
+        await client.callTool({
+          name: "figma_node",
+          arguments: { action: "update", nodeIds: ["2:1"], patch },
+        }),
+      );
+      expect(result.isError).toBe(true);
+    }
+  });
+
   it("creates, updates, moves, resizes, clones, and deletes a node", async () => {
     const client = await createConnectedClient();
 

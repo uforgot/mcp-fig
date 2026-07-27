@@ -8,6 +8,8 @@ function createLayoutDomain({
   nodeById,
   hasChildren,
   parentId,
+  toPluginConstraints,
+  fromPluginConstraints,
 }) {
   function padding(layout) {
     if (typeof layout.padding === "number") {
@@ -121,7 +123,7 @@ function createLayoutDomain({
       },
       constraints:
         "constraints" in node
-          ? node.constraints
+          ? fromPluginConstraints(node.constraints)
           : { horizontal: "LEFT", vertical: "TOP" },
     };
   }
@@ -604,7 +606,7 @@ function createLayoutDomain({
         if (operation.op === "apply") applyLayout(node, operation.layout);
         else if (operation.op === "sizing") applySizing(node, operation.sizing);
         else if ("constraints" in node)
-          node.constraints = operation.constraints;
+          node.constraints = toPluginConstraints(operation.constraints);
       }
       const after = targetNodes.map(layoutSnapshot);
       recordChange(`layout.${input.action}`, targetIds);

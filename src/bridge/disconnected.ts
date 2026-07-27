@@ -14,6 +14,8 @@ import type {
   LayoutActionInput,
   MoveNodesInput,
   NodeExportPayload,
+  NodeQueryResult,
+  QueryNodesInput,
   ResizeNodesInput,
   TokenActionInput,
   UpdateNodesInput,
@@ -62,6 +64,10 @@ export class DisconnectedFigmaBridge implements FigmaBridge {
   }
 
   async getNodes(_nodeIds: string[], _fileKey?: string): Promise<FigmaNode[]> {
+    return notConnected();
+  }
+
+  async queryNodes(_input: QueryNodesInput): Promise<NodeQueryResult> {
     return notConnected();
   }
 

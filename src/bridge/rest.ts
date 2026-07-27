@@ -1,5 +1,6 @@
 import { McpFigError } from "../errors.js";
 import { inspectLayoutNode, validateLayoutScope } from "./layout.js";
+import { querySerializedNodes } from "./node-query.js";
 import type {
   BridgeStatus,
   ChangeRecord,
@@ -10,12 +11,15 @@ import type {
   DeleteNodesInput,
   ExportNodesInput,
   FigmaBridge,
+  FigmaEffect,
   FigmaFileSummary,
   FigmaNode,
   InstanceActionInput,
   LayoutActionInput,
   MoveNodesInput,
   NodeExportPayload,
+  NodeQueryResult,
+  QueryNodesInput,
   ResizeNodesInput,
   TokenActionInput,
   UpdateNodesInput,
@@ -65,6 +69,75 @@ function toEnum<const Values extends readonly string[]>(
   return typeof value === "string" && values.includes(value)
     ? value
     : undefined;
+}
+
+const BLEND_MODES = [
+  "PASS_THROUGH",
+  "NORMAL",
+  "DARKEN",
+  "MULTIPLY",
+  "LINEAR_BURN",
+  "COLOR_BURN",
+  "LIGHTEN",
+  "SCREEN",
+  "LINEAR_DODGE",
+  "COLOR_DODGE",
+  "OVERLAY",
+  "SOFT_LIGHT",
+  "HARD_LIGHT",
+  "DIFFERENCE",
+  "EXCLUSION",
+  "HUE",
+  "SATURATION",
+  "COLOR",
+  "LUMINOSITY",
+] as const;
+
+function toEffects(value: unknown): FigmaEffect[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const effects: FigmaEffect[] = [];
+  for (const item of value) {
+    const effect = toRecord(item);
+    if (!effect) continue;
+    const type = toEnum(effect.type, [
+      "DROP_SHADOW",
+      "INNER_SHADOW",
+      "LAYER_BLUR",
+      "BACKGROUND_BLUR",
+    ] as const);
+    if (!type || typeof effect.radius !== "number") continue;
+    if (type === "LAYER_BLUR" || type === "BACKGROUND_BLUR") {
+      effects.push({
+        type,
+        radius: effect.radius,
+        visible: effect.visible !== false,
+        blurType: "NORMAL",
+      });
+      continue;
+    }
+    const color = toRecord(effect.color);
+    const offset = toRecord(effect.offset);
+    const blendMode = toEnum(effect.blendMode, BLEND_MODES) ?? "NORMAL";
+    if (
+      typeof color?.r !== "number" ||
+      typeof color.g !== "number" ||
+      typeof color.b !== "number" ||
+      typeof color.a !== "number" ||
+      typeof offset?.x !== "number" ||
+      typeof offset.y !== "number"
+    )
+      continue;
+    effects.push({
+      type,
+      color: { r: color.r, g: color.g, b: color.b, a: color.a },
+      offset: { x: offset.x, y: offset.y },
+      radius: effect.radius,
+      ...(typeof effect.spread === "number" ? { spread: effect.spread } : {}),
+      visible: effect.visible !== false,
+      blendMode,
+    });
+  }
+  return effects;
 }
 
 function toNode(raw: Record<string, unknown>, parentId?: string): FigmaNode {
@@ -133,6 +206,20 @@ function toNode(raw: Record<string, unknown>, parentId?: string): FigmaNode {
     "TOP_BOTTOM",
     "SCALE",
   ] as const);
+  const blendMode = toEnum(raw.blendMode, BLEND_MODES);
+  const effects = toEffects(raw.effects);
+  const radii = Array.isArray(raw.rectangleCornerRadii)
+    ? raw.rectangleCornerRadii
+    : undefined;
+  const cornerRadii =
+    radii?.length === 4 && radii.every((radius) => typeof radius === "number")
+      ? {
+          topLeft: radii[0] as number,
+          topRight: radii[1] as number,
+          bottomRight: radii[2] as number,
+          bottomLeft: radii[3] as number,
+        }
+      : undefined;
   return {
     id,
     type,
@@ -147,6 +234,13 @@ function toNode(raw: Record<string, unknown>, parentId?: string): FigmaNode {
     ...(typeof raw.characters === "string" ? { text: raw.characters } : {}),
     ...(toPaints(raw.fills) ? { fills: toPaints(raw.fills) } : {}),
     ...(toPaints(raw.strokes) ? { strokes: toPaints(raw.strokes) } : {}),
+    ...(typeof raw.opacity === "number" ? { opacity: raw.opacity } : {}),
+    ...(typeof raw.cornerRadius === "number"
+      ? { cornerRadius: raw.cornerRadius }
+      : {}),
+    ...(cornerRadii ? { cornerRadii } : {}),
+    ...(effects ? { effects } : {}),
+    ...(blendMode ? { blendMode } : {}),
     ...(layoutMode ? { layoutMode } : {}),
     ...(typeof raw.itemSpacing === "number"
       ? { itemSpacing: raw.itemSpacing }
@@ -329,6 +423,19 @@ export class RestFigmaBridge implements FigmaBridge {
       }
       return this.#withMetadata(toNode(document));
     });
+  }
+
+  async queryNodes(input: QueryNodesInput): Promise<NodeQueryResult> {
+    const root = input.rootId
+      ? (await this.getNodes([input.rootId], input.fileKey))[0]
+      : await this.getDocument(input.fileKey);
+    if (!root) {
+      throw new McpFigError(
+        "NODE_NOT_FOUND",
+        `Figma node ${input.rootId} was not found.`,
+      );
+    }
+    return querySerializedNodes(root, input);
   }
 
   async createNode(_input: CreateNodeInput): Promise<FigmaNode[]> {

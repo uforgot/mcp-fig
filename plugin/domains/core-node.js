@@ -24,6 +24,126 @@ function createCoreNodeDomain({
   };
   const maxExportBytes = 650_000;
 
+  async function queryNodes(input) {
+    const maxDepth = input.maxDepth ?? 8;
+    const limit = input.limit ?? 50;
+    if (!Number.isInteger(maxDepth) || maxDepth < 0 || maxDepth > 20)
+      fail(
+        "INVALID_ARGUMENT",
+        "node.query maxDepth must be an integer from 0 to 20.",
+      );
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100)
+      fail(
+        "INVALID_ARGUMENT",
+        "node.query limit must be an integer from 1 to 100.",
+      );
+    if (
+      input.name === undefined &&
+      input.nodeType === undefined &&
+      input.path === undefined
+    )
+      fail("INVALID_ARGUMENT", "node.query requires name, nodeType, or path.");
+    if (
+      input.path !== undefined &&
+      (!Array.isArray(input.path) ||
+        input.path.length < 1 ||
+        input.path.length > 20 ||
+        input.path.some((segment) => typeof segment !== "string" || !segment))
+    )
+      fail(
+        "INVALID_ARGUMENT",
+        "node.query path must contain 1 to 20 non-empty segments.",
+      );
+
+    const root = input.rootId ? await nodeById(input.rootId) : figma.root;
+    if (root.type === "DOCUMENT") await figma.loadAllPagesAsync();
+    const caseSensitive = input.caseSensitive ?? true;
+    const nameMatch = input.nameMatch ?? "exact";
+    const normalize = (value) =>
+      caseSensitive ? value : value.toLocaleLowerCase("en-US");
+    const expectedName =
+      input.name === undefined ? undefined : normalize(input.name);
+    const samePath = (actual) =>
+      input.path === undefined ||
+      (actual.length === input.path.length &&
+        actual.every(
+          (segment, index) =>
+            normalize(segment) === normalize(input.path[index]),
+        ));
+    const matches = [];
+    let truncated = false;
+
+    const visit = async (node, path, depth) => {
+      if (depth > maxDepth) return false;
+      countSceneTraversal();
+      const actualName = normalize(node.name);
+      const matchesName =
+        expectedName === undefined ||
+        (nameMatch === "contains"
+          ? actualName.includes(expectedName)
+          : actualName === expectedName);
+      if (
+        matchesName &&
+        (input.nodeType === undefined || node.type === input.nodeType) &&
+        samePath(path)
+      ) {
+        if (matches.length === limit) {
+          truncated = true;
+          return true;
+        }
+        matches.push({
+          node: await serializeNode(node, false, false),
+          path: [...path],
+        });
+      }
+      if (depth === maxDepth || !hasChildren(node)) return false;
+      for (const child of node.children) {
+        if (await visit(child, [...path, child.name], depth + 1)) return true;
+      }
+      return false;
+    };
+
+    if (hasChildren(root)) {
+      for (const child of root.children) {
+        if (await visit(child, [child.name], 1)) break;
+      }
+    }
+    return { matches, limit, truncated };
+  }
+
+  function snapshotValue(value) {
+    return typeof value === "symbol" ? value : cloneData(value);
+  }
+
+  function capturePatchState(node, patch) {
+    const state = {};
+    for (const key of Object.keys(patch)) {
+      if (key === "width" || key === "height") continue;
+      const property = key === "text" ? "characters" : key;
+      if (property in node) state[property] = snapshotValue(node[property]);
+    }
+    if (
+      (patch.width !== undefined || patch.height !== undefined) &&
+      "resize" in node
+    )
+      state.size = { width: node.width, height: node.height };
+    return state;
+  }
+
+  async function restorePatchState(node, state) {
+    if (
+      node.type === "TEXT" &&
+      state.fontName &&
+      typeof state.fontName !== "symbol"
+    )
+      await figma.loadFontAsync(state.fontName);
+    if (state.size && "resize" in node)
+      node.resize(state.size.width, state.size.height);
+    for (const [key, value] of Object.entries(state)) {
+      if (key !== "size") node[key] = snapshotValue(value);
+    }
+  }
+
   async function coreCommand(method, input) {
     if (method === "document.summary") {
       return revisionCached("document.summary", async () => {
@@ -55,6 +175,7 @@ function createCoreNodeDomain({
     if (method === "selection.get")
       return figma.currentPage.selection.map((node) => node.id);
     if (method === "changes.get") return getChanges();
+    if (method === "node.query") return queryNodes(input);
     if (method === "node.get") {
       assertNodeIds(input.nodeIds);
       return Promise.all(
@@ -215,7 +336,22 @@ function createCoreNodeDomain({
     }
     if (method === "node.update") {
       await Promise.all(nodes.map((node) => validateProps(node, input.patch)));
-      for (const node of nodes) await applyProps(node, input.patch);
+      const snapshots = new Map(
+        nodes.map((node) => [node.id, capturePatchState(node, input.patch)]),
+      );
+      try {
+        for (const node of nodes) await applyProps(node, input.patch);
+      } catch (error) {
+        const rollback = await Promise.allSettled(
+          nodes.map((node) => restorePatchState(node, snapshots.get(node.id))),
+        );
+        if (rollback.some((result) => result.status === "rejected"))
+          fail(
+            "UNKNOWN_OUTCOME",
+            "Node update failed and rollback could not restore every node.",
+          );
+        throw error;
+      }
       recordChange("update", input.nodeIds);
       return Promise.all(nodes.map((node) => serializeNode(node)));
     }

@@ -12,6 +12,88 @@ export const FIGMA_NODE_TYPES = [
 ] as const;
 
 export type FigmaNodeType = (typeof FIGMA_NODE_TYPES)[number];
+
+export interface RgbColor {
+  r: number;
+  g: number;
+  b: number;
+}
+
+export interface RgbaColor extends RgbColor {
+  a: number;
+}
+
+export type BlendMode =
+  | "PASS_THROUGH"
+  | "NORMAL"
+  | "DARKEN"
+  | "MULTIPLY"
+  | "LINEAR_BURN"
+  | "COLOR_BURN"
+  | "LIGHTEN"
+  | "SCREEN"
+  | "LINEAR_DODGE"
+  | "COLOR_DODGE"
+  | "OVERLAY"
+  | "SOFT_LIGHT"
+  | "HARD_LIGHT"
+  | "DIFFERENCE"
+  | "EXCLUSION"
+  | "HUE"
+  | "SATURATION"
+  | "COLOR"
+  | "LUMINOSITY";
+
+export interface SolidPaint {
+  type: "SOLID";
+  color: RgbColor;
+  opacity?: number | undefined;
+  visible?: boolean | undefined;
+  blendMode?: BlendMode | undefined;
+}
+
+export interface GradientPaint {
+  type:
+    | "GRADIENT_LINEAR"
+    | "GRADIENT_RADIAL"
+    | "GRADIENT_ANGULAR"
+    | "GRADIENT_DIAMOND";
+  gradientTransform: [[number, number, number], [number, number, number]];
+  gradientStops: { position: number; color: RgbaColor }[];
+  opacity?: number | undefined;
+  visible?: boolean | undefined;
+  blendMode?: BlendMode | undefined;
+}
+
+export type FigmaPaint = SolidPaint | GradientPaint;
+
+export type FigmaEffect =
+  | {
+      type: "DROP_SHADOW" | "INNER_SHADOW";
+      color: RgbaColor;
+      offset: { x: number; y: number };
+      radius: number;
+      spread?: number | undefined;
+      visible: boolean;
+      blendMode: BlendMode;
+    }
+  | {
+      type: "LAYER_BLUR" | "BACKGROUND_BLUR";
+      radius: number;
+      visible: boolean;
+      blurType: "NORMAL";
+    };
+
+export interface MixedValue {
+  mixed: true;
+}
+
+export interface CornerRadii {
+  topLeft: number;
+  topRight: number;
+  bottomRight: number;
+  bottomLeft: number;
+}
 export type BridgeMode =
   | "disconnected"
   | "fixture"
@@ -37,8 +119,13 @@ export interface FigmaNode {
   letterSpacing?: LetterSpacing | undefined;
   textAlignHorizontal?: TextAlignHorizontal | undefined;
   textAlignVertical?: TextAlignVertical | undefined;
-  fills?: Record<string, unknown>[] | undefined;
-  strokes?: Record<string, unknown>[] | undefined;
+  fills?: (FigmaPaint | Record<string, unknown>)[] | MixedValue | undefined;
+  strokes?: (FigmaPaint | Record<string, unknown>)[] | MixedValue | undefined;
+  opacity?: number | MixedValue | undefined;
+  cornerRadius?: number | MixedValue | undefined;
+  cornerRadii?: CornerRadii | undefined;
+  effects?: FigmaEffect[] | MixedValue | undefined;
+  blendMode?: BlendMode | MixedValue | undefined;
   children?: FigmaNode[] | undefined;
   componentKey?: string | undefined;
   componentSource?: "local" | "library" | undefined;
@@ -250,8 +337,13 @@ export interface NodeProps {
   letterSpacing?: LetterSpacing | undefined;
   textAlignHorizontal?: TextAlignHorizontal | undefined;
   textAlignVertical?: TextAlignVertical | undefined;
-  fills?: Record<string, unknown>[] | undefined;
-  strokes?: Record<string, unknown>[] | undefined;
+  fills?: FigmaPaint[] | undefined;
+  strokes?: FigmaPaint[] | undefined;
+  opacity?: number | undefined;
+  cornerRadius?: number | undefined;
+  effects?: FigmaEffect[] | undefined;
+  blendMode?: BlendMode | undefined;
+  constraints?: LayoutConstraints | undefined;
 }
 
 export interface NodePatch extends NodeProps {
@@ -287,6 +379,29 @@ export interface CreateNodeInput extends MutationOptions {
 export interface UpdateNodesInput extends MutationOptions {
   nodeIds: string[];
   patch: NodePatch;
+}
+
+export interface QueryNodesInput {
+  fileKey?: string;
+  rootId?: string;
+  name?: string;
+  nameMatch?: "exact" | "contains";
+  caseSensitive?: boolean;
+  nodeType?: FigmaNodeType;
+  path?: string[];
+  maxDepth: number;
+  limit: number;
+}
+
+export interface NodeQueryMatch {
+  node: FigmaNode;
+  path: string[];
+}
+
+export interface NodeQueryResult {
+  matches: NodeQueryMatch[];
+  limit: number;
+  truncated: boolean;
 }
 
 export interface MoveNodesInput extends MutationOptions {
@@ -613,6 +728,7 @@ export interface FigmaBridge {
   getSelection(fileKey?: string): Promise<string[]>;
   getChanges(fileKey?: string): Promise<ChangeRecord[]>;
   getNodes(nodeIds: string[], fileKey?: string): Promise<FigmaNode[]>;
+  queryNodes(input: QueryNodesInput): Promise<NodeQueryResult>;
   createNode(input: CreateNodeInput): Promise<FigmaNode[]>;
   updateNodes(input: UpdateNodesInput): Promise<FigmaNode[]>;
   moveNodes(input: MoveNodesInput): Promise<FigmaNode[]>;

@@ -12,7 +12,116 @@ import { writeControlSchema } from "./write-control.js";
 const fileKey = z.string().min(1).optional();
 const dryRun = z.boolean().default(false);
 const nodeIds = z.array(z.string().min(1)).min(1).max(200);
-const paints = z.array(z.record(z.string(), z.unknown()));
+const blendMode = z.enum([
+  "PASS_THROUGH",
+  "NORMAL",
+  "DARKEN",
+  "MULTIPLY",
+  "LINEAR_BURN",
+  "COLOR_BURN",
+  "LIGHTEN",
+  "SCREEN",
+  "LINEAR_DODGE",
+  "COLOR_DODGE",
+  "OVERLAY",
+  "SOFT_LIGHT",
+  "HARD_LIGHT",
+  "DIFFERENCE",
+  "EXCLUSION",
+  "HUE",
+  "SATURATION",
+  "COLOR",
+  "LUMINOSITY",
+]);
+const rgb = z
+  .object({
+    r: z.number().finite().min(0).max(1),
+    g: z.number().finite().min(0).max(1),
+    b: z.number().finite().min(0).max(1),
+  })
+  .strict();
+const rgba = rgb.extend({ a: z.number().finite().min(0).max(1) }).strict();
+const paintShared = {
+  opacity: z.number().finite().min(0).max(1).optional(),
+  visible: z.boolean().optional(),
+  blendMode: blendMode.optional(),
+};
+const paints = z.array(
+  z.union([
+    z
+      .object({
+        type: z.literal("SOLID"),
+        color: rgb,
+        ...paintShared,
+      })
+      .strict(),
+    z
+      .object({
+        type: z.enum([
+          "GRADIENT_LINEAR",
+          "GRADIENT_RADIAL",
+          "GRADIENT_ANGULAR",
+          "GRADIENT_DIAMOND",
+        ]),
+        gradientTransform: z.tuple([
+          z.tuple([
+            z.number().finite(),
+            z.number().finite(),
+            z.number().finite(),
+          ]),
+          z.tuple([
+            z.number().finite(),
+            z.number().finite(),
+            z.number().finite(),
+          ]),
+        ]),
+        gradientStops: z
+          .array(
+            z
+              .object({
+                position: z.number().finite().min(0).max(1),
+                color: rgba,
+              })
+              .strict(),
+          )
+          .min(2)
+          .max(64),
+        ...paintShared,
+      })
+      .strict(),
+  ]),
+);
+const effects = z.array(
+  z.union([
+    z
+      .object({
+        type: z.enum(["DROP_SHADOW", "INNER_SHADOW"]),
+        color: rgba,
+        offset: z
+          .object({ x: z.number().finite(), y: z.number().finite() })
+          .strict(),
+        radius: z.number().finite().nonnegative(),
+        spread: z.number().finite().optional(),
+        visible: z.boolean().default(true),
+        blendMode: blendMode.default("NORMAL"),
+      })
+      .strict(),
+    z
+      .object({
+        type: z.enum(["LAYER_BLUR", "BACKGROUND_BLUR"]),
+        radius: z.number().finite().nonnegative(),
+        visible: z.boolean().default(true),
+        blurType: z.literal("NORMAL").default("NORMAL"),
+      })
+      .strict(),
+  ]),
+);
+const constraints = z
+  .object({
+    horizontal: z.enum(["LEFT", "RIGHT", "CENTER", "LEFT_RIGHT", "SCALE"]),
+    vertical: z.enum(["TOP", "BOTTOM", "CENTER", "TOP_BOTTOM", "SCALE"]),
+  })
+  .strict();
 const fontName = z
   .object({
     family: z.string().min(1),
@@ -53,6 +162,11 @@ const nodeProps = z
     textAlignVertical: z.enum(["TOP", "CENTER", "BOTTOM"]).optional(),
     fills: paints.optional(),
     strokes: paints.optional(),
+    opacity: z.number().finite().min(0).max(1).optional(),
+    cornerRadius: z.number().finite().nonnegative().optional(),
+    effects: effects.optional(),
+    blendMode: blendMode.optional(),
+    constraints: constraints.optional(),
   })
   .strict();
 const nodePatch = nodeProps
@@ -61,6 +175,25 @@ const nodePatch = nodeProps
 
 const inputSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("get"), fileKey, nodeIds }).strict(),
+  z
+    .object({
+      action: z.literal("query"),
+      fileKey,
+      rootId: z.string().min(1).optional(),
+      name: z.string().min(1).optional(),
+      nameMatch: z.enum(["exact", "contains"]).default("exact"),
+      caseSensitive: z.boolean().default(true),
+      nodeType: z.enum(FIGMA_NODE_TYPES).optional(),
+      path: z.array(z.string().min(1)).min(1).max(20).optional(),
+      maxDepth: z.number().int().min(0).max(20).default(8),
+      limit: z.number().int().min(1).max(100).default(50),
+    })
+    .strict()
+    .refine(
+      ({ name, nodeType, path }) =>
+        name !== undefined || nodeType !== undefined || path !== undefined,
+      "query requires name, nodeType, or path",
+    ),
   z
     .object({
       action: z.literal("export"),
@@ -174,7 +307,7 @@ export function registerNodeTool(
     {
       title: "Figma node",
       description:
-        "Get, export, create, update, move, resize, clone, or explicitly delete Figma nodes without raw execution. Exported files are saved under ~/.mcp-fig/exports.",
+        "Get/query, export, create, update, move, resize, clone, or explicitly delete Figma nodes without raw execution. Query traversal is depth/limit bounded. Exported files are saved under ~/.mcp-fig/exports.",
       inputSchema: exposeMcpInputSchema(inputSchema),
       annotations: {
         readOnlyHint: false,
@@ -190,6 +323,20 @@ export function registerNodeTool(
           case "get":
             return success("figma_node", input.action, {
               nodes: await bridge.getNodes(input.nodeIds, input.fileKey),
+            });
+          case "query":
+            return success("figma_node", input.action, {
+              ...(await bridge.queryNodes({
+                ...scope,
+                ...(input.rootId ? { rootId: input.rootId } : {}),
+                ...(input.name ? { name: input.name } : {}),
+                nameMatch: input.nameMatch,
+                caseSensitive: input.caseSensitive,
+                ...(input.nodeType ? { nodeType: input.nodeType } : {}),
+                ...(input.path ? { path: input.path } : {}),
+                maxDepth: input.maxDepth,
+                limit: input.limit,
+              })),
             });
           case "export": {
             const raster = input.format === "PNG" || input.format === "JPG";

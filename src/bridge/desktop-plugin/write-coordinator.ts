@@ -70,7 +70,12 @@ function requiredCapability(method: string): PluginCapability {
     return "document.read";
   }
   if (method === "selection.get") return "selection.read";
-  if (method === "node.get" || method === "node.export") return "node.read";
+  if (
+    method === "node.get" ||
+    method === "node.query" ||
+    method === "node.export"
+  )
+    return "node.read";
   if (method.startsWith("node.")) return "node.write";
   if (method === "layout") return "layout.write";
   if (method === "component") return "component.write";
@@ -88,6 +93,7 @@ export function isReadOnlyRequest(method: string, params: unknown): boolean {
     method === "selection.get" ||
     method === "changes.get" ||
     method === "node.get" ||
+    method === "node.query" ||
     method === "node.export"
   ) {
     return true;
