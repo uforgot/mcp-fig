@@ -27,6 +27,46 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
     return paints === figma.mixed ? undefined : paints;
   }
 
+  const typographyKeys = [
+    "fontName",
+    "fontSize",
+    "lineHeight",
+    "letterSpacing",
+    "textAlignHorizontal",
+    "textAlignVertical",
+  ];
+
+  function hasTextMutation(props) {
+    return (
+      props?.text !== undefined ||
+      typographyKeys.some((key) => props?.[key] !== undefined)
+    );
+  }
+
+  async function loadFontsForTextMutation(node, props) {
+    if (!hasTextMutation(props)) return;
+    if (node.type !== "TEXT")
+      fail("INVALID_ARGUMENT", `Node ${node.id} is not a text node.`);
+
+    let fonts;
+    if (props.fontName !== undefined) {
+      fonts = [props.fontName];
+    } else if (node.fontName !== figma.mixed) {
+      fonts = [node.fontName];
+    } else if (typeof node.getRangeAllFontNames === "function") {
+      fonts = node.getRangeAllFontNames(0, node.characters.length);
+    } else {
+      fail("INVALID_ARGUMENT", `Text node ${node.id} uses mixed fonts.`);
+    }
+
+    const uniqueFonts = new Map(
+      fonts.map((font) => [`${font.family}\u0000${font.style}`, font]),
+    );
+    await Promise.all(
+      [...uniqueFonts.values()].map((font) => figma.loadFontAsync(font)),
+    );
+  }
+
   async function serializeNode(node, deep = false) {
     countSceneTraversal();
     const output = { id: node.id, type: node.type, name: node.name };
@@ -37,6 +77,12 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
     }
     if (node.type === "TEXT" && node.characters !== figma.mixed)
       output.text = node.characters;
+    if (node.type === "TEXT") {
+      for (const key of typographyKeys) {
+        if (node[key] !== undefined && node[key] !== figma.mixed)
+          output[key] = node[key];
+      }
+    }
     if ("fills" in node) output.fills = serializePaints(node.fills);
     if ("strokes" in node) output.strokes = serializePaints(node.strokes);
     if (node.type === "COMPONENT") {
@@ -112,13 +158,13 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
     ) {
       node.resize(props.width ?? node.width, props.height ?? node.height);
     }
-    if (props.text !== undefined) {
-      if (node.type !== "TEXT")
-        fail("INVALID_ARGUMENT", `Node ${node.id} is not a text node.`);
-      if (node.fontName === figma.mixed)
-        fail("INVALID_ARGUMENT", `Text node ${node.id} uses mixed fonts.`);
-      await figma.loadFontAsync(node.fontName);
-      node.characters = props.text;
+    if (hasTextMutation(props)) {
+      if (props.fontName !== undefined) node.fontName = props.fontName;
+      if (props.text !== undefined) node.characters = props.text;
+      for (const key of typographyKeys) {
+        if (key !== "fontName" && props[key] !== undefined)
+          node[key] = props[key];
+      }
     }
     if (props.fills !== undefined && "fills" in node) node.fills = props.fills;
     if (props.strokes !== undefined && "strokes" in node)
@@ -132,13 +178,7 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
       !("resize" in node)
     )
       fail("INVALID_ARGUMENT", `Node ${node.id} cannot be resized.`);
-    if (props.text !== undefined) {
-      if (node.type !== "TEXT")
-        fail("INVALID_ARGUMENT", `Node ${node.id} is not a text node.`);
-      if (node.fontName === figma.mixed)
-        fail("INVALID_ARGUMENT", `Text node ${node.id} uses mixed fonts.`);
-      await figma.loadFontAsync(node.fontName);
-    }
+    await loadFontsForTextMutation(node, props);
     if (props.fills !== undefined && !("fills" in node))
       fail("INVALID_ARGUMENT", `Node ${node.id} does not support fills.`);
     if (props.strokes !== undefined && !("strokes" in node))

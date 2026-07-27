@@ -990,6 +990,77 @@
             "text": {
               "type": "string"
             },
+            "fontName": {
+              "type": "object",
+              "properties": {
+                "family": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "style": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": ["family", "style"],
+              "additionalProperties": false
+            },
+            "fontSize": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "lineHeight": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "unit": {
+                      "type": "string",
+                      "const": "AUTO"
+                    }
+                  },
+                  "required": ["unit"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "unit": {
+                      "type": "string",
+                      "enum": ["PIXELS", "PERCENT"]
+                    },
+                    "value": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": ["unit", "value"],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "letterSpacing": {
+              "type": "object",
+              "properties": {
+                "unit": {
+                  "type": "string",
+                  "enum": ["PIXELS", "PERCENT"]
+                },
+                "value": {
+                  "type": "number"
+                }
+              },
+              "required": ["unit", "value"],
+              "additionalProperties": false
+            },
+            "textAlignHorizontal": {
+              "type": "string",
+              "enum": ["LEFT", "CENTER", "RIGHT", "JUSTIFIED"]
+            },
+            "textAlignVertical": {
+              "type": "string",
+              "enum": ["TOP", "CENTER", "BOTTOM"]
+            },
             "fills": {
               "type": "array",
               "items": {
@@ -1050,6 +1121,77 @@
             },
             "text": {
               "type": "string"
+            },
+            "fontName": {
+              "type": "object",
+              "properties": {
+                "family": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "style": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": ["family", "style"],
+              "additionalProperties": false
+            },
+            "fontSize": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "lineHeight": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "unit": {
+                      "type": "string",
+                      "const": "AUTO"
+                    }
+                  },
+                  "required": ["unit"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "unit": {
+                      "type": "string",
+                      "enum": ["PIXELS", "PERCENT"]
+                    },
+                    "value": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": ["unit", "value"],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "letterSpacing": {
+              "type": "object",
+              "properties": {
+                "unit": {
+                  "type": "string",
+                  "enum": ["PIXELS", "PERCENT"]
+                },
+                "value": {
+                  "type": "number"
+                }
+              },
+              "required": ["unit", "value"],
+              "additionalProperties": false
+            },
+            "textAlignHorizontal": {
+              "type": "string",
+              "enum": ["LEFT", "CENTER", "RIGHT", "JUSTIFIED"]
+            },
+            "textAlignVertical": {
+              "type": "string",
+              "enum": ["TOP", "CENTER", "BOTTOM"]
             },
             "fills": {
               "type": "array",

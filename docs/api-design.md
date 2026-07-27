@@ -153,6 +153,12 @@ The full action registry is in `api-surface.json`. The following schemas define 
   "patch": {
     "name": "Card",
     "text": "Updated label",
+    "fontName": { "family": "Inter", "style": "Semi Bold" },
+    "fontSize": 18,
+    "lineHeight": { "unit": "PIXELS", "value": 24 },
+    "letterSpacing": { "unit": "PERCENT", "value": 0 },
+    "textAlignHorizontal": "LEFT",
+    "textAlignVertical": "CENTER",
     "fills": [{ "type": "SOLID", "color": "#FFFFFF" }],
     "strokes": [{ "type": "SOLID", "color": "#D9D9D9" }]
   },
@@ -164,6 +170,7 @@ The full action registry is in `api-surface.json`. The following schemas define 
 - `get`: requires `nodeIds`.
 - `create`: requires `parentId` and `nodeType`.
 - `update`: requires `nodeIds` and a non-empty typed `patch`.
+  Text nodes accept `fontName`, `fontSize`, `lineHeight`, `letterSpacing`, and horizontal/vertical alignment. Figma font weight and style are selected through `fontName.style`; the Plugin loads the target font before mutation and deduplicates mixed-font loads.
 - `move`: requires `nodeIds`; accepts `parentId`, `index`, or coordinates.
 - `resize`: requires `nodeIds` and positive dimensions.
 - `clone`: requires `nodeIds`; accepts destination and offset.

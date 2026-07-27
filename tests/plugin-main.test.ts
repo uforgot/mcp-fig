@@ -16,6 +16,7 @@ function createHarness() {
   const messages: Record<string, unknown>[] = [];
   const handlers: Record<string, (...args: unknown[]) => unknown> = {};
   const clientStorage = new Map<string, unknown>();
+  const loadedFonts: unknown[] = [];
   let allPagesLoaded = false;
 
   const root: MockNode = {
@@ -72,6 +73,35 @@ function createHarness() {
     layoutAlign: "INHERIT",
     constraints: { horizontal: "LEFT", vertical: "TOP" },
   };
+  const text: MockNode = {
+    id: "2:2",
+    type: "TEXT",
+    name: "Label",
+    parent: frame,
+    width: 160,
+    height: 24,
+    x: 0,
+    y: 56,
+    visible: true,
+    locked: false,
+    characters: "Before",
+    fontName: { family: "Inter", style: "Regular" },
+    fontSize: 12,
+    lineHeight: { unit: "AUTO" },
+    letterSpacing: { unit: "PERCENT", value: 0 },
+    textAlignHorizontal: "LEFT",
+    textAlignVertical: "TOP",
+    fills: [],
+    strokes: [],
+    layoutSizingHorizontal: "FIXED",
+    layoutSizingVertical: "FIXED",
+    layoutPositioning: "AUTO",
+    layoutAlign: "INHERIT",
+    constraints: { horizontal: "LEFT", vertical: "TOP" },
+    getRangeAllFontNames() {
+      return [this.fontName];
+    },
+  };
   const component: MockNode = {
     id: "3:0",
     type: "COMPONENT",
@@ -111,10 +141,10 @@ function createHarness() {
 
   root.children = [page];
   page.children = [frame, component, instance];
-  frame.children = [child];
+  frame.children = [child, text];
 
   const nodes = new Map(
-    [root, page, frame, child, component, instance].map((node) => [
+    [root, page, frame, child, text, component, instance].map((node) => [
       node.id,
       node,
     ]),
@@ -127,6 +157,9 @@ function createHarness() {
     root,
     currentPage: page,
     mixed: Symbol("mixed"),
+    async loadFontAsync(font: unknown) {
+      loadedFonts.push(font);
+    },
     ui: {
       onmessage: undefined as
         | ((message: Record<string, unknown>) => Promise<void>)
@@ -211,9 +244,11 @@ function createHarness() {
     command,
     frame,
     child,
+    text,
     handlers,
     messages,
     clientStorage,
+    loadedFonts,
     figma,
   };
 }
@@ -322,6 +357,81 @@ describe("Figma Plugin main bridge", () => {
 
     expect(handlers.selectionchange).toBeTypeOf("function");
     expect(handlers.documentchange).toBeTypeOf("function");
+  });
+
+  it("updates and serializes typed typography properties", async () => {
+    const { command, text } = createHarness();
+
+    const result = await command("node.update", {
+      nodeIds: ["2:2"],
+      patch: {
+        fontName: { family: "Inter", style: "Bold" },
+        fontSize: 18,
+        lineHeight: { unit: "PIXELS", value: 24 },
+        letterSpacing: { unit: "PERCENT", value: 2 },
+        textAlignHorizontal: "CENTER",
+        textAlignVertical: "CENTER",
+      },
+    });
+
+    expect(text).toMatchObject({
+      fontName: { family: "Inter", style: "Bold" },
+      fontSize: 18,
+      lineHeight: { unit: "PIXELS", value: 24 },
+      letterSpacing: { unit: "PERCENT", value: 2 },
+      textAlignHorizontal: "CENTER",
+      textAlignVertical: "CENTER",
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      data: [
+        {
+          id: "2:2",
+          fontName: { family: "Inter", style: "Bold" },
+          fontSize: 18,
+          lineHeight: { unit: "PIXELS", value: 24 },
+          letterSpacing: { unit: "PERCENT", value: 2 },
+          textAlignHorizontal: "CENTER",
+          textAlignVertical: "CENTER",
+        },
+      ],
+    });
+  });
+
+  it("rejects typography properties on non-text nodes", async () => {
+    const { command } = createHarness();
+
+    await expect(
+      command("node.update", {
+        nodeIds: ["2:1"],
+        patch: { fontSize: 18 },
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ARGUMENT" },
+    });
+  });
+
+  it("loads each mixed font once before applying uniform typography", async () => {
+    const { command, figma, loadedFonts, text } = createHarness();
+    text.fontName = figma.mixed;
+    text.getRangeAllFontNames = () => [
+      { family: "Inter", style: "Regular" },
+      { family: "Roboto", style: "Bold" },
+      { family: "Inter", style: "Regular" },
+    ];
+
+    await expect(
+      command("node.update", {
+        nodeIds: ["2:2"],
+        patch: { fontSize: 16 },
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(text.fontSize).toBe(16);
+    expect(loadedFonts).toEqual([
+      { family: "Inter", style: "Regular" },
+      { family: "Roboto", style: "Bold" },
+    ]);
   });
 
   it("does not count the Plugin's own documentchange event twice", async () => {

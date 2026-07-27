@@ -12,6 +12,27 @@ const fileKey = z.string().min(1).optional();
 const dryRun = z.boolean().default(false);
 const nodeIds = z.array(z.string().min(1)).min(1).max(200);
 const paints = z.array(z.record(z.string(), z.unknown()));
+const fontName = z
+  .object({
+    family: z.string().min(1),
+    style: z.string().min(1),
+  })
+  .strict();
+const lineHeight = z.discriminatedUnion("unit", [
+  z.object({ unit: z.literal("AUTO") }).strict(),
+  z
+    .object({
+      unit: z.enum(["PIXELS", "PERCENT"]),
+      value: z.number().positive(),
+    })
+    .strict(),
+]);
+const letterSpacing = z
+  .object({
+    unit: z.enum(["PIXELS", "PERCENT"]),
+    value: z.number().finite(),
+  })
+  .strict();
 const nodeProps = z
   .object({
     x: z.number().finite().optional(),
@@ -21,6 +42,14 @@ const nodeProps = z
     visible: z.boolean().optional(),
     locked: z.boolean().optional(),
     text: z.string().optional(),
+    fontName: fontName.optional(),
+    fontSize: z.number().positive().optional(),
+    lineHeight: lineHeight.optional(),
+    letterSpacing: letterSpacing.optional(),
+    textAlignHorizontal: z
+      .enum(["LEFT", "CENTER", "RIGHT", "JUSTIFIED"])
+      .optional(),
+    textAlignVertical: z.enum(["TOP", "CENTER", "BOTTOM"]).optional(),
     fills: paints.optional(),
     strokes: paints.optional(),
   })

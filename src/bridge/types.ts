@@ -31,6 +31,12 @@ export interface FigmaNode {
   visible?: boolean | undefined;
   locked?: boolean | undefined;
   text?: string | undefined;
+  fontName?: FontName | undefined;
+  fontSize?: number | undefined;
+  lineHeight?: LineHeight | undefined;
+  letterSpacing?: LetterSpacing | undefined;
+  textAlignHorizontal?: TextAlignHorizontal | undefined;
+  textAlignVertical?: TextAlignVertical | undefined;
   fills?: Record<string, unknown>[] | undefined;
   strokes?: Record<string, unknown>[] | undefined;
   children?: FigmaNode[] | undefined;
@@ -67,6 +73,23 @@ export interface FigmaNode {
   revision?: string | undefined;
   freshnessWarning?: string | undefined;
 }
+
+export interface FontName {
+  family: string;
+  style: string;
+}
+
+export type LineHeight =
+  | { unit: "AUTO" }
+  | { unit: "PIXELS" | "PERCENT"; value: number };
+
+export interface LetterSpacing {
+  unit: "PIXELS" | "PERCENT";
+  value: number;
+}
+
+export type TextAlignHorizontal = "LEFT" | "CENTER" | "RIGHT" | "JUSTIFIED";
+export type TextAlignVertical = "TOP" | "CENTER" | "BOTTOM";
 
 export type LayoutMode = "NONE" | "HORIZONTAL" | "VERTICAL";
 export type LayoutWrap = "NO_WRAP" | "WRAP";
@@ -221,6 +244,12 @@ export interface NodeProps {
   visible?: boolean | undefined;
   locked?: boolean | undefined;
   text?: string | undefined;
+  fontName?: FontName | undefined;
+  fontSize?: number | undefined;
+  lineHeight?: LineHeight | undefined;
+  letterSpacing?: LetterSpacing | undefined;
+  textAlignHorizontal?: TextAlignHorizontal | undefined;
+  textAlignVertical?: TextAlignVertical | undefined;
   fills?: Record<string, unknown>[] | undefined;
   strokes?: Record<string, unknown>[] | undefined;
 }
