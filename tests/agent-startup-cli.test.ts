@@ -45,7 +45,7 @@ describe("agent startup CLI", () => {
     const paths = servicePaths({ home: root });
     await ensureServiceDirectories(paths);
     const credential = await readOrCreateCredential(paths);
-    const socketPath = join(tmpdir(), `mfa-${root.slice(-8)}.sock`);
+    const socketPath = join(root, "service.sock");
     const daemon = new BrokerDaemon({
       token: credential.pluginToken,
       port: 0,
@@ -144,7 +144,7 @@ describe("agent startup CLI", () => {
     const paths = servicePaths({ home: root });
     await ensureServiceDirectories(paths);
     const before = await readOrCreateCredential(paths);
-    const socketPath = join(tmpdir(), `mfa-${root.slice(-8)}.sock`);
+    const socketPath = join(root, "service.sock");
     const daemon = new BrokerDaemon({
       token: before.pluginToken,
       port: 0,
