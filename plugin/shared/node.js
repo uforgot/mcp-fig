@@ -110,6 +110,8 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
     if (paint.visible === false) output.visible = false;
     if (paint.blendMode && paint.blendMode !== "NORMAL")
       output.blendMode = paint.blendMode;
+    if (paint.boundVariables && Object.keys(paint.boundVariables).length > 0)
+      output.boundVariables = normalizeVisual(paint.boundVariables);
     return output;
   }
 

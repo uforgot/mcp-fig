@@ -3,8 +3,10 @@ import type {
   ComponentActionInput,
   ComponentRecord,
   FigmaNode,
+  FigmaStyleRecord,
   FigmaVariable,
   InstanceActionInput,
+  StyleActionInput,
   TokenActionInput,
   VariableCollection,
   VariableValue,
@@ -537,6 +539,18 @@ export class InMemoryDesignSystem {
         variables: clone(file.variables),
       };
     }
+    if (input.action === "library_import") {
+      throw new McpFigError(
+        "LIBRARY_IMPORT_FAILED",
+        "The deterministic fixture has no published variable library.",
+        {
+          details: {
+            reason: "FIXTURE_LIBRARY_UNAVAILABLE",
+            variableKey: input.variableKey,
+          },
+        },
+      );
+    }
     if (input.action === "collection_create") {
       const collectionId = newDomainId(
         file.variableCollections.map((collection) => collection.id),
@@ -558,6 +572,50 @@ export class InMemoryDesignSystem {
       this.store.record(file, "tokens.collection_create", [], input.dryRun);
       return { collection: clone(collection) };
     }
+    if (input.action === "collection_update") {
+      const collection = this.#requireCollection(file, input.collectionId);
+      collection.name = input.name;
+      this.store.record(file, "tokens.collection_update", [], input.dryRun);
+      return { collection: clone(collection) };
+    }
+    if (input.action === "variable_create") {
+      const collection = this.#requireCollection(file, input.collectionId);
+      const variable: FigmaVariable = {
+        id: newDomainId(
+          file.variables.map((candidate) => candidate.id),
+          "variable:mcp:",
+        ),
+        name: input.name,
+        ...(input.description !== undefined
+          ? { description: input.description }
+          : {}),
+        resolvedType: input.resolvedType,
+        collectionId: collection.id,
+        valuesByMode: {},
+      };
+      file.variables.push(variable);
+      this.store.record(file, "tokens.variable_create", [], input.dryRun);
+      return { variable: clone(variable) };
+    }
+    if (input.action === "variable_update") {
+      const variable = this.#requireVariable(file, input.variableId);
+      if (input.name !== undefined) variable.name = input.name;
+      if (input.description !== undefined)
+        variable.description = input.description;
+      this.store.record(file, "tokens.variable_update", [], input.dryRun);
+      return { variable: clone(variable) };
+    }
+    if (input.action === "variable_delete") {
+      const index = file.variables.findIndex(
+        (variable) => variable.id === input.variableId,
+      );
+      if (index < 0) {
+        throw new McpFigError("INVALID_ARGUMENT", "Variable was not found.");
+      }
+      file.variables.splice(index, 1);
+      this.store.record(file, "tokens.variable_delete", [], input.dryRun);
+      return { deletedVariableId: input.variableId };
+    }
     if (input.action === "collection_delete") {
       const index = file.variableCollections.findIndex(
         (collection) => collection.id === input.collectionId,
@@ -576,26 +634,34 @@ export class InMemoryDesignSystem {
       return { deletedCollectionId: input.collectionId };
     }
 
+    const planned = clone(file);
     const boundNodeIds: string[] = [];
     for (const operation of input.operations) {
       if (operation.op === "bind") {
-        const variable = this.#requireVariable(file, operation.variableId);
+        const variable = this.#requireVariable(planned, operation.variableId);
         this.#validateBinding(operation.field, variable);
         for (const nodeId of operation.nodeIds) {
-          const node = this.store.requireNode(file, nodeId);
+          const node = this.store.requireNode(planned, nodeId);
           node.boundVariables ??= {};
           node.boundVariables[operation.field] = operation.variableId;
           boundNodeIds.push(nodeId);
         }
+      } else if (operation.op === "unbind") {
+        this.#bindingType(operation.field);
+        for (const nodeId of operation.nodeIds) {
+          const node = this.store.requireNode(planned, nodeId);
+          if (node.boundVariables) delete node.boundVariables[operation.field];
+          boundNodeIds.push(nodeId);
+        }
       } else if (operation.op === "mode_add") {
         const collection = this.#requireCollection(
-          file,
+          planned,
           operation.collectionId,
         );
         const modeId =
           operation.modeId ??
           newDomainId(
-            file.variableCollections.flatMap((candidate) =>
+            planned.variableCollections.flatMap((candidate) =>
               candidate.modes.map((mode) => mode.id),
             ),
             "mode:mcp:",
@@ -607,9 +673,12 @@ export class InMemoryDesignSystem {
           );
         }
         collection.modes.push({ id: modeId, name: operation.name });
-      } else if (operation.op === "mode_rename") {
+      } else if (
+        operation.op === "mode_rename" ||
+        operation.op === "mode_remove"
+      ) {
         const collection = this.#requireCollection(
-          file,
+          planned,
           operation.collectionId,
         );
         const mode = collection.modes.find(
@@ -621,21 +690,47 @@ export class InMemoryDesignSystem {
             "Variable mode was not found.",
           );
         }
-        mode.name = operation.name;
+        if (operation.op === "mode_rename") mode.name = operation.name;
+        else {
+          if (
+            collection.modes.length === 1 ||
+            collection.defaultModeId === operation.modeId
+          ) {
+            throw new McpFigError(
+              "INVALID_ARGUMENT",
+              "The only or default variable mode cannot be removed.",
+            );
+          }
+          collection.modes = collection.modes.filter(
+            (candidate) => candidate.id !== operation.modeId,
+          );
+          for (const variable of planned.variables) {
+            if (variable.collectionId === collection.id)
+              delete variable.valuesByMode[operation.modeId];
+          }
+        }
       } else {
-        const variable = this.#requireVariable(file, operation.variableId);
-        const collection = this.#requireCollection(file, variable.collectionId);
+        const variable = this.#requireVariable(planned, operation.variableId);
+        const collection = this.#requireCollection(
+          planned,
+          variable.collectionId,
+        );
         if (!collection.modes.some((mode) => mode.id === operation.modeId)) {
           throw new McpFigError(
             "INVALID_ARGUMENT",
             "Variable mode was not found.",
           );
         }
-        if (operation.op === "alias") {
-          const target = this.#requireVariable(
-            file,
-            operation.targetVariableId,
-          );
+        const targetId =
+          operation.op === "alias"
+            ? operation.targetVariableId
+            : typeof operation.value === "object" &&
+                "type" in operation.value &&
+                operation.value.type === "VARIABLE_ALIAS"
+              ? operation.value.id
+              : undefined;
+        if (targetId) {
+          const target = this.#requireVariable(planned, targetId);
           if (
             target.id === variable.id ||
             target.resolvedType !== variable.resolvedType
@@ -645,16 +740,25 @@ export class InMemoryDesignSystem {
               "Variable alias target is incompatible.",
             );
           }
-          this.#validateAlias(file, variable.id, target.id, operation.modeId);
+          this.#validateAlias(
+            planned,
+            variable.id,
+            target.id,
+            operation.modeId,
+          );
           variable.valuesByMode[operation.modeId] = {
             type: "VARIABLE_ALIAS",
             id: target.id,
           };
-        } else {
+        } else if (operation.op === "set_value") {
+          this.#validateVariableValue(variable, operation.value);
           variable.valuesByMode[operation.modeId] = clone(operation.value);
         }
       }
     }
+    file.document = planned.document;
+    file.variableCollections = planned.variableCollections;
+    file.variables = planned.variables;
     this.store.record(file, "tokens.apply", boundNodeIds, input.dryRun);
     return {
       operationsApplied: input.operations.length,
@@ -662,6 +766,78 @@ export class InMemoryDesignSystem {
       collections: clone(file.variableCollections),
       variables: clone(file.variables),
     };
+  }
+
+  async styles(input: StyleActionInput): Promise<Record<string, unknown>> {
+    const file =
+      input.action === "inspect"
+        ? this.store.requireFile(input.fileKey)
+        : this.store.workingFile(input.fileKey, input.dryRun);
+    if (input.action === "inspect") {
+      const selectedIds = input.styleIds ? new Set(input.styleIds) : undefined;
+      return {
+        styles: clone(
+          file.styles.filter(
+            (style) =>
+              (!input.kind || style.kind === input.kind) &&
+              (!selectedIds || selectedIds.has(style.id)),
+          ),
+        ),
+      };
+    }
+    if (input.action === "library_import") {
+      throw new McpFigError(
+        "LIBRARY_IMPORT_FAILED",
+        "The deterministic fixture has no published style library.",
+        {
+          details: {
+            reason: "FIXTURE_LIBRARY_UNAVAILABLE",
+            styleKey: input.styleKey,
+          },
+        },
+      );
+    }
+    if (input.action === "create") {
+      const style = {
+        ...clone(input.style),
+        source: "local" as const,
+        id: newDomainId(
+          file.styles.map((candidate) => candidate.id),
+          "style:mcp:",
+        ),
+      } as FigmaStyleRecord;
+      file.styles.push(style);
+      this.store.record(file, "styles.create", [style.id], input.dryRun);
+      return { style: clone(style) };
+    }
+    const index = file.styles.findIndex((style) => style.id === input.styleId);
+    if (index < 0)
+      throw new McpFigError("NODE_NOT_FOUND", "Style was not found.");
+    const current = file.styles[index];
+    if (current?.source !== "local")
+      throw new McpFigError(
+        "INVALID_ARGUMENT",
+        "Published library styles are read-only.",
+      );
+    if (input.action === "delete") {
+      file.styles.splice(index, 1);
+      this.store.record(file, "styles.delete", [input.styleId], input.dryRun);
+      return { deletedStyleId: input.styleId };
+    }
+    if (current.kind !== input.style.kind)
+      throw new McpFigError(
+        "INVALID_ARGUMENT",
+        "A local style kind cannot be changed.",
+      );
+    const updated = {
+      ...clone(input.style),
+      source: current.source,
+      id: current.id,
+      ...(current.key ? { key: current.key } : {}),
+    } as FigmaStyleRecord;
+    file.styles[index] = updated;
+    this.store.record(file, "styles.update", [updated.id], input.dryRun);
+    return { style: clone(updated) };
   }
 
   #componentRecord(node: FigmaNode): ComponentRecord {
@@ -752,7 +928,27 @@ export class InMemoryDesignSystem {
     }
   }
 
-  #validateBinding(field: string, variable: FigmaVariable): void {
+  #validateVariableValue(variable: FigmaVariable, value: VariableValue): void {
+    const valid =
+      (variable.resolvedType === "BOOLEAN" && typeof value === "boolean") ||
+      (variable.resolvedType === "FLOAT" && typeof value === "number") ||
+      (variable.resolvedType === "STRING" && typeof value === "string") ||
+      (variable.resolvedType === "COLOR" &&
+        typeof value === "object" &&
+        !("type" in value) &&
+        [value.r, value.g, value.b, value.a].every(
+          (channel) =>
+            typeof channel === "number" && channel >= 0 && channel <= 1,
+        ));
+    if (!valid) {
+      throw new McpFigError(
+        "INVALID_ARGUMENT",
+        `Variable ${variable.id} requires a ${variable.resolvedType} value.`,
+      );
+    }
+  }
+
+  #bindingType(field: string): FigmaVariable["resolvedType"] {
     const expectedType: Partial<Record<string, FigmaVariable["resolvedType"]>> =
       {
         fills: "COLOR",
@@ -760,11 +956,23 @@ export class InMemoryDesignSystem {
         opacity: "FLOAT",
         width: "FLOAT",
         height: "FLOAT",
+        itemSpacing: "FLOAT",
         visible: "BOOLEAN",
-        text: "STRING",
+        characters: "STRING",
       };
     const expected = expectedType[field];
-    if (expected && variable.resolvedType !== expected) {
+    if (!expected) {
+      throw new McpFigError(
+        "INVALID_ARGUMENT",
+        `Binding field ${field} is not supported.`,
+      );
+    }
+    return expected;
+  }
+
+  #validateBinding(field: string, variable: FigmaVariable): void {
+    const expected = this.#bindingType(field);
+    if (variable.resolvedType !== expected) {
       throw new McpFigError(
         "INVALID_ARGUMENT",
         `Field ${field} requires a ${expected} variable.`,
@@ -793,7 +1001,9 @@ export class InMemoryDesignSystem {
         currentId,
       ).valuesByMode[modeId];
       currentId =
-        typeof value === "object" && value.type === "VARIABLE_ALIAS"
+        typeof value === "object" &&
+        "type" in value &&
+        value.type === "VARIABLE_ALIAS"
           ? value.id
           : undefined;
     }

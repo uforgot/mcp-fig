@@ -20,6 +20,7 @@ import type {
   NodeQueryResult,
   QueryNodesInput,
   ResizeNodesInput,
+  StyleActionInput,
   TextRangeActionInput,
   TokenActionInput,
   UpdateNodesInput,
@@ -253,6 +254,10 @@ export class HybridFigmaBridge implements FigmaBridge {
 
   tokens(input: TokenActionInput): Promise<Record<string, unknown>> {
     return this.#plugin.tokens(input);
+  }
+
+  styles(input: StyleActionInput): Promise<Record<string, unknown>> {
+    return this.#plugin.styles(input);
   }
 
   async #read<Result>(

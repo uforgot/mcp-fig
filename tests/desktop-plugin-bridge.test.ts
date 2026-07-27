@@ -52,6 +52,7 @@ function startFakePlugin(
       "component.write",
       "instance.write",
       "tokens.write",
+      "styles.write",
     ],
     sentAt: new Date().toISOString(),
   };
@@ -160,6 +161,12 @@ describe("Desktop Plugin bridge", () => {
     expect(isReadOnlyRequest("component", { action: "library_import" })).toBe(
       false,
     );
+  });
+
+  it("classifies style inventory as read-only and writes as mutations", () => {
+    expect(isReadOnlyRequest("styles", { action: "inspect" })).toBe(true);
+    for (const action of ["create", "update", "delete", "library_import"])
+      expect(isReadOnlyRequest("styles", { action })).toBe(false);
   });
 
   it("exchanges one-time pairing codes only for localhost/null origins", async () => {

@@ -11,6 +11,7 @@ export const PLUGIN_CAPABILITIES = [
   "component.write",
   "instance.write",
   "tokens.write",
+  "styles.write",
 ] as const;
 
 export type PluginCapability = (typeof PLUGIN_CAPABILITIES)[number];

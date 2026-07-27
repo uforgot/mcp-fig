@@ -22,6 +22,7 @@ import type {
   NodeQueryResult,
   QueryNodesInput,
   ResizeNodesInput,
+  StyleActionInput,
   TokenActionInput,
   UpdateNodesInput,
 } from "./types.js";
@@ -100,6 +101,9 @@ export class InMemoryFigmaBridge implements FigmaBridge {
   }
   tokens(input: TokenActionInput): Promise<Record<string, unknown>> {
     return this.#designSystem.tokens(input);
+  }
+  styles(input: StyleActionInput): Promise<Record<string, unknown>> {
+    return this.#designSystem.styles(input);
   }
   countNodes(fileKey?: string): number {
     return this.#core.countNodes(fileKey);

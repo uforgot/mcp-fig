@@ -84,6 +84,7 @@ function requiredCapability(method: string): PluginCapability {
   if (method === "component") return "component.write";
   if (method === "instance") return "instance.write";
   if (method === "tokens") return "tokens.write";
+  if (method === "styles") return "styles.write";
   throw new McpFigError(
     "UNSUPPORTED_BY_BRIDGE",
     `Unknown Desktop Plugin method ${method}.`,

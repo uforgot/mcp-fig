@@ -4,6 +4,7 @@ import type {
   ComponentRecord,
   FigmaFileFixture,
   FigmaNode,
+  FigmaStyleRecord,
   FigmaVariable,
   VariableCollection,
 } from "../types.js";
@@ -13,6 +14,7 @@ export interface StoredFile extends FigmaFileFixture {
   libraryComponents: ComponentRecord[];
   variableCollections: VariableCollection[];
   variables: FigmaVariable[];
+  styles: FigmaStyleRecord[];
   revisionNumber: number;
   changes: ChangeRecord[];
 }
@@ -64,6 +66,7 @@ export class InMemoryStore {
         libraryComponents: clone(fixture.libraryComponents ?? []),
         variableCollections: clone(fixture.variableCollections ?? []),
         variables: clone(fixture.variables ?? []),
+        styles: clone(fixture.styles ?? []),
         revisionNumber: 1,
         changes: [],
       });

@@ -42,6 +42,7 @@ describe("MCP server", () => {
       "figma_component",
       "figma_instance",
       "figma_tokens",
+      "figma_styles",
     ]);
     expect(result.tools[0]?.inputSchema).toMatchObject({ type: "object" });
   });
@@ -109,6 +110,7 @@ describe("MCP server", () => {
         "figma_component",
         "figma_instance",
         "figma_tokens",
+        "figma_styles",
       ],
       dryRun: true,
       rawExecuteDryRun: false,

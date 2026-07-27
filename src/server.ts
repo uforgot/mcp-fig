@@ -11,6 +11,7 @@ import { registerInstanceTool } from "./tools/instance.js";
 import { registerLayoutTool } from "./tools/layout.js";
 import { registerNodeTool } from "./tools/node.js";
 import { registerSelectionTool } from "./tools/selection.js";
+import { registerStylesTool } from "./tools/styles.js";
 import { registerTokensTool } from "./tools/tokens.js";
 
 export interface ServerOptions {
@@ -37,5 +38,6 @@ export function createMcpServer(
   registerComponentTool(server, bridge, config.profiles, confirmations);
   registerInstanceTool(server, bridge);
   registerTokensTool(server, bridge, confirmations);
+  registerStylesTool(server, bridge, config.profiles, confirmations);
   return server;
 }

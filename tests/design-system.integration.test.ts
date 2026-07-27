@@ -318,6 +318,355 @@ describe("Component, instance, and token facade", () => {
     expect(reset.payload.data.instances[0].instanceProperties).toEqual({});
   });
 
+  it("manages collection and variable CRUD with modes, aliases, and bindings", async () => {
+    const { client, bridge } = await createConnectedClient();
+    const createdCollection = await call(client, "figma_tokens", {
+      action: "collection_create",
+      name: "Theme",
+      initialModeName: "Light",
+    });
+    const collectionId = createdCollection.payload.data.collection.id as string;
+    const lightModeId = createdCollection.payload.data.collection
+      .defaultModeId as string;
+    await call(client, "figma_tokens", {
+      action: "collection_update",
+      collectionId,
+      name: "Theme tokens",
+    });
+    const brand = await call(client, "figma_tokens", {
+      action: "variable_create",
+      collectionId,
+      name: "color/brand",
+      resolvedType: "COLOR",
+      description: "Brand color",
+    });
+    const brandId = brand.payload.data.variable.id as string;
+    const accent = await call(client, "figma_tokens", {
+      action: "variable_create",
+      collectionId,
+      name: "color/accent",
+      resolvedType: "COLOR",
+    });
+    const accentId = accent.payload.data.variable.id as string;
+    const dark = await call(client, "figma_tokens", {
+      action: "apply",
+      operations: [{ op: "mode_add", collectionId, name: "Dark" }],
+    });
+    const darkModeId = dark.payload.data.collections
+      .find((item: { id: string }) => item.id === collectionId)
+      .modes.find((mode: { name: string }) => mode.name === "Dark")
+      .id as string;
+    const light = { r: 0.1, g: 0.2, b: 0.3, a: 1 };
+    const darkValue = { r: 0.8, g: 0.7, b: 0.6, a: 1 };
+    await call(client, "figma_tokens", {
+      action: "apply",
+      operations: [
+        {
+          op: "set_value",
+          variableId: brandId,
+          modeId: lightModeId,
+          value: light,
+        },
+        {
+          op: "set_value",
+          variableId: brandId,
+          modeId: darkModeId,
+          value: darkValue,
+        },
+        {
+          op: "alias",
+          variableId: accentId,
+          modeId: lightModeId,
+          targetVariableId: brandId,
+        },
+        {
+          op: "alias",
+          variableId: accentId,
+          modeId: darkModeId,
+          targetVariableId: brandId,
+        },
+        { op: "bind", nodeIds: ["2:1"], field: "fills", variableId: accentId },
+      ],
+    });
+    await call(client, "figma_tokens", {
+      action: "variable_update",
+      variableId: accentId,
+      name: "color/on-brand",
+      description: "Alias token",
+    });
+    await call(client, "figma_tokens", {
+      action: "apply",
+      operations: [
+        { op: "mode_rename", collectionId, modeId: darkModeId, name: "Dim" },
+        { op: "unbind", nodeIds: ["2:1"], field: "fills" },
+      ],
+    });
+    const inspected = await call(client, "figma_tokens", { action: "inspect" });
+    expect(inspected.payload.data.collections).toContainEqual(
+      expect.objectContaining({
+        id: collectionId,
+        name: "Theme tokens",
+        modes: expect.arrayContaining([
+          { id: lightModeId, name: "Light" },
+          { id: darkModeId, name: "Dim" },
+        ]),
+      }),
+    );
+    expect(inspected.payload.data.variables).toContainEqual(
+      expect.objectContaining({
+        id: brandId,
+        description: "Brand color",
+        valuesByMode: {
+          [lightModeId]: light,
+          [darkModeId]: darkValue,
+        },
+      }),
+    );
+    expect(inspected.payload.data.variables).toContainEqual(
+      expect.objectContaining({
+        id: accentId,
+        name: "color/on-brand",
+        valuesByMode: {
+          [lightModeId]: { type: "VARIABLE_ALIAS", id: brandId },
+          [darkModeId]: { type: "VARIABLE_ALIAS", id: brandId },
+        },
+      }),
+    );
+    expect(
+      (await bridge.getNodes(["2:1"]))[0]?.boundVariables?.fills,
+    ).toBeUndefined();
+    await call(client, "figma_tokens", {
+      action: "apply",
+      operations: [{ op: "mode_remove", collectionId, modeId: darkModeId }],
+    });
+    const deletePreview = await call(client, "figma_tokens", {
+      action: "variable_delete",
+      variableId: accentId,
+      dryRun: true,
+    });
+    await call(client, "figma_tokens", {
+      action: "variable_delete",
+      variableId: accentId,
+      confirm: deletePreview.payload.data.confirmationToken,
+    });
+    const final = await call(client, "figma_tokens", { action: "inspect" });
+    expect(
+      final.payload.data.collections.find(
+        (item: { id: string }) => item.id === collectionId,
+      ).modes,
+    ).toEqual([{ id: lightModeId, name: "Light" }]);
+    expect(
+      final.payload.data.variables.some(
+        (item: { id: string }) => item.id === accentId,
+      ),
+    ).toBe(false);
+  });
+
+  it("prevalidates invalid variable alias cycles and type mismatches", async () => {
+    const { client } = await createConnectedClient();
+    const floatVariable = await call(client, "figma_tokens", {
+      action: "variable_create",
+      collectionId: "collection:color",
+      name: "spacing/base",
+      resolvedType: "FLOAT",
+    });
+    const floatId = floatVariable.payload.data.variable.id as string;
+    const mismatch = await call(client, "figma_tokens", {
+      action: "apply",
+      operations: [
+        {
+          op: "set_value",
+          variableId: "variable:brand",
+          modeId: "mode:light",
+          value: { r: 0.2, g: 0.3, b: 0.4, a: 1 },
+        },
+        {
+          op: "alias",
+          variableId: "variable:accent",
+          modeId: "mode:light",
+          targetVariableId: floatId,
+        },
+      ],
+    });
+    expect(mismatch.result.isError).toBe(true);
+    expect(mismatch.payload.error.code).toBe("INVALID_ARGUMENT");
+    const afterMismatch = await call(client, "figma_tokens", {
+      action: "inspect",
+    });
+    expect(
+      afterMismatch.payload.data.variables.find(
+        (item: { id: string }) => item.id === "variable:brand",
+      ).valuesByMode["mode:light"],
+    ).toBe("#0057FF");
+    const invalidBinding = await call(client, "figma_tokens", {
+      action: "apply",
+      operations: [
+        {
+          op: "set_value",
+          variableId: "variable:brand",
+          modeId: "mode:light",
+          value: { r: 0.2, g: 0.3, b: 0.4, a: 1 },
+        },
+        {
+          op: "bind",
+          nodeIds: ["2:1"],
+          field: "unsupportedField",
+          variableId: "variable:brand",
+        },
+      ],
+    });
+    expect(invalidBinding.result.isError).toBe(true);
+    expect(invalidBinding.payload.error.code).toBe("INVALID_ARGUMENT");
+    const invalidUnbind = await call(client, "figma_tokens", {
+      action: "apply",
+      operations: [
+        {
+          op: "set_value",
+          variableId: "variable:brand",
+          modeId: "mode:light",
+          value: { r: 0.2, g: 0.3, b: 0.4, a: 1 },
+        },
+        {
+          op: "unbind",
+          nodeIds: ["2:1"],
+          field: "unsupportedField",
+        },
+      ],
+    });
+    expect(invalidUnbind.result.isError).toBe(true);
+    expect(invalidUnbind.payload.error.code).toBe("INVALID_ARGUMENT");
+    const afterInvalidBinding = await call(client, "figma_tokens", {
+      action: "inspect",
+    });
+    expect(
+      afterInvalidBinding.payload.data.variables.find(
+        (item: { id: string }) => item.id === "variable:brand",
+      ).valuesByMode["mode:light"],
+    ).toBe("#0057FF");
+    const cycle = await call(client, "figma_tokens", {
+      action: "apply",
+      operations: [
+        {
+          op: "alias",
+          variableId: "variable:brand",
+          modeId: "mode:light",
+          targetVariableId: "variable:accent",
+        },
+      ],
+    });
+    expect(cycle.result.isError).toBe(true);
+    expect(cycle.payload.error.code).toBe("INVALID_ARGUMENT");
+  });
+
+  it("manages typed local paint, text, effect, and grid styles", async () => {
+    const { client } = await createConnectedClient();
+    const writes = [
+      {
+        kind: "PAINT",
+        name: "Surface/Brand",
+        description: "Brand surface",
+        paints: [
+          {
+            type: "SOLID",
+            color: { r: 0.1, g: 0.2, b: 0.3 },
+            opacity: 1,
+          },
+        ],
+      },
+      {
+        kind: "TEXT",
+        name: "Type/Body",
+        text: {
+          fontName: { family: "Inter", style: "Regular" },
+          fontSize: 16,
+          lineHeight: { unit: "PIXELS", value: 24 },
+          letterSpacing: { unit: "PERCENT", value: 0 },
+          paragraphSpacing: 8,
+        },
+      },
+      {
+        kind: "EFFECT",
+        name: "Elevation/Low",
+        effects: [
+          {
+            type: "DROP_SHADOW",
+            color: { r: 0, g: 0, b: 0, a: 0.2 },
+            offset: { x: 0, y: 2 },
+            radius: 8,
+            visible: true,
+            blendMode: "NORMAL",
+          },
+        ],
+      },
+      {
+        kind: "GRID",
+        name: "Grid/Desktop",
+        grids: [
+          {
+            pattern: "COLUMNS",
+            alignment: "STRETCH",
+            gutterSize: 24,
+            count: 12,
+            offset: 0,
+          },
+        ],
+      },
+    ] as const;
+    const createdIds: string[] = [];
+    for (const style of writes) {
+      const created = await call(client, "figma_styles", {
+        action: "create",
+        style,
+      });
+      createdIds.push(created.payload.data.style.id);
+    }
+    const inventory = await call(client, "figma_styles", {
+      action: "inspect",
+    });
+    expect(inventory.payload.data.styles).toHaveLength(4);
+    expect(
+      inventory.payload.data.styles.map(
+        (style: { kind: string }) => style.kind,
+      ),
+    ).toEqual(["PAINT", "TEXT", "EFFECT", "GRID"]);
+
+    const updated = await call(client, "figma_styles", {
+      action: "update",
+      styleId: createdIds[0],
+      style: {
+        kind: "PAINT",
+        name: "Surface/Brand Updated",
+        paints: [{ type: "SOLID", color: { r: 0.9, g: 0.8, b: 0.7 } }],
+      },
+    });
+    expect(updated.payload.data.style).toMatchObject({
+      id: createdIds[0],
+      name: "Surface/Brand Updated",
+      source: "local",
+      kind: "PAINT",
+    });
+    const filtered = await call(client, "figma_styles", {
+      action: "inspect",
+      kind: "TEXT",
+    });
+    expect(filtered.payload.data.styles).toEqual([
+      expect.objectContaining({ id: createdIds[1], kind: "TEXT" }),
+    ]);
+
+    const preview = await call(client, "figma_styles", {
+      action: "delete",
+      styleId: createdIds[3],
+      dryRun: true,
+    });
+    await call(client, "figma_styles", {
+      action: "delete",
+      styleId: createdIds[3],
+      confirm: preview.payload.data.confirmationToken,
+    });
+    const final = await call(client, "figma_styles", { action: "inspect" });
+    expect(final.payload.data.styles).toHaveLength(3);
+  });
+
   it("preserves variable aliases and applies explicit collection modes", async () => {
     const { client } = await createConnectedClient();
     const initial = await call(client, "figma_tokens", { action: "inspect" });

@@ -54,7 +54,7 @@ The refactor must preserve all of the following exactly.
 
 ### MCP facade
 
-`src/server.ts` registers these eight tools and current actions:
+`src/server.ts` registers these nine tools and current actions:
 
 | Tool | Frozen actions |
 | --- | --- |
@@ -65,7 +65,8 @@ The refactor must preserve all of the following exactly.
 | `figma_layout` | `inspect`, `apply`, `sizing`, `batch`, `validate`, `repair` |
 | `figma_component` | `search`, `inspect`, `library_search`, `library_inspect`, `create_set`, `arrange_set`, `set_description`, `property_add`, `property_update`, `property_delete`, `slots`, `slot_create` |
 | `figma_instance` | `create`, `update`, `slot_append`, `slot_reset` |
-| `figma_tokens` | `inspect`, `apply`, `collection_create`, `collection_delete` |
+| `figma_tokens` | `inspect`, `apply`, `library_import`, collection/variable CRUD |
+| `figma_styles` | `inspect`, local `create`, `update`, `delete`, known-key `library_import` |
 
 The source of truth is the tool schemas in `src/tools/*.ts`; `tests/snapshots/core-tool-schemas.json` freezes their MCP-visible names, descriptions, annotations, fields, strict action branches, and tool count. `docs/api-design.md` and `docs/api-surface.json` include draft/future surface and must not be used to expand this refactor.
 
@@ -73,7 +74,7 @@ The source of truth is the tool schemas in `src/tools/*.ts`; `tests/snapshots/co
 
 - `src/bridge/types.ts` remains the domain contract. `FigmaBridge`, its method signatures, action unions, node/layout/design-system DTOs, write controls, and status/change shapes are frozen.
 - Existing import paths remain valid: `src/bridge/desktop-plugin.ts` continues to export `DesktopPluginBridgeHost` and `DesktopPluginFigmaBridge`; `src/bridge/in-memory.ts` continues to export `InMemoryFigmaBridge`. Built equivalents remain `dist/bridge/desktop-plugin.js` and `dist/bridge/in-memory.js`.
-- Desktop protocol remains `mcp-fig-plugin/v1` with the existing eight capability strings in `src/bridge/plugin-protocol.ts` and `plugin/ui.html`.
+- Desktop protocol remains `mcp-fig-plugin/v1` with nine capability strings, including `styles.write`, in `src/bridge/plugin-protocol.ts` and `plugin/ui.html`.
 - Pairing/authentication, loopback-only bind, request/client/session/file correlation, exact target checks, queue ordering, timeout behavior, revision conflict handling, idempotency, unknown-result handling, and bounded metrics retain current semantics.
 - Reads may remain concurrent. Writes remain serialized per file. A dispatched write with an unknown result is never automatically retried.
 - MCP success/error envelopes, error codes, retryability, dry-run previews, confirmation-token behavior, revision changes, and trace data remain byte-for-byte compatible where tests currently assert them.
@@ -97,6 +98,7 @@ plugin/
   domains/
     core-node.js                       # document/selection/change reads and generic node lifecycle
     layout.js                          # Auto Layout inspect/apply/sizing/batch/validate/repair
+    styles.js                          # local style CRUD and known-key library import
     component.js                       # component search/inspect/set/property/slot operations and resolver
     instance.js                        # instance create/update/slot operations
     tokens.js                          # collections, variables, modes, aliases, values, bindings

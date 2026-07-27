@@ -49,6 +49,16 @@ const tokens = createTokensDomain({
   countSceneTraversal: metrics.countSceneTraversal,
   recordChange: revision.recordChange,
   nodeById: nodeHelpers.nodeById,
+  cloneData: dataHelpers.cloneData,
+});
+
+const styles = createStylesDomain({
+  figma,
+  fail: errors.fail,
+  revisionCached: revision.revisionCached,
+  countSceneTraversal: metrics.countSceneTraversal,
+  recordChange: revision.recordChange,
+  cloneData: dataHelpers.cloneData,
 });
 
 const BRIDGE_CONFIG_KEY = "mcp-fig.bridge-config.v1";
@@ -162,6 +172,8 @@ async function execute(command) {
     result = await instance.command(command.params || {});
   } else if (command.method === "tokens") {
     result = await tokens.command(command.params || {});
+  } else if (command.method === "styles") {
+    result = await styles.command(command.params || {});
   } else {
     errors.fail(
       "UNSUPPORTED_BY_BRIDGE",

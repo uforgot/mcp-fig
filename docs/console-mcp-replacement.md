@@ -40,12 +40,12 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 
 | Profile/영역 | config에 존재 | 실제 등록 상태 |
 |---|---:|---|
-| `core` | yes | 아래 8개 facade가 항상 등록됨 |
-| `libraries` | yes | 새 top-level tool은 없음. `figma_component`에 `library_search`, `library_inspect`, `library_import` action만 조건부 추가 |
+| `core` | yes | 아래 9개 facade가 항상 등록됨 |
+| `libraries` | yes | `figma_component` library actions와 `figma_styles.library_import`를 허용. import는 known key 전용이며 local write와 분리 |
 | `tokens` | yes | 새 등록 없음. `figma_tokens`는 이미 Core에 포함 |
 | `collaboration`, `history`, `slides`, `figjam`, `debug`, `advanced` | yes | **등록 tool/action 없음**. 목표 이름이며 capability evidence가 아님 |
 
-현재 실제 Core runtime/schema surface는 8개다.
+현재 실제 Core runtime/schema surface는 9개다.
 
 | 실제 등록 tool | 현재 action |
 |---|---|
@@ -56,7 +56,8 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 | `figma_layout` | `inspect`, `apply`, `sizing`, `batch`, `validate`, `repair` |
 | `figma_component` | `search`, `inspect`, `create_set`, `arrange_set`, `set_description`, `property_add`, `property_update`, `property_delete`, `slots`, `slot_create`; `libraries` profile에서 `library_search`, `library_inspect`, `library_import` 추가 |
 | `figma_instance` | `inspect`, `create`, `swap`, `update`, `reset`, `slot_append`, `slot_reset` |
-| `figma_tokens` | `inspect`, `apply`, `collection_create`, `collection_delete` |
+| `figma_tokens` | `inspect`, `apply`, `library_import`, collection/variable create-update-delete, mode add-rename-remove, set value, alias, bind/unbind |
+| `figma_styles` | `inspect`, local `create`, `update`, `delete`; `libraries` profile에서 known-key `library_import` |
 
 이 목록은 `tests/snapshots/core-tool-schemas.json`으로 고정되고 `tests/quality-gates.test.ts`와 `scripts/smoke-mcp.mjs`가 runtime registry를 검증한다.
 
@@ -75,8 +76,8 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 | Auto Layout authoring·validation·repair | 주로 `figma_execute`와 여러 node setter; first-class typed layout 없음 | `figma_layout` 6 actions, dry-run, atomic batch, deterministic validation/repair | **complete** | P0 | `1159` 최종 E2E | live frame에 apply → exact gap/padding/sizing readback → validate 0 issues → cleanup. invalid HUG/FILL fixture는 stable issue code로 탐지 |
 | Local component·variant·instance·slot | component set/property/slot/instance tools | local COMPONENT/COMPONENT_SET search/inspect, bounded set create, canonical variant/property readback, physical `ComponentNode.createSlot()`, instance inspect/create/display-key override/swap/reset/slot append-reset 구현 | **complete** | P0 | `1155` | live 4-variant set plus native SlotNode `Content#54:53`, append `1` → reset `0`, create/override/swap/default reset exact readback, cleanup 0. 세부 계약은 `docs/component-instance-library.md` |
 | Library component 검색·import | library components/by-key + instantiate/import | known published key `library_import` 구현. Plugin API inventory 부재는 `LIBRARY_SEARCH_UNAVAILABLE`; definite rejection은 `LIBRARY_IMPORT_FAILED`, uncancellable timeout은 `UNKNOWN_OUTCOME/TIMEOUT_PENDING`; fixture inventory 성공을 live support로 간주하지 않음 | **partial** | P0 | enabled-library account gate 필요 | fake-key timeout truthfulness와 service error preservation 통과. real stable published key 성공은 target account에 enabled library가 있어야 완료 |
-| Variables·modes·aliases·bindings | variable CRUD, mode, batch, token import/export | inspect, set value, alias, bind, mode add/rename, collection create/delete. variable create/delete/rename, mode remove, complete live gate 부족 | **partial** | P0 | `1156` | Light/Dark collection에서 CRUD/modes/alias/binding exact readback과 cleanup; alias cycle/type mismatch 차단 |
-| Local styles | get styles; 일부 raw execute | `figma_styles`는 목표 audit에만 있고 실제 등록 없음 | **missing** | P0 | `1156` | local paint/text/effect/grid style inspect와 matrix에서 정한 write scope를 live exact readback. library import와 local write 구분 |
+| Variables·modes·aliases·bindings | variable CRUD, mode, batch, token import/export | collection/variable CRUD, mode add/rename/remove, BOOLEAN/COLOR/FLOAT/STRING per-mode values, aliases, node bind/unbind, known-key library import. whole apply prevalidation으로 invalid alias cycle/type mismatch의 선행 mutation을 차단 | **complete** | P0 | `1156` | Light/Dark collection에서 CRUD/modes/alias/binding exact readback과 cleanup; alias cycle/type mismatch 차단. 세부 계약은 `docs/variables-styles.md` |
+| Local styles | get styles; 일부 raw execute | `figma_styles`: local paint/text/effect/grid inspect와 full create/update/delete. text font load, create cleanup, update rollback, destructive delete confirmation. published known-key import는 local write와 별도 action | **complete** | P0 | `1156` | 네 local style kind의 exact readback과 cleanup; library import/local mutation contract 분리. 세부 계약은 `docs/variables-styles.md` |
 | Viewport/selection screenshot | take/capture screenshot | node export는 있으나 viewport/selection screenshot tool 없음 | **missing** | P0 | `1157` | viewport/selection/node capture 범위와 scale/payload cap을 schema로 고정하고 실제 clipping/overlap fixture를 전달 |
 | Accessibility·design-system·layout visual audit | lint, component accessibility, design-system report, parity, code scan | typed layout structural validator만 있음. rendered clipping/contrast/a11y/design-system audit 없음 | **partial** | P0 | `1157` | screenshot/export/model-state proof를 분리하고 P0 clipping/overlap/contrast/a11y fixture의 known failures를 탐지하며 false positive baseline 기록 |
 | Multi-file·restart·sleep-wake 운영 | open files, reconnect, reload/diagnose | persistent service, target/session/reconnect와 focused canary는 있음. multi-file·restart·sleep-wake 통합 gate 미완료 | **partial** | P0 | `1158` | listener 1, latest-ready session routing, stale cleanup, service/MCP/Plugin restart, macOS sleep-wake 뒤 representative read/write/readback/cleanup |

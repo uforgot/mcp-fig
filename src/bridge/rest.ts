@@ -21,6 +21,7 @@ import type {
   NodeQueryResult,
   QueryNodesInput,
   ResizeNodesInput,
+  StyleActionInput,
   TokenActionInput,
   UpdateNodesInput,
 } from "./types.js";
@@ -525,6 +526,10 @@ export class RestFigmaBridge implements FigmaBridge {
 
   async tokens(input: TokenActionInput): Promise<Record<string, unknown>> {
     return unsupported(`tokens.${input.action}`);
+  }
+
+  async styles(input: StyleActionInput): Promise<Record<string, unknown>> {
+    return unsupported(`styles.${input.action}`);
   }
 
   async #loadFile(fileKey: string): Promise<RestFileResponse> {

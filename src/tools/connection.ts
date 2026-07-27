@@ -25,6 +25,7 @@ const REGISTERED_CORE_TOOLS = [
   "figma_component",
   "figma_instance",
   "figma_tokens",
+  "figma_styles",
 ] as const;
 
 export function registerConnectionTool(

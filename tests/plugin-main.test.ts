@@ -12,6 +12,56 @@ interface MockNode {
   [key: string]: unknown;
 }
 
+interface MockVariableCollection {
+  id: string;
+  name: string;
+  defaultModeId: string;
+  modes: Array<{ modeId: string; name: string }>;
+  addMode(name: string): string;
+  renameMode(modeId: string, name: string): void;
+  removeMode(modeId: string): void;
+  remove(): void;
+}
+
+interface MockVariable {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  resolvedType: string;
+  variableCollectionId: string;
+  valuesByMode: Record<string, unknown>;
+  setValueForMode(modeId: string, value: unknown): void;
+  remove(): void;
+}
+
+interface MockStyle {
+  id: string;
+  key: string;
+  type: "PAINT" | "TEXT" | "EFFECT" | "GRID";
+  name: string;
+  description: string;
+  remote: boolean;
+  paints?: unknown[];
+  effects?: unknown[];
+  layoutGrids?: unknown[];
+  fontName?: { family: string; style: string };
+  fontSize?: number;
+  lineHeight?: unknown;
+  letterSpacing?: unknown;
+  paragraphIndent?: number;
+  paragraphSpacing?: number;
+  textCase?: string;
+  textDecoration?: string;
+  remove(): void;
+}
+
+interface MockPluginResult {
+  ok: boolean;
+  data: Record<string, unknown>;
+  error?: Record<string, unknown>;
+}
+
 function createHarness() {
   const messages: Record<string, unknown>[] = [];
   const handlers: Record<string, (...args: unknown[]) => unknown> = {};
@@ -269,6 +319,13 @@ function createHarness() {
   }
   function installNode(node: MockNode) {
     node.remove = () => removeNode(node);
+    node.setBoundVariable = (field: string, variable: MockVariable | null) => {
+      if (!node.boundVariables) node.boundVariables = {};
+      const bindings = node.boundVariables as Record<string, unknown>;
+      if (variable)
+        bindings[field] = { type: "VARIABLE_ALIAS", id: variable.id };
+      else delete bindings[field];
+    };
     if (node.children) {
       node.appendChild = (childNode: MockNode) => {
         if (childNode.parent?.children)
@@ -489,6 +546,109 @@ function createHarness() {
       getSizeAsync(): Promise<{ width: number; height: number }>;
     }
   >();
+  const variableCollections = new Map<string, MockVariableCollection>();
+  const localVariables = new Map<string, MockVariable>();
+  let nextCollectionId = 1;
+  let nextVariableId = 1;
+  let nextModeId = 1;
+  function createVariableCollection(name: string) {
+    const id = `VariableCollectionId:test:${nextCollectionId++}`;
+    const defaultModeId = `mode:test:${nextModeId++}`;
+    const collection: MockVariableCollection = {
+      id,
+      name,
+      defaultModeId,
+      modes: [{ modeId: defaultModeId, name: "Mode 1" }],
+      addMode(modeName: string) {
+        const modeId = `mode:test:${nextModeId++}`;
+        this.modes.push({ modeId, name: modeName });
+        return modeId;
+      },
+      renameMode(modeId: string, modeName: string) {
+        const mode = this.modes.find(
+          (candidate: { modeId: string }) => candidate.modeId === modeId,
+        );
+        if (!mode) throw new Error("mode missing");
+        mode.name = modeName;
+      },
+      removeMode(modeId: string) {
+        if (modeId === this.defaultModeId || this.modes.length === 1)
+          throw new Error("cannot remove default mode");
+        this.modes = this.modes.filter(
+          (candidate: { modeId: string }) => candidate.modeId !== modeId,
+        );
+        for (const variable of localVariables.values())
+          delete variable.valuesByMode[modeId];
+      },
+      remove() {
+        variableCollections.delete(id);
+        for (const [variableId, variable] of localVariables)
+          if (variable.variableCollectionId === id)
+            localVariables.delete(variableId);
+      },
+    };
+    variableCollections.set(id, collection);
+    return collection;
+  }
+  function createVariable(
+    name: string,
+    collection: MockVariableCollection,
+    resolvedType: string,
+  ) {
+    const id = `VariableID:test:${nextVariableId++}`;
+    const variable: MockVariable = {
+      id,
+      key: `variable-key-${nextVariableId}`,
+      name,
+      description: "",
+      resolvedType,
+      variableCollectionId: collection.id,
+      valuesByMode: {},
+      setValueForMode(modeId: string, value: unknown) {
+        this.valuesByMode[modeId] = structuredClone(value);
+      },
+      remove() {
+        localVariables.delete(id);
+      },
+    };
+    localVariables.set(id, variable);
+    return variable;
+  }
+
+  const localStyles = new Map<string, MockStyle>();
+  let nextStyleId = 1;
+  function createStyle(type: MockStyle["type"]): MockStyle {
+    const id = `S:test:${nextStyleId++}`;
+    const style: MockStyle = {
+      id,
+      key: `style-key-${nextStyleId}`,
+      type,
+      name: "",
+      description: "",
+      remote: false,
+      ...(type === "PAINT" ? { paints: [] } : {}),
+      ...(type === "EFFECT" ? { effects: [] } : {}),
+      ...(type === "GRID" ? { layoutGrids: [] } : {}),
+      ...(type === "TEXT"
+        ? {
+            fontName: { family: "Inter", style: "Regular" },
+            fontSize: 12,
+            lineHeight: { unit: "AUTO" },
+            letterSpacing: { unit: "PIXELS", value: 0 },
+            paragraphIndent: 0,
+            paragraphSpacing: 0,
+            textCase: "ORIGINAL",
+            textDecoration: "NONE",
+          }
+        : {}),
+      remove() {
+        localStyles.delete(id);
+      },
+    };
+    localStyles.set(id, style);
+    return style;
+  }
+
   const figma = {
     fileKey: "test-file",
     root,
@@ -613,12 +773,79 @@ function createHarness() {
         messages.push(message);
       },
     },
+    async getLocalPaintStylesAsync() {
+      return [...localStyles.values()].filter(
+        (style) => style.type === "PAINT",
+      );
+    },
+    async getLocalTextStylesAsync() {
+      return [...localStyles.values()].filter((style) => style.type === "TEXT");
+    },
+    async getLocalEffectStylesAsync() {
+      return [...localStyles.values()].filter(
+        (style) => style.type === "EFFECT",
+      );
+    },
+    async getLocalGridStylesAsync() {
+      return [...localStyles.values()].filter((style) => style.type === "GRID");
+    },
+    createPaintStyle() {
+      return createStyle("PAINT");
+    },
+    createTextStyle() {
+      return createStyle("TEXT");
+    },
+    createEffectStyle() {
+      return createStyle("EFFECT");
+    },
+    createGridStyle() {
+      return createStyle("GRID");
+    },
+    async importStyleByKeyAsync() {
+      throw new Error("style import denied");
+    },
     variables: {
       async getLocalVariableCollectionsAsync() {
-        return [];
+        return [...variableCollections.values()];
       },
       async getLocalVariablesAsync() {
-        return [];
+        return [...localVariables.values()];
+      },
+      async getVariableCollectionByIdAsync(id: string) {
+        return variableCollections.get(id) ?? null;
+      },
+      async getVariableByIdAsync(id: string) {
+        return localVariables.get(id) ?? null;
+      },
+      createVariableCollection,
+      createVariable,
+      async importVariableByKeyAsync() {
+        throw new Error("variable import denied");
+      },
+      createVariableAlias(variable: MockVariable) {
+        if (!variable) throw new Error("alias target missing");
+        return { type: "VARIABLE_ALIAS", id: variable.id };
+      },
+      setBoundVariableForPaint(
+        paint: Record<string, unknown>,
+        field: string,
+        variable: MockVariable | null,
+      ) {
+        const next = structuredClone(paint);
+        const boundVariables = {
+          ...((next.boundVariables as Record<string, unknown> | undefined) ??
+            {}),
+        };
+        if (variable)
+          boundVariables[field] = {
+            type: "VARIABLE_ALIAS",
+            id: variable.id,
+          };
+        else delete boundVariables[field];
+        if (Object.keys(boundVariables).length > 0)
+          next.boundVariables = boundVariables;
+        else delete next.boundVariables;
+        return next;
       },
     },
     clientStorage: {
@@ -1897,6 +2124,303 @@ describe("Figma Plugin main bridge", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("manages Plugin local styles and keeps library import distinct", async () => {
+    const { command, loadedFonts } = createHarness();
+    const writes = [
+      {
+        kind: "PAINT",
+        name: "Surface/Brand",
+        paints: [{ type: "SOLID", color: { r: 0.1, g: 0.2, b: 0.3 } }],
+      },
+      {
+        kind: "TEXT",
+        name: "Type/Body",
+        text: {
+          fontName: { family: "Inter", style: "Regular" },
+          fontSize: 16,
+          lineHeight: { unit: "PIXELS", value: 24 },
+          letterSpacing: { unit: "PERCENT", value: 0 },
+        },
+      },
+      {
+        kind: "EFFECT",
+        name: "Elevation/Low",
+        effects: [
+          {
+            type: "DROP_SHADOW",
+            color: { r: 0, g: 0, b: 0, a: 0.2 },
+            offset: { x: 0, y: 2 },
+            radius: 8,
+            visible: true,
+            blendMode: "NORMAL",
+          },
+        ],
+      },
+      {
+        kind: "GRID",
+        name: "Grid/Desktop",
+        grids: [
+          {
+            pattern: "COLUMNS",
+            alignment: "STRETCH",
+            gutterSize: 24,
+            count: 12,
+            offset: 0,
+          },
+        ],
+      },
+    ];
+    const ids: string[] = [];
+    for (const style of writes) {
+      const result = (await command("styles", {
+        action: "create",
+        style,
+      })) as unknown as MockPluginResult;
+      expect(result).toMatchObject({ ok: true });
+      ids.push((result.data.style as MockStyle).id);
+    }
+    expect(loadedFonts).toContainEqual({ family: "Inter", style: "Regular" });
+    const inventory = (await command("styles", {
+      action: "inspect",
+    })) as unknown as MockPluginResult;
+    expect(
+      (inventory.data.styles as Array<{ kind: string }>).map(
+        (style) => style.kind,
+      ),
+    ).toEqual(["PAINT", "TEXT", "EFFECT", "GRID"]);
+    await expect(
+      command("styles", {
+        action: "update",
+        styleId: ids[0],
+        style: {
+          kind: "PAINT",
+          name: "Surface/Brand Updated",
+          paints: [{ type: "SOLID", color: { r: 0.9, g: 0.8, b: 0.7 } }],
+        },
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { style: { id: ids[0], name: "Surface/Brand Updated" } },
+    });
+    await expect(
+      command("styles", { action: "delete", styleId: ids[3] }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { deletedStyleId: ids[3] },
+    });
+    await expect(
+      command("styles", {
+        action: "library_import",
+        styleKey: "denied-style-key",
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "LIBRARY_IMPORT_FAILED",
+        details: {
+          reason: "PLAN_ACCESS_OR_KEY",
+          styleKey: "denied-style-key",
+        },
+      },
+    });
+  });
+
+  it("manages Plugin variables with canonical modes and atomic alias validation", async () => {
+    const { command, child } = createHarness();
+    const createdCollection = (await command("tokens", {
+      action: "collection_create",
+      name: "Theme",
+      initialModeName: "Light",
+    })) as unknown as MockPluginResult;
+    const collection = createdCollection.data
+      .collection as MockVariableCollection;
+    expect(collection.modes).toEqual([
+      { id: collection.defaultModeId, name: "Light" },
+    ]);
+    const brandResult = (await command("tokens", {
+      action: "variable_create",
+      collectionId: collection.id,
+      name: "color/brand",
+      resolvedType: "COLOR",
+      description: "Brand",
+    })) as unknown as MockPluginResult;
+    const brand = brandResult.data.variable as MockVariable;
+    const accentResult = (await command("tokens", {
+      action: "variable_create",
+      collectionId: collection.id,
+      name: "color/accent",
+      resolvedType: "COLOR",
+    })) as unknown as MockPluginResult;
+    const accent = accentResult.data.variable as MockVariable;
+    const floatResult = (await command("tokens", {
+      action: "variable_create",
+      collectionId: collection.id,
+      name: "spacing/base",
+      resolvedType: "FLOAT",
+    })) as unknown as MockPluginResult;
+    const floatVariable = floatResult.data.variable as MockVariable;
+    const added = (await command("tokens", {
+      action: "apply",
+      operations: [
+        { op: "mode_add", collectionId: collection.id, name: "Dark" },
+      ],
+    })) as unknown as MockPluginResult;
+    expect(added).toMatchObject({ ok: true });
+    const darkMode = (
+      added.data.collections as Array<{
+        id: string;
+        modes: Array<{ id: string; name: string }>;
+      }>
+    )[0]?.modes.find((mode: { name: string }) => mode.name === "Dark");
+    if (!darkMode) throw new Error("Dark mode was not created.");
+    const lightValue = { r: 0.1, g: 0.2, b: 0.3, a: 1 };
+    child.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+    await expect(
+      command("tokens", {
+        action: "apply",
+        operations: [
+          {
+            op: "set_value",
+            variableId: brand.id,
+            modeId: collection.defaultModeId,
+            value: lightValue,
+          },
+          {
+            op: "alias",
+            variableId: accent.id,
+            modeId: collection.defaultModeId,
+            targetVariableId: brand.id,
+          },
+          {
+            op: "bind",
+            nodeIds: [child.id],
+            field: "fills",
+            variableId: accent.id,
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(child.fills).toMatchObject([
+      {
+        boundVariables: {
+          color: { type: "VARIABLE_ALIAS", id: accent.id },
+        },
+      },
+    ]);
+    await expect(
+      command("tokens", {
+        action: "apply",
+        operations: [
+          {
+            op: "alias",
+            variableId: brand.id,
+            modeId: collection.defaultModeId,
+            targetVariableId: accent.id,
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ARGUMENT" },
+    });
+    const invalid = await command("tokens", {
+      action: "apply",
+      operations: [
+        {
+          op: "set_value",
+          variableId: brand.id,
+          modeId: darkMode.id,
+          value: { r: 1, g: 1, b: 1, a: 1 },
+        },
+        {
+          op: "alias",
+          variableId: accent.id,
+          modeId: darkMode.id,
+          targetVariableId: floatVariable.id,
+        },
+      ],
+    });
+    expect(invalid).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ARGUMENT" },
+    });
+    const invalidBinding = await command("tokens", {
+      action: "apply",
+      operations: [
+        {
+          op: "set_value",
+          variableId: brand.id,
+          modeId: darkMode.id,
+          value: { r: 1, g: 1, b: 1, a: 1 },
+        },
+        {
+          op: "bind",
+          nodeIds: [child.id],
+          field: "unsupportedField",
+          variableId: brand.id,
+        },
+      ],
+    });
+    expect(invalidBinding).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ARGUMENT" },
+    });
+    const invalidUnbind = await command("tokens", {
+      action: "apply",
+      operations: [
+        {
+          op: "set_value",
+          variableId: brand.id,
+          modeId: darkMode.id,
+          value: { r: 1, g: 1, b: 1, a: 1 },
+        },
+        {
+          op: "unbind",
+          nodeIds: [child.id],
+          field: "unsupportedField",
+        },
+      ],
+    });
+    expect(invalidUnbind).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ARGUMENT" },
+    });
+    const inspected = (await command("tokens", {
+      action: "inspect",
+    })) as unknown as MockPluginResult;
+    const inspectedVariables = inspected.data.variables as MockVariable[];
+    expect(
+      inspectedVariables.find((variable) => variable.id === brand.id)
+        ?.valuesByMode[collection.defaultModeId],
+    ).toEqual(lightValue);
+    expect(
+      inspectedVariables.find((variable) => variable.id === brand.id)
+        ?.valuesByMode[darkMode.id],
+    ).toBeUndefined();
+    await expect(
+      command("tokens", {
+        action: "apply",
+        operations: [
+          {
+            op: "mode_rename",
+            collectionId: collection.id,
+            modeId: darkMode.id,
+            name: "Dim",
+          },
+          { op: "unbind", nodeIds: [child.id], field: "fills" },
+          {
+            op: "mode_remove",
+            collectionId: collection.id,
+            modeId: darkMode.id,
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(child.fills).toEqual([
+      { type: "SOLID", color: { r: 1, g: 1, b: 1 } },
+    ]);
   });
 
   it("uses real slot nodes and returns structured library limitations", async () => {

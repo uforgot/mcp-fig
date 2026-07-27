@@ -74,6 +74,7 @@ function makeBridge(overrides: Partial<FigmaBridge> = {}): FigmaBridge {
     component: vi.fn(async () => ({})),
     instance: vi.fn(async () => ({})),
     tokens: vi.fn(async () => ({})),
+    styles: vi.fn(async () => ({})),
     ...overrides,
   };
 }

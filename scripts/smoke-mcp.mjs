@@ -24,6 +24,7 @@ const expectedTools = [
   "figma_component",
   "figma_instance",
   "figma_tokens",
+  "figma_styles",
 ];
 
 try {

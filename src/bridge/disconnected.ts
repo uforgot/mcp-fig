@@ -17,6 +17,7 @@ import type {
   NodeQueryResult,
   QueryNodesInput,
   ResizeNodesInput,
+  StyleActionInput,
   TokenActionInput,
   UpdateNodesInput,
 } from "./types.js";
@@ -116,6 +117,10 @@ export class DisconnectedFigmaBridge implements FigmaBridge {
   }
 
   async tokens(_input: TokenActionInput): Promise<Record<string, unknown>> {
+    return notConnected();
+  }
+
+  async styles(_input: StyleActionInput): Promise<Record<string, unknown>> {
     return notConnected();
   }
 }

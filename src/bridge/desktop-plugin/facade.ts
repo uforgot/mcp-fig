@@ -20,6 +20,7 @@ import type {
   NodeQueryResult,
   QueryNodesInput,
   ResizeNodesInput,
+  StyleActionInput,
   TextRangeActionInput,
   TokenActionInput,
   UpdateNodesInput,
@@ -225,6 +226,12 @@ export class DesktopPluginFigmaBridge implements FigmaBridge {
 
   async tokens(input: TokenActionInput): Promise<Record<string, unknown>> {
     return this.#rpc("tokens", input, input.fileKey) as Promise<
+      Record<string, unknown>
+    >;
+  }
+
+  async styles(input: StyleActionInput): Promise<Record<string, unknown>> {
+    return this.#rpc("styles", input, input.fileKey) as Promise<
       Record<string, unknown>
     >;
   }

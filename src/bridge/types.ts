@@ -60,6 +60,7 @@ export type BlendMode =
 export interface SolidPaint {
   type: "SOLID";
   color: RgbColor;
+  boundVariables?: { color?: VariableAlias | undefined } | undefined;
   opacity?: number | undefined;
   visible?: boolean | undefined;
   blendMode?: BlendMode | undefined;
@@ -282,16 +283,144 @@ export interface VariableAlias {
   id: string;
 }
 
-export type VariableValue = string | number | boolean | VariableAlias;
+export type VariableValue =
+  | string
+  | number
+  | boolean
+  | RgbaColor
+  | VariableAlias;
 
 export interface FigmaVariable {
   id: string;
   key?: string | undefined;
   name: string;
+  description?: string | undefined;
   resolvedType: "BOOLEAN" | "COLOR" | "FLOAT" | "STRING";
   collectionId: string;
   valuesByMode: Record<string, VariableValue>;
 }
+
+export type FigmaStyleKind = "PAINT" | "TEXT" | "EFFECT" | "GRID";
+
+export type FigmaLayoutGrid =
+  | {
+      pattern: "GRID";
+      sectionSize: number;
+      visible?: boolean | undefined;
+      color?: RgbaColor | undefined;
+    }
+  | {
+      pattern: "COLUMNS" | "ROWS";
+      alignment: "MIN" | "MAX" | "CENTER" | "STRETCH";
+      gutterSize: number;
+      count: number;
+      offset: number;
+      visible?: boolean | undefined;
+      color?: RgbaColor | undefined;
+    };
+
+export interface FigmaTextStyleProperties {
+  fontName: FontName;
+  fontSize: number;
+  lineHeight: LineHeight;
+  letterSpacing: LetterSpacing;
+  paragraphIndent?: number | undefined;
+  paragraphSpacing?: number | undefined;
+  textCase?:
+    | "ORIGINAL"
+    | "UPPER"
+    | "LOWER"
+    | "TITLE"
+    | "SMALL_CAPS"
+    | "SMALL_CAPS_FORCED"
+    | undefined;
+  textDecoration?: "NONE" | "UNDERLINE" | "STRIKETHROUGH" | undefined;
+}
+
+export type FigmaStylePaint = FigmaPaint extends infer Paint
+  ? Paint extends FigmaPaint
+    ? Omit<Paint, "boundVariables">
+    : never
+  : never;
+
+export type FigmaStyleRecord =
+  | {
+      source: "local" | "library";
+      kind: "PAINT";
+      id: string;
+      key?: string | undefined;
+      name: string;
+      description?: string | undefined;
+      paints: FigmaStylePaint[];
+    }
+  | {
+      source: "local" | "library";
+      kind: "TEXT";
+      id: string;
+      key?: string | undefined;
+      name: string;
+      description?: string | undefined;
+      text: FigmaTextStyleProperties;
+    }
+  | {
+      source: "local" | "library";
+      kind: "EFFECT";
+      id: string;
+      key?: string | undefined;
+      name: string;
+      description?: string | undefined;
+      effects: FigmaEffect[];
+    }
+  | {
+      source: "local" | "library";
+      kind: "GRID";
+      id: string;
+      key?: string | undefined;
+      name: string;
+      description?: string | undefined;
+      grids: FigmaLayoutGrid[];
+    };
+
+export type FigmaStyleWrite = FigmaStyleRecord extends infer Style
+  ? Style extends FigmaStyleRecord
+    ? Omit<Style, "id" | "key" | "source">
+    : never
+  : never;
+
+export type StyleActionInput = AddWriteControl<
+  | {
+      action: "inspect";
+      kind?: FigmaStyleKind;
+      styleIds?: string[];
+      fileKey?: string;
+    }
+  | {
+      action: "create";
+      style: FigmaStyleWrite;
+      dryRun?: boolean;
+      fileKey?: string;
+    }
+  | {
+      action: "update";
+      styleId: string;
+      style: FigmaStyleWrite;
+      dryRun?: boolean;
+      fileKey?: string;
+    }
+  | {
+      action: "delete";
+      styleId: string;
+      dryRun?: boolean;
+      fileKey?: string;
+    }
+  | {
+      action: "library_import";
+      styleKey: string;
+      dryRun?: boolean;
+      fileKey?: string;
+    },
+  "inspect"
+>;
 
 export interface FigmaFileFixture {
   key: string;
@@ -301,6 +430,7 @@ export interface FigmaFileFixture {
   libraryComponents?: ComponentRecord[];
   variableCollections?: VariableCollection[];
   variables?: FigmaVariable[];
+  styles?: FigmaStyleRecord[];
 }
 
 export interface FigmaFileSummary {
@@ -719,6 +849,7 @@ export type InstanceActionInput = AddWriteControl<InstanceAction, "inspect">;
 
 export type TokenOperation =
   | { op: "bind"; nodeIds: string[]; field: string; variableId: string }
+  | { op: "unbind"; nodeIds: string[]; field: string }
   | {
       op: "set_value";
       variableId: string;
@@ -742,6 +873,11 @@ export type TokenOperation =
       collectionId: string;
       modeId: string;
       name: string;
+    }
+  | {
+      op: "mode_remove";
+      collectionId: string;
+      modeId: string;
     };
 
 type TokenAction =
@@ -753,9 +889,45 @@ type TokenAction =
       fileKey?: string;
     }
   | {
+      action: "library_import";
+      variableKey: string;
+      dryRun?: boolean;
+      fileKey?: string;
+    }
+  | {
       action: "collection_create";
       name: string;
       initialModeName?: string;
+      dryRun?: boolean;
+      fileKey?: string;
+    }
+  | {
+      action: "collection_update";
+      collectionId: string;
+      name: string;
+      dryRun?: boolean;
+      fileKey?: string;
+    }
+  | {
+      action: "variable_create";
+      collectionId: string;
+      name: string;
+      resolvedType: FigmaVariable["resolvedType"];
+      description?: string;
+      dryRun?: boolean;
+      fileKey?: string;
+    }
+  | {
+      action: "variable_update";
+      variableId: string;
+      name?: string;
+      description?: string;
+      dryRun?: boolean;
+      fileKey?: string;
+    }
+  | {
+      action: "variable_delete";
+      variableId: string;
       dryRun?: boolean;
       fileKey?: string;
     }
@@ -833,4 +1005,5 @@ export interface FigmaBridge {
   component(input: ComponentActionInput): Promise<Record<string, unknown>>;
   instance(input: InstanceActionInput): Promise<Record<string, unknown>>;
   tokens(input: TokenActionInput): Promise<Record<string, unknown>>;
+  styles(input: StyleActionInput): Promise<Record<string, unknown>>;
 }
