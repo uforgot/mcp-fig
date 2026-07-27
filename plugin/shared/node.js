@@ -193,6 +193,16 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
     );
   }
 
+  function componentDefinitions(node) {
+    try {
+      return node.componentPropertyDefinitions || {};
+    } catch {
+      if (node.type === "COMPONENT" && node.parent?.type === "COMPONENT_SET")
+        return node.parent.componentPropertyDefinitions || {};
+      return {};
+    }
+  }
+
   async function serializeNode(node, deep = false, countTraversal = true) {
     if (countTraversal) countSceneTraversal();
     const output = { id: node.id, type: node.type, name: node.name };
@@ -230,11 +240,34 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
         bottomLeft: normalizeVisual(node.bottomLeftRadius),
       };
     }
-    if (node.type === "COMPONENT") {
+    if (node.type === "COMPONENT" || node.type === "COMPONENT_SET") {
       output.componentKey = node.key;
-      output.componentSource = "local";
+      output.componentSource = node.remote ? "library" : "local";
       output.description = node.description;
-      output.componentProperties = node.componentPropertyDefinitions;
+      output.componentProperties = Object.fromEntries(
+        Object.entries(componentDefinitions(node)).map(([name, definition]) => [
+          name,
+          {
+            type: definition.type,
+            defaultValue: definition.defaultValue,
+            ...(definition.variantOptions
+              ? { options: [...definition.variantOptions] }
+              : definition.preferredValues
+                ? {
+                    options: definition.preferredValues.map(
+                      (value) => value.key,
+                    ),
+                  }
+                : {}),
+            ...(definition.description !== undefined
+              ? { description: definition.description }
+              : {}),
+            ...(definition.slotSettings
+              ? { slotSettings: { ...definition.slotSettings } }
+              : {}),
+          },
+        ]),
+      );
     }
     if (node.type === "INSTANCE") {
       const mainComponent = await node.getMainComponentAsync();

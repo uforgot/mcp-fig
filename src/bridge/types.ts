@@ -8,10 +8,23 @@ export const FIGMA_NODE_TYPES = [
   "LINE",
   "TEXT",
   "COMPONENT",
+  "COMPONENT_SET",
   "INSTANCE",
+  "SLOT",
+] as const;
+
+export const FIGMA_CREATABLE_NODE_TYPES = [
+  "FRAME",
+  "RECTANGLE",
+  "ELLIPSE",
+  "LINE",
+  "TEXT",
+  "COMPONENT",
 ] as const;
 
 export type FigmaNodeType = (typeof FIGMA_NODE_TYPES)[number];
+export type FigmaCreatableNodeType =
+  (typeof FIGMA_CREATABLE_NODE_TYPES)[number];
 
 export interface RgbColor {
   r: number;
@@ -131,7 +144,6 @@ export interface FigmaNode {
   componentSource?: "local" | "library" | undefined;
   description?: string | undefined;
   componentProperties?: Record<string, ComponentPropertyDefinition> | undefined;
-  componentSlots?: Record<string, string[]> | undefined;
   mainComponentId?: string | undefined;
   mainComponentKey?: string | undefined;
   instanceProperties?: Record<string, string | boolean> | undefined;
@@ -227,13 +239,24 @@ export interface LayoutSizingConfig {
 }
 
 export interface ComponentPropertyDefinition {
-  type: "BOOLEAN" | "TEXT" | "INSTANCE_SWAP" | "VARIANT";
+  type: "BOOLEAN" | "TEXT" | "INSTANCE_SWAP" | "VARIANT" | "SLOT";
   defaultValue: string | boolean;
   options?: string[] | undefined;
+  description?: string | undefined;
+  slotSettings?:
+    | {
+        stretchChildOnInsert?: boolean;
+        displayEmptyByDefault?: boolean;
+        minChildren?: number | null;
+        maxChildren?: number | null;
+        allowPreferredValuesOnly?: boolean;
+      }
+    | undefined;
 }
 
 export interface ComponentRecord {
   source: "local" | "library";
+  kind?: "COMPONENT" | "COMPONENT_SET" | undefined;
   name: string;
   nodeId?: string | undefined;
   key?: string | undefined;
@@ -371,7 +394,7 @@ type AddWriteControl<Input, ReadAction extends string> = Input extends {
 
 export interface CreateNodeInput extends MutationOptions {
   parentId: string;
-  nodeType: FigmaNodeType;
+  nodeType: FigmaCreatableNodeType;
   name?: string;
   props?: NodeProps;
 }
@@ -569,6 +592,12 @@ type ComponentAction =
       fileKey?: string;
     }
   | {
+      action: "library_import";
+      componentKey: string;
+      kind: "COMPONENT" | "COMPONENT_SET";
+      fileKey?: string;
+    }
+  | {
       action: "create_set";
       parentId: string;
       name: string;
@@ -620,6 +649,8 @@ type ComponentAction =
       componentId: string;
       slotName: string;
       allowedComponentKeys?: string[];
+      description?: string;
+      slotSettings?: ComponentPropertyDefinition["slotSettings"];
       dryRun?: boolean;
       fileKey?: string;
     };
@@ -631,6 +662,11 @@ export type ComponentActionInput = AddWriteControl<
 
 type InstanceAction =
   | {
+      action: "inspect";
+      instanceIds: string[];
+      fileKey?: string;
+    }
+  | {
       action: "create";
       componentId?: string;
       componentKey?: string;
@@ -638,6 +674,21 @@ type InstanceAction =
       properties?: Record<string, string | boolean>;
       x?: number;
       y?: number;
+      dryRun?: boolean;
+      fileKey?: string;
+    }
+  | {
+      action: "swap";
+      instanceIds: string[];
+      componentId?: string;
+      componentKey?: string;
+      preserveOverrides?: boolean;
+      dryRun?: boolean;
+      fileKey?: string;
+    }
+  | {
+      action: "reset";
+      instanceIds: string[];
       dryRun?: boolean;
       fileKey?: string;
     }
@@ -664,7 +715,7 @@ type InstanceAction =
       fileKey?: string;
     };
 
-export type InstanceActionInput = AddWriteControl<InstanceAction, never>;
+export type InstanceActionInput = AddWriteControl<InstanceAction, "inspect">;
 
 export type TokenOperation =
   | { op: "bind"; nodeIds: string[]; field: string; variableId: string }

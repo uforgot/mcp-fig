@@ -16,6 +16,7 @@ function componentRecords(root: FigmaNode): ComponentRecord[] {
   if (root.type === "COMPONENT" || root.type === "COMPONENT_SET") {
     records.push({
       source: "local",
+      kind: root.type,
       nodeId: root.id,
       name: root.name,
       ...(root.componentKey ? { key: root.componentKey } : {}),
@@ -97,6 +98,33 @@ export class InMemoryDesignSystem {
       }
       return { component: clone(component) };
     }
+    if (input.action === "library_import") {
+      const component = file.libraryComponents.find(
+        (candidate) => candidate.key === input.componentKey,
+      );
+      if (!component) {
+        throw new McpFigError(
+          "LIBRARY_IMPORT_FAILED",
+          "Published library component was not found in the fixture inventory.",
+          { details: { reason: "FIXTURE_KEY_NOT_FOUND", kind: input.kind } },
+        );
+      }
+      const imported: ComponentRecord = {
+        ...clone(component),
+        source: "library",
+        kind: input.kind,
+      };
+      const node: FigmaNode = {
+        id: component.nodeId ?? `library:${input.componentKey}`,
+        type: input.kind,
+        name: component.name,
+        componentKey: input.componentKey,
+        description: component.description,
+        componentProperties: clone(component.properties ?? {}),
+        children: [],
+      };
+      return { imported, node };
+    }
     if (input.action === "create_set") {
       if (Object.keys(input.axes).length === 0) {
         throw new McpFigError("INVALID_ARGUMENT", "axes cannot be empty.");
@@ -166,6 +194,20 @@ export class InMemoryDesignSystem {
     if (input.action === "set_description") {
       component.description = input.description;
     } else if (input.action === "property_add") {
+      if (input.property.type === "VARIANT" || input.property.type === "SLOT") {
+        throw new McpFigError(
+          "UNSUPPORTED_BY_BRIDGE",
+          input.property.type === "VARIANT"
+            ? "Figma derives VARIANT properties from component-set child names."
+            : "Use slot_create so Figma creates a physical SlotNode with its property definition.",
+        );
+      }
+      if (input.property.options && input.property.type !== "INSTANCE_SWAP") {
+        throw new McpFigError(
+          "INVALID_ARGUMENT",
+          "Preferred component keys are only valid for INSTANCE_SWAP properties; use slot_create for slots.",
+        );
+      }
       component.componentProperties ??= {};
       if (component.componentProperties[input.propertyName]) {
         throw new McpFigError(
@@ -175,6 +217,12 @@ export class InMemoryDesignSystem {
       }
       component.componentProperties[input.propertyName] = clone(input.property);
     } else if (input.action === "property_update") {
+      if (input.patch.type !== undefined) {
+        throw new McpFigError(
+          "INVALID_ARGUMENT",
+          "Figma cannot change a component property type.",
+        );
+      }
       const property = component.componentProperties?.[input.propertyName];
       if (!property) {
         throw new McpFigError(
@@ -192,12 +240,63 @@ export class InMemoryDesignSystem {
       }
       delete component.componentProperties[input.propertyName];
     } else if (input.action === "slots") {
-      return { slots: clone(component.componentSlots ?? {}) };
+      return {
+        slots: clone(
+          Object.fromEntries(
+            Object.entries(component.componentProperties ?? {}).filter(
+              ([, definition]) => definition.type === "SLOT",
+            ),
+          ),
+        ),
+      };
     } else {
-      component.componentSlots ??= {};
-      component.componentSlots[input.slotName] = [
-        ...(input.allowedComponentKeys ?? []),
-      ];
+      if (component.type !== "COMPONENT") {
+        throw new McpFigError(
+          "UNSUPPORTED_BY_BRIDGE",
+          "Figma createSlot is available on ComponentNode, not ComponentSetNode. Target a concrete component.",
+        );
+      }
+      component.componentProperties ??= {};
+      if (component.componentProperties[input.slotName]) {
+        throw new McpFigError(
+          "INVALID_ARGUMENT",
+          "Component property already exists.",
+        );
+      }
+      component.componentProperties[input.slotName] = {
+        type: "SLOT",
+        defaultValue: "",
+        ...(input.allowedComponentKeys
+          ? { options: [...input.allowedComponentKeys] }
+          : {}),
+        ...(input.description !== undefined
+          ? { description: input.description }
+          : {}),
+        ...(input.slotSettings
+          ? { slotSettings: clone(input.slotSettings) }
+          : {}),
+      };
+      const slot: FigmaNode = {
+        id: this.store.newNodeId(file),
+        type: "SLOT",
+        name: input.slotName,
+        parentId: component.id,
+        children: [],
+      };
+      component.children ??= [];
+      component.children.push(slot);
+      this.store.record(
+        file,
+        "component.slot_create",
+        [component.id, slot.id],
+        input.dryRun,
+      );
+      return {
+        component: clone(this.#componentRecord(component)),
+        node: clone(component),
+        slot: clone(slot),
+        propertyKey: input.slotName,
+      };
     }
     this.store.record(
       file,
@@ -209,7 +308,22 @@ export class InMemoryDesignSystem {
   }
 
   async instance(input: InstanceActionInput): Promise<Record<string, unknown>> {
-    const file = this.store.workingFile(input.fileKey, input.dryRun);
+    const file =
+      input.action === "inspect"
+        ? this.store.requireFile(input.fileKey)
+        : this.store.workingFile(input.fileKey, input.dryRun);
+    if (input.action === "inspect") {
+      const instances = input.instanceIds.map((id) =>
+        this.store.requireNode(file, id),
+      );
+      if (instances.some((node) => node.type !== "INSTANCE")) {
+        throw new McpFigError(
+          "INVALID_ARGUMENT",
+          "Every target must be an instance.",
+        );
+      }
+      return { instances: clone(instances) };
+    }
     if (input.action === "create") {
       const parent = this.store.requireNode(file, input.parentId);
       const local = componentRecords(file.document).find(
@@ -228,13 +342,24 @@ export class InMemoryDesignSystem {
         );
       }
       const defaults = Object.fromEntries(
-        Object.entries(component.properties ?? {}).map(([name, property]) => [
-          name,
-          property.defaultValue,
-        ]),
+        Object.entries(component.properties ?? {}).flatMap(
+          ([name, property]) =>
+            property.type === "SLOT" ? [] : [[name, property.defaultValue]],
+        ),
       );
       const properties = { ...defaults, ...(input.properties ?? {}) };
       this.#validateProperties(component, properties);
+      const localNode = local?.nodeId
+        ? this.store.requireNode(file, local.nodeId)
+        : undefined;
+      const slotChildren: FigmaNode[] = (localNode?.children ?? [])
+        .filter((child) => child.type === "SLOT")
+        .map((child) => ({
+          id: this.store.newNodeId(file),
+          type: "SLOT",
+          name: child.name,
+          children: [],
+        }));
       const instance: FigmaNode = {
         id: this.store.newNodeId(file),
         type: "INSTANCE",
@@ -245,12 +370,70 @@ export class InMemoryDesignSystem {
         instanceProperties: properties,
         x: input.x ?? 0,
         y: input.y ?? 0,
-        children: [],
+        children: slotChildren,
       };
+      for (const slot of slotChildren) slot.parentId = instance.id;
       parent.children ??= [];
       parent.children.push(instance);
       this.store.record(file, "instance.create", [instance.id], input.dryRun);
       return { instances: [clone(instance)] };
+    }
+
+    if (input.action === "swap" || input.action === "reset") {
+      const instances = input.instanceIds.map((id) =>
+        this.store.requireNode(file, id),
+      );
+      if (instances.some((node) => node.type !== "INSTANCE")) {
+        throw new McpFigError(
+          "INVALID_ARGUMENT",
+          "Every target must be an instance.",
+        );
+      }
+      if (input.action === "swap") {
+        const target =
+          componentRecords(file.document).find(
+            (component) =>
+              component.nodeId === input.componentId ||
+              component.key === input.componentKey,
+          ) ??
+          file.libraryComponents.find(
+            (component) => component.key === input.componentKey,
+          );
+        if (!target) {
+          throw new McpFigError(
+            "NODE_NOT_FOUND",
+            "Swap component was not found.",
+          );
+        }
+        const defaults = Object.fromEntries(
+          Object.entries(target.properties ?? {}).flatMap(([name, property]) =>
+            property.type === "SLOT" ? [] : [[name, property.defaultValue]],
+          ),
+        );
+        for (const node of instances) {
+          node.mainComponentId = target.nodeId;
+          node.mainComponentKey = target.key;
+          if (input.preserveOverrides === false)
+            node.instanceProperties = defaults;
+        }
+      } else {
+        for (const node of instances) {
+          const component = this.#findComponentForInstance(file, node);
+          node.instanceProperties = Object.fromEntries(
+            Object.entries(component.properties ?? {}).flatMap(
+              ([name, property]) =>
+                property.type === "SLOT" ? [] : [[name, property.defaultValue]],
+            ),
+          );
+        }
+      }
+      this.store.record(
+        file,
+        `instance.${input.action}`,
+        input.instanceIds,
+        input.dryRun,
+      );
+      return { instances: clone(instances) };
     }
 
     if (input.action === "update") {
@@ -287,20 +470,56 @@ export class InMemoryDesignSystem {
         `Node ${instance.id} is not an instance.`,
       );
     }
-    instance.componentSlots ??= {};
+    const slot = (() => {
+      const pending = [...(instance.children ?? [])];
+      while (pending.length > 0) {
+        const node = pending.shift();
+        if (!node) continue;
+        if (node.type === "SLOT" && node.name === input.slotName) return node;
+        pending.push(...(node.children ?? []));
+      }
+      return undefined;
+    })();
+    if (!slot) {
+      throw new McpFigError(
+        "SLOT_NOT_FOUND",
+        `Instance ${instance.id} has no SLOT named ${input.slotName}.`,
+      );
+    }
     if (input.action === "slot_append") {
-      instance.componentSlots[input.slotName] ??= [];
-      instance.componentSlots[input.slotName]?.push(input.componentKey);
+      const target =
+        componentRecords(file.document).find(
+          (component) => component.key === input.componentKey,
+        ) ??
+        file.libraryComponents.find(
+          (component) => component.key === input.componentKey,
+        );
+      if (!target) {
+        throw new McpFigError(
+          "NODE_NOT_FOUND",
+          "Slot component was not found.",
+        );
+      }
+      slot.children ??= [];
+      slot.children.push({
+        id: this.store.newNodeId(file),
+        type: "INSTANCE",
+        name: target.name,
+        parentId: slot.id,
+        mainComponentId: target.nodeId,
+        mainComponentKey: target.key,
+        children: [],
+      });
     } else {
-      delete instance.componentSlots[input.slotName];
+      slot.children = [];
     }
     this.store.record(
       file,
       `instance.${input.action}`,
-      [instance.id],
+      [instance.id, slot.id],
       input.dryRun,
     );
-    return { instances: [clone(instance)] };
+    return { instances: [clone(instance)], slot: clone(slot) };
   }
 
   async tokens(input: TokenActionInput): Promise<Record<string, unknown>> {
@@ -495,6 +714,12 @@ export class InMemoryDesignSystem {
         throw new McpFigError(
           "INVALID_ARGUMENT",
           `Component property ${name} was not found.`,
+        );
+      }
+      if (definition.type === "SLOT") {
+        throw new McpFigError(
+          "INVALID_ARGUMENT",
+          `${name} is a SLOT; use slot_append or slot_reset.`,
         );
       }
       if (definition.type === "BOOLEAN" && typeof value !== "boolean") {

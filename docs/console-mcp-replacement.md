@@ -41,7 +41,7 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 | Profile/영역 | config에 존재 | 실제 등록 상태 |
 |---|---:|---|
 | `core` | yes | 아래 8개 facade가 항상 등록됨 |
-| `libraries` | yes | 새 top-level tool은 없음. `figma_component`에 `library_search`, `library_inspect` action만 조건부 추가 |
+| `libraries` | yes | 새 top-level tool은 없음. `figma_component`에 `library_search`, `library_inspect`, `library_import` action만 조건부 추가 |
 | `tokens` | yes | 새 등록 없음. `figma_tokens`는 이미 Core에 포함 |
 | `collaboration`, `history`, `slides`, `figjam`, `debug`, `advanced` | yes | **등록 tool/action 없음**. 목표 이름이며 capability evidence가 아님 |
 
@@ -54,8 +54,8 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 | `figma_selection` | `get`, `inspect` |
 | `figma_node` | `get`, `query`, `text_range_read`, `text_range_update`, `image_import`, `image_inspect`, `image_fill`, `export`, `create`, `update`, `move`, `resize`, `clone`, `delete` |
 | `figma_layout` | `inspect`, `apply`, `sizing`, `batch`, `validate`, `repair` |
-| `figma_component` | `search`, `inspect`, `create_set`, `arrange_set`, `set_description`, `property_add`, `property_update`, `property_delete`, `slots`, `slot_create`; `libraries` profile에서 `library_search`, `library_inspect` 추가 |
-| `figma_instance` | `create`, `update`, `slot_append`, `slot_reset` |
+| `figma_component` | `search`, `inspect`, `create_set`, `arrange_set`, `set_description`, `property_add`, `property_update`, `property_delete`, `slots`, `slot_create`; `libraries` profile에서 `library_search`, `library_inspect`, `library_import` 추가 |
+| `figma_instance` | `inspect`, `create`, `swap`, `update`, `reset`, `slot_append`, `slot_reset` |
 | `figma_tokens` | `inspect`, `apply`, `collection_create`, `collection_delete` |
 
 이 목록은 `tests/snapshots/core-tool-schemas.json`으로 고정되고 `tests/quality-gates.test.ts`와 `scripts/smoke-mcp.mjs`가 runtime registry를 검증한다.
@@ -73,8 +73,8 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 | Image import·image fill | image fill setter + raw execute | `figma_node.image_import/inspect/fill`: owner-home local 또는 restricted HTTPS, PNG/JPEG/GIF signature, raw 650,000 bytes, Figma hash metadata, append/replace fill와 rollback. PNG/JPG/SVG/PDF export는 기존 action 유지 | **complete** | P0 | `1154` | local/URL policy regression 및 live import → inspect → append/replace → PNG export → cleanup 통과. 세부 계약은 `docs/text-range-image-import.md` |
 | Node export artifact | component image, screenshot 계열 | `figma_node.export`와 owner-local artifact 저장 구현 | **complete** | P0 | `1157`에서 screenshot과 역할 분리 검증 | 실제 node를 PNG/JPG/SVG/PDF로 export하고 format/scale/payload 제한, 파일 signature, cleanup을 확인 |
 | Auto Layout authoring·validation·repair | 주로 `figma_execute`와 여러 node setter; first-class typed layout 없음 | `figma_layout` 6 actions, dry-run, atomic batch, deterministic validation/repair | **complete** | P0 | `1159` 최종 E2E | live frame에 apply → exact gap/padding/sizing readback → validate 0 issues → cleanup. invalid HUG/FILL fixture는 stable issue code로 탐지 |
-| Local component·variant·instance·slot | component set/property/slot/instance tools | typed component/instance actions 구현과 fixture workflow 있음. 전체 live CRUD/override/reset gate는 미완료 | **partial** | P0 | `1155` | disposable component set/variants/instance에서 create/swap/override/reset/slot exact readback과 cleanup. fixture/live 차이 0 또는 명시된 structured limitation |
-| Library component 검색·import | library components/by-key + instantiate/import | `libraries` profile의 search/inspect만 schema에 있음. library import 및 plan/API 제한 live gate 없음 | **partial** | P0 | `1155` | enabled profile에서 stable key search/inspect/import/instance 경로를 실제 library로 검증. 권한/plan 제한은 structured error |
+| Local component·variant·instance·slot | component set/property/slot/instance tools | local COMPONENT/COMPONENT_SET search/inspect, bounded set create, canonical variant/property readback, physical `ComponentNode.createSlot()`, instance inspect/create/display-key override/swap/reset/slot append-reset 구현 | **complete** | P0 | `1155` | live 4-variant set plus native SlotNode `Content#54:53`, append `1` → reset `0`, create/override/swap/default reset exact readback, cleanup 0. 세부 계약은 `docs/component-instance-library.md` |
+| Library component 검색·import | library components/by-key + instantiate/import | known published key `library_import` 구현. Plugin API inventory 부재는 `LIBRARY_SEARCH_UNAVAILABLE`; definite rejection은 `LIBRARY_IMPORT_FAILED`, uncancellable timeout은 `UNKNOWN_OUTCOME/TIMEOUT_PENDING`; fixture inventory 성공을 live support로 간주하지 않음 | **partial** | P0 | enabled-library account gate 필요 | fake-key timeout truthfulness와 service error preservation 통과. real stable published key 성공은 target account에 enabled library가 있어야 완료 |
 | Variables·modes·aliases·bindings | variable CRUD, mode, batch, token import/export | inspect, set value, alias, bind, mode add/rename, collection create/delete. variable create/delete/rename, mode remove, complete live gate 부족 | **partial** | P0 | `1156` | Light/Dark collection에서 CRUD/modes/alias/binding exact readback과 cleanup; alias cycle/type mismatch 차단 |
 | Local styles | get styles; 일부 raw execute | `figma_styles`는 목표 audit에만 있고 실제 등록 없음 | **missing** | P0 | `1156` | local paint/text/effect/grid style inspect와 matrix에서 정한 write scope를 live exact readback. library import와 local write 구분 |
 | Viewport/selection screenshot | take/capture screenshot | node export는 있으나 viewport/selection screenshot tool 없음 | **missing** | P0 | `1157` | viewport/selection/node capture 범위와 scale/payload cap을 schema로 고정하고 실제 clipping/overlap fixture를 전달 |
@@ -123,11 +123,12 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 - live Auto Layout canary: the first invalid root-HUG attempt produced `HUG_WITHOUT_AUTO_LAYOUT_PARENT`; fixed-root retry returned `valid: true`, `issues: []`, exact `HORIZONTAL`, gap `17`, padding `13`, cleanup true
 - live node query/visual canary: persistent service IPC에서 disposable frame/rectangle 생성, exact name/type/path query와 ID 일치, gradient create readback, fill/stroke/opacity/corner radius/shadow/blend/constraints update canonical exact readback, unsupported two-node batch `INVALID_ARGUMENT`와 선행 mutation 0, delete 후 query 0
 - live text/image canary: owner-home 1×1 PNG local import, hash metadata `image/png`/68 bytes/1×1 inspect, rectangle image fill append `FIT` → replace `FILL`, PNG export 310 bytes/signature 확인. mixed-font text의 `Alpha` range만 Bold/18/24px/2%/red로 변경하고 untouched ` Beta` Regular/12/AUTO/0%/black exact readback, disposable nodes와 local source cleanup 후 query 0
+- live component/instance canaries: persistent service IPC에서 disposable 2-axis/4-variant set의 `COMPONENT_SET` search/inspect, `State`/`Size` options, display-name create/override, override-preserving swap, defaults(`Continue`/`Default`/`S`) reset을 확인했다. 별도 native-slot canary는 `ComponentNode.createSlot()` → physical `SLOT 54:168`/`Content#54:53` → instance append child count `1` → reset `0`을 확인했다. inventory는 `LIBRARY_SEARCH_UNAVAILABLE/NO_COMPONENT_LIBRARY_INVENTORY_API`, fake-key 4-second observation timeout은 uncancellable이어서 `UNKNOWN_OUTCOME/TIMEOUT_PENDING`; 두 canary cleanup 모두 0
 - live URL source gate: DNS-validated/pinned HTTPS로 Wikimedia PNG를 `image/png`/38,692 bytes로 fetch·signature 확인
 
 명시적 한계:
 
-- component/instance/token/library의 fixture tests는 구현 근거지만 live completion 근거가 아니다. 그래서 `partial`이다.
+- component/instance fixture와 live CRUD/readback은 통과했지만 fixture library inventory는 live cloud capability 근거가 아니다. Figma Plugin API는 component library 목록을 제공하지 않으며 real-key import 성공 gate는 enabled library가 있는 account에서 별도로 필요하다.
 - node export와 desktop screenshot은 같은 proof가 아니다. export 구현만으로 visual verification을 `complete`로 보지 않는다.
 - `PROFILE_NAMES`에 이름이 있어도 `src/server.ts`가 tool/action을 등록하지 않으면 `missing`이다.
 - P0/P1은 usage telemetry 통계가 아니라 현재 backlog와 신빵의 명시된 design workflow를 바탕으로 확정한 product priority다.

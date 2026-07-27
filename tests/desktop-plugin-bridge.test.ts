@@ -2,7 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, describe, expect, it } from "vitest";
-
+import { isReadOnlyRequest } from "../src/bridge/desktop-plugin/write-coordinator.js";
 import {
   DesktopPluginBridgeHost,
   DesktopPluginFigmaBridge,
@@ -149,6 +149,19 @@ async function call(
 }
 
 describe("Desktop Plugin bridge", () => {
+  it("classifies component library inventory and slots as reads", () => {
+    expect(isReadOnlyRequest("component", { action: "library_search" })).toBe(
+      true,
+    );
+    expect(isReadOnlyRequest("component", { action: "library_inspect" })).toBe(
+      true,
+    );
+    expect(isReadOnlyRequest("component", { action: "slots" })).toBe(true);
+    expect(isReadOnlyRequest("component", { action: "library_import" })).toBe(
+      false,
+    );
+  });
+
   it("exchanges one-time pairing codes only for localhost/null origins", async () => {
     const credential = "p".repeat(43);
     const consumed = new Set<string>();

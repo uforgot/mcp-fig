@@ -157,6 +157,97 @@ describe("Component, instance, and token facade", () => {
     });
   });
 
+  it("creates physical fixture slots and mutates their instance tree", async () => {
+    const { client } = await createConnectedClient(["core", "libraries"]);
+    const createdSlot = await call(client, "figma_component", {
+      action: "slot_create",
+      componentId: "3:0",
+      slotName: "Content",
+      allowedComponentKeys: ["library-card-key"],
+    });
+    expect(createdSlot.payload.data.slot).toMatchObject({
+      type: "SLOT",
+      name: "Content",
+      children: [],
+    });
+    const created = await call(client, "figma_instance", {
+      action: "create",
+      componentId: "3:0",
+      parentId: "2:0",
+    });
+    expect(created.payload).toMatchObject({
+      data: { instances: [expect.objectContaining({ type: "INSTANCE" })] },
+    });
+    const instanceId = created.payload.data.instances[0].id as string;
+    const appended = await call(client, "figma_instance", {
+      action: "slot_append",
+      instanceId,
+      slotName: "Content",
+      componentKey: "library-card-key",
+    });
+    expect(appended.payload.data.slot.children).toEqual([
+      expect.objectContaining({
+        type: "INSTANCE",
+        mainComponentKey: "library-card-key",
+      }),
+    ]);
+    const reset = await call(client, "figma_instance", {
+      action: "slot_reset",
+      instanceId,
+      slotName: "Content",
+    });
+    expect(reset.payload.data.slot.children).toEqual([]);
+  });
+
+  it("imports a key-addressed library component and supports inspect swap reset", async () => {
+    const { client } = await createConnectedClient(["core", "libraries"]);
+    const imported = await call(client, "figma_component", {
+      action: "library_import",
+      componentKey: "library-card-key",
+      kind: "COMPONENT",
+    });
+    expect(imported.payload.data.imported).toMatchObject({
+      source: "library",
+      kind: "COMPONENT",
+      key: "library-card-key",
+      name: "Card",
+    });
+    expect(imported.payload.data.node).toMatchObject({
+      type: "COMPONENT",
+      componentKey: "library-card-key",
+    });
+
+    const created = await call(client, "figma_instance", {
+      action: "create",
+      componentId: "3:0",
+      parentId: "2:0",
+      properties: { Label: "Overridden" },
+    });
+    const instanceId = created.payload.data.instances[0].id as string;
+    const swapped = await call(client, "figma_instance", {
+      action: "swap",
+      instanceIds: [instanceId],
+      componentKey: "library-card-key",
+      preserveOverrides: true,
+    });
+    expect(swapped.payload.data.instances[0]).toMatchObject({
+      mainComponentKey: "library-card-key",
+      instanceProperties: expect.objectContaining({ Label: "Overridden" }),
+    });
+    const inspected = await call(client, "figma_instance", {
+      action: "inspect",
+      instanceIds: [instanceId],
+    });
+    expect(inspected.payload.data.instances[0].mainComponentKey).toBe(
+      "library-card-key",
+    );
+    const reset = await call(client, "figma_instance", {
+      action: "reset",
+      instanceIds: [instanceId],
+    });
+    expect(reset.payload.data.instances[0].instanceProperties).toEqual({});
+  });
+
   it("preserves variable aliases and applies explicit collection modes", async () => {
     const { client } = await createConnectedClient();
     const initial = await call(client, "figma_tokens", { action: "inspect" });

@@ -16,6 +16,13 @@ const properties = z.record(
 const inputSchema = z.union([
   z
     .object({
+      action: z.literal("inspect"),
+      instanceIds: z.array(z.string().min(1)).min(1).max(200),
+      fileKey,
+    })
+    .strict(),
+  z
+    .object({
       action: z.literal("create"),
       ...writeControlSchema,
       componentId: z.string().min(1).optional(),
@@ -30,9 +37,37 @@ const inputSchema = z.union([
     .strict()
     .refine(
       (input) =>
-        input.componentId !== undefined || input.componentKey !== undefined,
-      "create requires componentId or componentKey",
+        (input.componentId === undefined) !==
+        (input.componentKey === undefined),
+      "create requires exactly one of componentId or componentKey",
     ),
+  z
+    .object({
+      action: z.literal("swap"),
+      ...writeControlSchema,
+      instanceIds: z.array(z.string().min(1)).min(1).max(200),
+      componentId: z.string().min(1).optional(),
+      componentKey: z.string().min(1).optional(),
+      preserveOverrides: z.boolean().default(true),
+      dryRun,
+      fileKey,
+    })
+    .strict()
+    .refine(
+      (input) =>
+        (input.componentId === undefined) !==
+        (input.componentKey === undefined),
+      "swap requires exactly one of componentId or componentKey",
+    ),
+  z
+    .object({
+      action: z.literal("reset"),
+      ...writeControlSchema,
+      instanceIds: z.array(z.string().min(1)).min(1).max(200),
+      dryRun,
+      fileKey,
+    })
+    .strict(),
   z
     .object({
       action: z.literal("update"),
@@ -75,7 +110,7 @@ export function registerInstanceTool(
     {
       title: "Figma instance",
       description:
-        "Create component instances, update typed properties, and manage component slots without raw execution.",
+        "Inspect and create component instances, resolve display-name properties, swap components, reset overrides/defaults, and operate actual SlotNode content without raw execution.",
       inputSchema: exposeMcpInputSchema(inputSchema),
       annotations: {
         readOnlyHint: false,

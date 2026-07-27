@@ -9,6 +9,9 @@ export type ErrorCode =
   | "BUSY"
   | "CONFIRMATION_REQUIRED"
   | "UNSUPPORTED_BY_BRIDGE"
+  | "LIBRARY_SEARCH_UNAVAILABLE"
+  | "LIBRARY_IMPORT_FAILED"
+  | "SLOT_NOT_FOUND"
   | "INTERNAL_ERROR";
 
 export class McpFigError extends Error {

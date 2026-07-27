@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { saveNodeExports } from "../artifacts/node-export.js";
 import {
+  FIGMA_CREATABLE_NODE_TYPES,
   FIGMA_NODE_TYPES,
   type FigmaBridge,
   type TextRangeActionInput,
@@ -301,7 +302,7 @@ const inputSchema = z.discriminatedUnion("action", [
       action: z.literal("create"),
       fileKey,
       parentId: z.string().min(1),
-      nodeType: z.enum(FIGMA_NODE_TYPES),
+      nodeType: z.enum(FIGMA_CREATABLE_NODE_TYPES),
       name: z.string().min(1).optional(),
       props: nodeProps.optional(),
       dryRun,

@@ -58,6 +58,9 @@ const ERROR_CODES = new Set<ErrorCode>([
   "BUSY",
   "CONFIRMATION_REQUIRED",
   "UNSUPPORTED_BY_BRIDGE",
+  "LIBRARY_SEARCH_UNAVAILABLE",
+  "LIBRARY_IMPORT_FAILED",
+  "SLOT_NOT_FOUND",
   "INTERNAL_ERROR",
 ]);
 
@@ -102,7 +105,15 @@ export function isReadOnlyRequest(method: string, params: unknown): boolean {
     params && typeof params === "object" && "action" in params
       ? (params as { action?: unknown }).action
       : undefined;
-  return ["inspect", "search", "validate", "read"].includes(String(action));
+  return [
+    "inspect",
+    "search",
+    "validate",
+    "read",
+    "library_search",
+    "library_inspect",
+    "slots",
+  ].includes(String(action));
 }
 
 function canonicalJson(value: unknown): string {

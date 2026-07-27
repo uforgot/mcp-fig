@@ -11,13 +11,57 @@ import { writeControlSchema } from "./write-control.js";
 
 const fileKey = z.string().min(1).optional();
 const dryRun = z.boolean().default(false);
+const slotSettings = z
+  .object({
+    stretchChildOnInsert: z.boolean().optional(),
+    displayEmptyByDefault: z.boolean().optional(),
+    minChildren: z.number().int().nonnegative().nullable().optional(),
+    maxChildren: z.number().int().nonnegative().nullable().optional(),
+    allowPreferredValuesOnly: z.boolean().optional(),
+  })
+  .strict()
+  .refine(
+    (settings) =>
+      settings.minChildren == null ||
+      settings.maxChildren == null ||
+      settings.minChildren <= settings.maxChildren,
+    "slot minChildren must not exceed maxChildren",
+  );
 const property = z
   .object({
-    type: z.enum(["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"]),
+    type: z.enum(["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT", "SLOT"]),
     defaultValue: z.union([z.string(), z.boolean()]),
-    options: z.array(z.string()).min(1).optional(),
+    options: z.array(z.string()).min(1).max(100).optional(),
+    description: z.string().max(500).optional(),
+    slotSettings: slotSettings.optional(),
   })
   .strict();
+
+const componentAxes = z
+  .record(
+    z.string().min(1),
+    z
+      .array(z.string().min(1))
+      .min(1)
+      .max(20)
+      .refine(
+        (values) => new Set(values).size === values.length,
+        "axis values must be unique",
+      ),
+  )
+  .superRefine((axes, context) => {
+    const entries = Object.entries(axes);
+    const combinations = entries.reduce(
+      (count, [, values]) => count * values.length,
+      1,
+    );
+    if (entries.length < 1 || entries.length > 8 || combinations > 100) {
+      context.addIssue({
+        code: "custom",
+        message: "axes require 1 to 8 axes and at most 100 variants",
+      });
+    }
+  });
 
 const coreSchemas = [
   z
@@ -37,8 +81,9 @@ const coreSchemas = [
     .strict()
     .refine(
       (input) =>
-        input.componentId !== undefined || input.componentKey !== undefined,
-      "inspect requires componentId or componentKey",
+        (input.componentId === undefined) !==
+        (input.componentKey === undefined),
+      "inspect requires exactly one of componentId or componentKey",
     ),
   z
     .object({
@@ -46,7 +91,7 @@ const coreSchemas = [
       ...writeControlSchema,
       parentId: z.string().min(1),
       name: z.string().min(1),
-      axes: z.record(z.string().min(1), z.array(z.string().min(1)).min(1)),
+      axes: componentAxes,
       dryRun,
       fileKey,
     })
@@ -120,7 +165,9 @@ const coreSchemas = [
       ...writeControlSchema,
       componentId: z.string().min(1),
       slotName: z.string().min(1),
-      allowedComponentKeys: z.array(z.string().min(1)).optional(),
+      allowedComponentKeys: z.array(z.string().min(1)).max(100).optional(),
+      description: z.string().max(500).optional(),
+      slotSettings: slotSettings.optional(),
       dryRun,
       fileKey,
     })
@@ -139,6 +186,16 @@ const librarySchemas = [
     .object({
       action: z.literal("library_inspect"),
       componentKey: z.string().min(1),
+      fileKey,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("library_import"),
+      ...writeControlSchema,
+      componentKey: z.string().min(1),
+      kind: z.enum(["COMPONENT", "COMPONENT_SET"]),
+      dryRun,
       fileKey,
     })
     .strict(),

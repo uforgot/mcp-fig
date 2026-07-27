@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 interface MockNode {
   id: string;
@@ -192,43 +192,289 @@ function createHarness() {
     height: 48,
     visible: true,
     locked: false,
+    remote: false,
     key: "component-key",
     description: "Button component",
-    componentPropertyDefinitions: {},
+    componentPropertyDefinitions: {
+      Label: { type: "TEXT", defaultValue: "Default" },
+    },
+  };
+  const slot: MockNode = {
+    id: "3:2",
+    type: "SLOT",
+    name: "Content",
+    children: [],
+    width: 120,
+    height: 24,
+    visible: true,
+    locked: false,
+    limitViolations: [],
+    componentPropertyReferences: { slot: "Content" },
+    resetSlot() {
+      this.children = [];
+    },
   };
   const instance: MockNode = {
     id: "3:1",
     type: "INSTANCE",
     name: "Button instance",
     parent: page,
-    children: [],
+    children: [slot],
     width: 120,
     height: 48,
     visible: true,
     locked: false,
-    componentProperties: { Label: { value: "Before" } },
+    componentProperties: { "Label#3:0": { value: "Before" } },
     boundVariables: {},
+    mainComponentRef: component,
     async getMainComponentAsync() {
-      return component;
+      return this.mainComponentRef;
+    },
+    swapComponent(next: MockNode) {
+      this.mainComponentRef = next;
     },
     setProperties(properties: Record<string, string | boolean>) {
-      this.componentProperties = Object.fromEntries(
-        Object.entries(properties).map(([key, value]) => [key, { value }]),
-      );
+      this.componentProperties = {
+        ...(this.componentProperties as Record<
+          string,
+          { value: string | boolean }
+        >),
+        ...Object.fromEntries(
+          Object.entries(properties).map(([key, value]) => [key, { value }]),
+        ),
+      };
     },
+    removeOverrides() {},
     resetOverrides() {},
   };
+  slot.parent = instance;
 
   root.children = [page];
   page.children = [frame, component, instance];
   frame.children = [child, text];
 
   const nodes = new Map(
-    [root, page, frame, child, text, component, instance].map((node) => [
+    [root, page, frame, child, text, component, instance, slot].map((node) => [
       node.id,
       node,
     ]),
   );
+  let nextDynamicId = 10;
+  function removeNode(node: MockNode) {
+    const parent = node.parent;
+    if (parent?.children)
+      parent.children = parent.children.filter((item) => item !== node);
+    delete node.parent;
+    nodes.delete(node.id);
+  }
+  function installNode(node: MockNode) {
+    node.remove = () => removeNode(node);
+    if (node.children) {
+      node.appendChild = (childNode: MockNode) => {
+        if (childNode.parent?.children)
+          childNode.parent.children = childNode.parent.children.filter(
+            (item) => item !== childNode,
+          );
+        childNode.parent = node;
+        node.children?.push(childNode);
+        nodes.set(childNode.id, childNode);
+      };
+    }
+    return node;
+  }
+  for (const node of nodes.values()) installNode(node);
+  function installComponent(node: MockNode) {
+    installNode(node);
+    node.addComponentProperty = (
+      name: string,
+      type: string,
+      defaultValue: string | boolean,
+      options: Record<string, unknown> = {},
+    ) => {
+      const definitions = node.componentPropertyDefinitions as Record<
+        string,
+        Record<string, unknown>
+      >;
+      definitions[name] = { type, defaultValue, ...options };
+      return name;
+    };
+    node.editComponentProperty = (
+      name: string,
+      propertyPatch: Record<string, unknown>,
+    ) => {
+      const definitions = node.componentPropertyDefinitions as Record<
+        string,
+        Record<string, unknown>
+      >;
+      const nextName =
+        typeof propertyPatch.name === "string"
+          ? `${propertyPatch.name}#${name.split("#").slice(1).join("#")}`
+          : name;
+      const { name: _name, ...definitionPatch } = propertyPatch;
+      definitions[nextName] = { ...definitions[name], ...definitionPatch };
+      if (nextName !== name) {
+        delete definitions[name];
+        for (const childNode of node.children ?? []) {
+          const references = childNode.componentPropertyReferences as
+            | { slot?: string }
+            | undefined;
+          if (references?.slot === name) references.slot = nextName;
+        }
+      }
+      return nextName;
+    };
+    node.deleteComponentProperty = (name: string) => {
+      const definitions = node.componentPropertyDefinitions as Record<
+        string,
+        Record<string, unknown>
+      >;
+      delete definitions[name];
+    };
+    node.createSlot = () => {
+      const slotId = `dynamic:${nextDynamicId++}`;
+      const propertyKey = `Slot#${slotId}`;
+      const definitions = node.componentPropertyDefinitions as Record<
+        string,
+        Record<string, unknown>
+      >;
+      definitions[propertyKey] = { type: "SLOT", defaultValue: "" };
+      const created = installNode({
+        id: slotId,
+        type: "SLOT",
+        name: "Slot",
+        parent: node,
+        children: [],
+        width: node.width,
+        height: 24,
+        visible: true,
+        locked: false,
+        limitViolations: [],
+        componentPropertyReferences: { slot: propertyKey },
+        resetSlot() {
+          this.children = [];
+        },
+      });
+      let currentSlotName = "Slot";
+      Object.defineProperty(created, "name", {
+        configurable: true,
+        get: () => currentSlotName,
+        set: (nextName: string) => {
+          const references = created.componentPropertyReferences as {
+            slot: string;
+          };
+          const previousKey = references.slot;
+          const nextKey = `${nextName}#${previousKey.split("#").slice(1).join("#")}`;
+          const previousDefinition = definitions[previousKey];
+          if (!previousDefinition)
+            throw new Error(`Missing slot property ${previousKey}.`);
+          definitions[nextKey] = previousDefinition;
+          delete definitions[previousKey];
+          references.slot = nextKey;
+          currentSlotName = nextName;
+        },
+      });
+      node.children ??= [];
+      node.children.push(created);
+      nodes.set(created.id, created);
+      return created;
+    };
+    node.createInstance = () => {
+      const clonedSlots = (node.children ?? [])
+        .filter((childNode) => childNode.type === "SLOT")
+        .map((childNode) => {
+          const cloned = installNode({
+            id: `dynamic:${nextDynamicId++}`,
+            type: "SLOT",
+            name: childNode.name,
+            children: [],
+            width: childNode.width,
+            height: childNode.height,
+            visible: true,
+            locked: false,
+            limitViolations: [],
+            componentPropertyReferences: structuredClone(
+              childNode.componentPropertyReferences,
+            ),
+            resetSlot() {
+              this.children = [];
+            },
+          });
+          nodes.set(cloned.id, cloned);
+          return cloned;
+        });
+      const created = installNode({
+        id: `dynamic:${nextDynamicId++}`,
+        type: "INSTANCE",
+        name: node.name,
+        children: clonedSlots,
+        width: node.width,
+        height: node.height,
+        componentProperties: Object.fromEntries(
+          Object.entries(
+            node.componentPropertyDefinitions as Record<
+              string,
+              { type: string; defaultValue: string | boolean }
+            >,
+          ).map(([key, value]) => [
+            key,
+            { type: value.type, value: value.defaultValue },
+          ]),
+        ),
+        mainComponentRef: node,
+        async getMainComponentAsync() {
+          return this.mainComponentRef;
+        },
+        setProperties(properties: Record<string, string | boolean>) {
+          this.componentProperties = {
+            ...(this.componentProperties as Record<string, unknown>),
+            ...Object.fromEntries(
+              Object.entries(properties).map(([key, value]) => [
+                key,
+                {
+                  ...(
+                    this.componentProperties as Record<
+                      string,
+                      Record<string, unknown>
+                    >
+                  )[key],
+                  value,
+                },
+              ]),
+            ),
+          };
+        },
+        removeOverrides() {},
+        resetOverrides() {},
+        swapComponent(next: MockNode) {
+          this.mainComponentRef = next;
+        },
+      });
+      for (const clonedSlot of clonedSlots) clonedSlot.parent = created;
+      (page.appendChild as ((childNode: MockNode) => void) | undefined)?.(
+        created,
+      );
+      nodes.set(created.id, created);
+      return created;
+    };
+    return node;
+  }
+  installComponent(component);
+  const remoteComponent = installComponent({
+    id: "library:card",
+    type: "COMPONENT",
+    name: "Card",
+    children: [],
+    width: 160,
+    height: 80,
+    visible: true,
+    locked: false,
+    remote: true,
+    key: "library-card-key",
+    description: "Library card",
+    componentPropertyDefinitions: {
+      "Label#library:card": { type: "TEXT", defaultValue: "Default" },
+    },
+  });
   root.findAllWithCriteria = ({ types }: { types: string[] }) =>
     [...nodes.values()].filter((node) => types.includes(node.type));
 
@@ -248,6 +494,82 @@ function createHarness() {
     root,
     currentPage: page,
     mixed: Symbol("mixed"),
+    createComponent() {
+      return installComponent({
+        id: `dynamic:${nextDynamicId++}`,
+        type: "COMPONENT",
+        name: "Component",
+        parent: page,
+        children: [],
+        width: 100,
+        height: 40,
+        visible: true,
+        locked: false,
+        remote: false,
+        key: `component-key-${nextDynamicId}`,
+        description: "",
+        componentPropertyDefinitions: {},
+      });
+    },
+    combineAsVariants(variants: MockNode[], parent: MockNode) {
+      const definitions: Record<string, Record<string, unknown>> = {};
+      for (const variant of variants) {
+        for (const pair of variant.name.split(", ")) {
+          const [name, value] = pair.split("=");
+          if (!name || !value) continue;
+          let definition = definitions[name];
+          if (!definition) {
+            definition = {
+              type: "VARIANT",
+              defaultValue: value,
+              variantOptions: [],
+            };
+            definitions[name] = definition;
+          }
+          const options = definition.variantOptions as string[];
+          if (!options.includes(value)) options.push(value);
+        }
+      }
+      const set = installComponent({
+        id: `dynamic:${nextDynamicId++}`,
+        type: "COMPONENT_SET",
+        name: "Component set",
+        children: variants,
+        width: 200,
+        height: 100,
+        visible: true,
+        locked: false,
+        remote: false,
+        key: `set-key-${nextDynamicId}`,
+        description: "",
+        componentPropertyDefinitions: definitions,
+      });
+      for (const variant of variants) {
+        variant.parent = set;
+        Object.defineProperty(variant, "componentPropertyDefinitions", {
+          configurable: true,
+          get() {
+            throw new Error(
+              "Can only get component property definitions of a component set or non-variant component",
+            );
+          },
+        });
+      }
+      parent.children = (parent.children ?? []).filter(
+        (childNode) => !variants.includes(childNode),
+      );
+      (parent.appendChild as (node: MockNode) => void)(set);
+      nodes.set(set.id, set);
+      return set;
+    },
+    async importComponentByKeyAsync(key: string) {
+      if (key === "pending-key") return await new Promise(() => {});
+      if (key !== "library-card-key") throw new Error("library denied");
+      return remoteComponent;
+    },
+    async importComponentSetByKeyAsync(_key: string) {
+      throw new Error("component set unavailable");
+    },
     base64Encode(data: Uint8Array) {
       return Buffer.from(data).toString("base64");
     },
@@ -361,9 +683,12 @@ function createHarness() {
 
   return {
     command,
+    page,
     frame,
     child,
     text,
+    component,
+    instance,
     handlers,
     messages,
     clientStorage,
@@ -1023,7 +1348,7 @@ describe("Figma Plugin main bridge", () => {
     expect(updated).toMatchObject({ ok: true });
     expect(() => structuredClone(updated?.data)).not.toThrow();
     expect(updated?.data).toMatchObject({
-      instances: [{ id: "3:1", instanceProperties: { Label: "After" } }],
+      instances: [{ id: "3:1", instanceProperties: { "Label#3:0": "After" } }],
     });
   });
 
@@ -1225,6 +1550,372 @@ describe("Figma Plugin main bridge", () => {
     ).resolves.toMatchObject({
       ok: false,
       error: { code: "INVALID_ARGUMENT" },
+    });
+  });
+
+  it("creates and inspects a local component set with canonical variant properties", async () => {
+    const { command } = createHarness();
+    const created = await command("component", {
+      action: "create_set",
+      parentId: "1:0",
+      name: "Control",
+      axes: { State: ["Default", "Hover"], Size: ["S", "L"] },
+    });
+    expect(created).toMatchObject({
+      ok: true,
+      data: {
+        componentSet: {
+          type: "COMPONENT_SET",
+          name: "Control",
+          componentProperties: {
+            State: { type: "VARIANT", options: ["Default", "Hover"] },
+            Size: { type: "VARIANT", options: ["S", "L"] },
+          },
+        },
+      },
+    });
+    const search = await command("component", {
+      action: "search",
+      query: "control",
+    });
+    expect(search).toMatchObject({
+      ok: true,
+      data: { components: [{ source: "local", name: "Control" }] },
+    });
+    if (!created?.data)
+      throw new Error("Component set fixture returned no data.");
+    const setId = (created.data as { componentSet: { id: string } })
+      .componentSet.id;
+    await expect(
+      command("component", {
+        action: "property_add",
+        componentId: setId,
+        propertyName: "Label",
+        property: { type: "TEXT", defaultValue: "Continue" },
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: {
+        component: {
+          properties: { Label: { type: "TEXT", defaultValue: "Continue" } },
+        },
+      },
+    });
+    await expect(
+      command("component", {
+        action: "slot_create",
+        componentId: setId,
+        slotName: "Content",
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "UNSUPPORTED_BY_BRIDGE" },
+    });
+    await expect(
+      command("component", {
+        action: "property_add",
+        componentId: setId,
+        propertyName: "Manual variant",
+        property: { type: "VARIANT", defaultValue: "A" },
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "UNSUPPORTED_BY_BRIDGE" },
+    });
+    await expect(
+      command("component", {
+        action: "property_update",
+        componentId: setId,
+        propertyName: "Label",
+        patch: { type: "BOOLEAN" },
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ARGUMENT" },
+    });
+  });
+
+  it("removes a newly created instance when property validation fails", async () => {
+    const { command, page } = createHarness();
+    const before = page.children?.map((node) => node.id);
+    await expect(
+      command("instance", {
+        action: "create",
+        parentId: "1:0",
+        componentId: "3:0",
+        properties: { Missing: "value" },
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ARGUMENT" },
+    });
+    expect(page.children?.map((node) => node.id)).toEqual(before);
+  });
+
+  it("cleans up a native slot when metadata editing fails", async () => {
+    const { command, component } = createHarness();
+    const definitions = component.componentPropertyDefinitions as Record<
+      string,
+      unknown
+    >;
+    const beforeKeys = Object.keys(definitions);
+    const beforeChildren = component.children?.map((node) => node.id);
+    component.editComponentProperty = () => {
+      throw new Error("slot metadata failed");
+    };
+    await expect(
+      command("component", {
+        action: "slot_create",
+        componentId: "3:0",
+        slotName: "Footer",
+        description: "will fail",
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "INTERNAL_ERROR" },
+    });
+    expect(Object.keys(definitions)).toEqual(beforeKeys);
+    expect(component.children?.map((node) => node.id)).toEqual(beforeChildren);
+  });
+
+  it("creates a native slot and operates it through an instance", async () => {
+    const { command } = createHarness();
+    const createdSlot = await command("component", {
+      action: "slot_create",
+      componentId: "3:0",
+      slotName: "Footer",
+      allowedComponentKeys: ["library-card-key"],
+      description: "Card footer",
+      slotSettings: { minChildren: 0, maxChildren: 2 },
+    });
+    expect(createdSlot).toMatchObject({
+      ok: true,
+      data: {
+        slot: { type: "SLOT", name: "Footer" },
+        component: { properties: {} },
+      },
+    });
+    const slotData = createdSlot?.data as
+      | {
+          propertyKey?: string;
+          component?: { properties?: Record<string, unknown> };
+        }
+      | undefined;
+    expect(slotData?.propertyKey).toMatch(/^Footer#/);
+    expect(slotData?.component?.properties).toHaveProperty(
+      String(slotData?.propertyKey),
+      expect.objectContaining({
+        type: "SLOT",
+        options: ["library-card-key"],
+        description: "Card footer",
+        slotSettings: { minChildren: 0, maxChildren: 2 },
+      }),
+    );
+
+    const createdInstance = await command("instance", {
+      action: "create",
+      parentId: "1:0",
+      componentId: "3:0",
+    });
+    const instanceId = (
+      createdInstance?.data as { instances?: Array<{ id: string }> } | undefined
+    )?.instances?.[0]?.id;
+    if (!instanceId) throw new Error("Native slot instance was not created.");
+    await expect(
+      command("instance", {
+        action: "slot_append",
+        instanceId,
+        slotName: "Footer",
+        componentKey: "library-card-key",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { slot: { type: "SLOT", name: "Footer", childCount: 1 } },
+    });
+    await expect(
+      command("instance", {
+        action: "slot_reset",
+        instanceId,
+        slotName: "Footer",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { slot: { type: "SLOT", name: "Footer", childCount: 0 } },
+    });
+  });
+
+  it("reports destructive slot reset failures as unknown", async () => {
+    const { command, page } = createHarness();
+    await command("component", {
+      action: "slot_create",
+      componentId: "3:0",
+      slotName: "Footer",
+    });
+    const createdInstance = await command("instance", {
+      action: "create",
+      parentId: "1:0",
+      componentId: "3:0",
+    });
+    const instanceId = (
+      createdInstance?.data as { instances?: Array<{ id: string }> } | undefined
+    )?.instances?.[0]?.id;
+    if (!instanceId) throw new Error("Slot reset instance was not created.");
+    const createdNode = page.children?.find((node) => node.id === instanceId);
+    const slot = createdNode?.children?.find((node) => node.type === "SLOT");
+    if (!slot) throw new Error("Slot reset fixture was not materialized.");
+    slot.resetSlot = () => {
+      throw new Error("slot reset failed");
+    };
+    await expect(
+      command("instance", {
+        action: "slot_reset",
+        instanceId,
+        slotName: "Footer",
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "UNKNOWN_OUTCOME",
+        details: { instanceId, slotId: slot.id },
+      },
+    });
+  });
+
+  it("inspects, swaps, overrides, and resets instances", async () => {
+    const { command } = createHarness();
+    await expect(
+      command("instance", {
+        action: "swap",
+        instanceIds: ["3:1"],
+        componentKey: "library-card-key",
+        preserveOverrides: true,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { instances: [{ mainComponentKey: "library-card-key" }] },
+    });
+    await command("instance", {
+      action: "update",
+      instanceIds: ["3:1"],
+      properties: { Label: "After" },
+    });
+    await expect(
+      command("instance", { action: "reset", instanceIds: ["3:1"] }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: {
+        instances: [{ instanceProperties: { "Label#3:0": "Default" } }],
+      },
+    });
+  });
+
+  it("reports swap and reset failures as unknown without destructive fake rollback", async () => {
+    const swapHarness = createHarness();
+    swapHarness.instance.swapComponent = () => {
+      throw new Error("swap failed");
+    };
+    await expect(
+      swapHarness.command("instance", {
+        action: "swap",
+        instanceIds: ["3:1"],
+        componentKey: "library-card-key",
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "UNKNOWN_OUTCOME",
+        details: { completedCount: 0, attemptedIndex: 0, total: 1 },
+      },
+    });
+
+    const resetHarness = createHarness();
+    resetHarness.instance.removeOverrides = () => {
+      resetHarness.instance.visualOverridesRemoved = true;
+    };
+    resetHarness.instance.setProperties = () => {
+      throw new Error("reset property write failed");
+    };
+    await expect(
+      resetHarness.command("instance", {
+        action: "reset",
+        instanceIds: ["3:1"],
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "UNKNOWN_OUTCOME",
+        details: { completedCount: 0, attemptedIndex: 0, total: 1 },
+      },
+    });
+    expect(resetHarness.instance.visualOverridesRemoved).toBe(true);
+  });
+
+  it("reports an uncancellable library import timeout as unknown", async () => {
+    vi.useFakeTimers();
+    try {
+      const { command } = createHarness();
+      const pending = command("component", {
+        action: "library_import",
+        componentKey: "pending-key",
+        kind: "COMPONENT",
+      });
+      await vi.advanceTimersByTimeAsync(4000);
+      await expect(pending).resolves.toMatchObject({
+        ok: false,
+        error: {
+          code: "UNKNOWN_OUTCOME",
+          details: {
+            reason: "TIMEOUT_PENDING",
+            componentKey: "pending-key",
+          },
+        },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("uses real slot nodes and returns structured library limitations", async () => {
+    const { command } = createHarness();
+    await expect(
+      command("instance", {
+        action: "slot_append",
+        instanceId: "3:1",
+        slotName: "Content",
+        componentKey: "library-card-key",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { slot: { type: "SLOT", childCount: 1 } },
+    });
+    await expect(
+      command("instance", {
+        action: "slot_reset",
+        instanceId: "3:1",
+        slotName: "Content",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { slot: { type: "SLOT", childCount: 0 } },
+    });
+    await expect(
+      command("component", { action: "library_search", query: "card" }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "LIBRARY_SEARCH_UNAVAILABLE" },
+    });
+    await expect(
+      command("component", {
+        action: "library_import",
+        componentKey: "denied-key",
+        kind: "COMPONENT",
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "LIBRARY_IMPORT_FAILED",
+        details: { reason: "PLAN_ACCESS_OR_KEY" },
+      },
     });
   });
 });
