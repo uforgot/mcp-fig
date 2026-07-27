@@ -150,6 +150,48 @@ async function call(
 }
 
 describe("Desktop Plugin bridge", () => {
+  it("rejects superseded same-file sessions instead of reviving stale routing", async () => {
+    const token = "s".repeat(43);
+    const host = new DesktopPluginBridgeHost({ token, port: 0 });
+    hosts.push(host);
+    const address = await host.listen();
+    const handshake = (sessionId: string) => ({
+      protocol: PLUGIN_PROTOCOL_V1,
+      sessionId,
+      clientId: `plugin:${sessionId}`,
+      file: { key: "local:file-a", name: "File A", revision: "1" },
+      capabilities: ["selection.read"],
+      sentAt: new Date().toISOString(),
+    });
+    const postHandshake = (sessionId: string) =>
+      fetch(`${address.url}/v1/session/handshake`, {
+        method: "POST",
+        headers: {
+          authorization: ["Bearer", token].join(" "),
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(handshake(sessionId)),
+      });
+
+    expect((await postHandshake("old")).status).toBe(200);
+    expect((await postHandshake("new")).status).toBe(200);
+    const oldNext = await fetch(`${address.url}/v1/session/old/next`, {
+      headers: { authorization: ["Bearer", token].join(" ") },
+    });
+    expect(oldNext.status).toBe(409);
+    await expect(oldNext.json()).resolves.toMatchObject({
+      error: { code: "SESSION_SUPERSEDED" },
+    });
+    const oldReconnect = await postHandshake("old");
+    expect(oldReconnect.status).toBe(409);
+    await expect(oldReconnect.json()).resolves.toMatchObject({
+      error: { code: "SESSION_SUPERSEDED" },
+    });
+    await expect(host.sessionsAsync()).resolves.toMatchObject([
+      { sessionId: "new", file: { key: "local:file-a" } },
+    ]);
+  });
+
   it("classifies component library inventory and slots as reads", () => {
     expect(isReadOnlyRequest("component", { action: "library_search" })).toBe(
       true,

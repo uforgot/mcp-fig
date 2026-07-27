@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { readFile, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import { DesktopPluginFigmaBridge } from "../dist/bridge/desktop-plugin.js";
@@ -11,6 +12,10 @@ const pluginSettleMs = Number(
 );
 const socketPath =
   process.env.MCP_FIG_SERVICE_SOCKET ?? servicePaths().socketPath;
+const requestedFileKey =
+  process.env.MCP_FIG_CANARY_FILE_KEY ??
+  process.env.MCP_FIG_CANARY_FILE_KEYS?.split(",").find(Boolean);
+const eventLogPath = servicePaths().stderrLogPath;
 const clientId = `live-multi-agent-canary-${process.pid}`;
 const client = new ServiceClient({ socketPath, clientId });
 const bridge = new DesktopPluginFigmaBridge(client, { clientId });
@@ -36,7 +41,9 @@ async function waitForPlugin() {
   const startedAt = Date.now();
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const status = await bridge.status();
+    const status = requestedFileKey
+      ? await client.statusAsync(requestedFileKey)
+      : await bridge.status();
     if (
       status.connected &&
       status.connectionState === "ready" &&
@@ -69,12 +76,47 @@ async function waitForDeleted(nodeId, targetFileKey) {
 async function stableRevision() {
   let previous;
   for (let attempt = 0; attempt < 30; attempt += 1) {
-    const revision = (await bridge.status()).revision;
+    const revision = (
+      fileKey ? await client.statusAsync(fileKey) : await bridge.status()
+    ).revision;
     if (revision && revision === previous) return revision;
     previous = revision;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   throw new Error("Live revision did not stabilize.");
+}
+
+async function eventLogSize() {
+  return (await stat(eventLogPath)).size;
+}
+
+async function traceEventsSince(offset, traceId) {
+  const content = await readFile(eventLogPath);
+  if (content.length < offset) {
+    throw new Error("Production event log rotated during the canary.");
+  }
+  return content
+    .subarray(offset)
+    .toString("utf8")
+    .split("\n")
+    .flatMap((line) => {
+      try {
+        const event = JSON.parse(line);
+        return event?.traceId === traceId ? [event] : [];
+      } catch {
+        return [];
+      }
+    });
+}
+
+async function waitForTraceAction(offset, traceId, action) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const events = await traceEventsSince(offset, traceId);
+    if (events.some((event) => event.action === action)) return events;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`Production event log did not record ${action}.`);
 }
 
 function brokerRequest(
@@ -84,6 +126,7 @@ function brokerRequest(
   targetFileKey,
   options = {},
 ) {
+  const { traceId, ...requestOptions } = options;
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [brokerClientScript], {
       env: {
@@ -93,7 +136,8 @@ function brokerRequest(
           clientId: clientIdForRequest,
           method,
           params,
-          options: { fileKey: targetFileKey, ...options },
+          ...(traceId ? { traceId } : {}),
+          options: { fileKey: targetFileKey, ...requestOptions },
         }),
       },
       stdio: ["ignore", "pipe", "pipe"],
@@ -244,6 +288,8 @@ try {
   // dispatched instead of expiring while waiting behind a completed write.
   await new Promise((resolve) => setTimeout(resolve, 100));
   const unknownRevisionBefore = Number(await stableRevision());
+  const unknownTraceId = `live-unknown-outcome-${process.pid}-${Date.now()}`;
+  const unknownEventOffset = await eventLogSize();
   let unknownOutcomeCode;
   let unknownOutcomeDetails;
   try {
@@ -256,7 +302,7 @@ try {
         idempotencyKey: `live-unknown-outcome-${process.pid}`,
       },
       fileKey,
-      { timeoutMs: 1 },
+      { timeoutMs: 1, traceId: unknownTraceId },
     );
   } catch (error) {
     unknownOutcomeCode = error?.code;
@@ -267,7 +313,27 @@ try {
       `Expected UNKNOWN_OUTCOME from the one-shot timeout probe, got ${unknownOutcomeCode ?? "success"}: ${JSON.stringify(unknownOutcomeDetails)}`,
     );
   }
-  await new Promise((resolve) => setTimeout(resolve, 250));
+  await waitForTraceAction(
+    unknownEventOffset,
+    unknownTraceId,
+    "unknown_outcome",
+  );
+  await new Promise((resolve) => setTimeout(resolve, 1_000));
+  const unknownEvents = await traceEventsSince(
+    unknownEventOffset,
+    unknownTraceId,
+  );
+  const unknownOutcomeDispatchCount = unknownEvents.filter(
+    (event) => event.action === "dispatch",
+  ).length;
+  const unknownOutcomeEventCount = unknownEvents.filter(
+    (event) => event.action === "unknown_outcome",
+  ).length;
+  if (unknownOutcomeDispatchCount !== 1 || unknownOutcomeEventCount !== 1) {
+    throw new Error(
+      `Unknown-outcome trace recorded dispatch=${unknownOutcomeDispatchCount}, unknown_outcome=${unknownOutcomeEventCount}.`,
+    );
+  }
   const unknownRevisionAfter = Number(await stableRevision());
   const unknownOutcomeMutationCount =
     unknownRevisionAfter - unknownRevisionBefore;
@@ -303,8 +369,9 @@ try {
         conflictWinnerCount: fulfilledConflicts.length,
         revisionConflictCount: rejectedConflicts.length,
         duplicateMutationCount,
-        unknownOutcomeAttempts: 1,
-        unknownOutcomeRetryCount: 0,
+        unknownOutcomeAttempts: unknownOutcomeDispatchCount,
+        unknownOutcomeRetryCount: Math.max(0, unknownOutcomeDispatchCount - 1),
+        unknownOutcomeEventCount,
         unknownOutcomeMutationCount,
         finalReadback: true,
         cleanup: true,

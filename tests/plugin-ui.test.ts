@@ -377,6 +377,78 @@ describe("Figma Plugin UI pairing", () => {
     expect(harness.config).toEqual(savedConfig());
   });
 
+  it("recovers a half-open long poll after service restart or wake", async () => {
+    let handshakeCount = 0;
+    const harness = createUiHarness({
+      initialConfig: savedConfig(),
+      fetch: async (url, options) => {
+        if (url.endsWith("/v1/session/handshake")) {
+          handshakeCount += 1;
+          return jsonResponse(200, { protocol: PROTOCOL, accepted: true });
+        }
+        return await new Promise((_, reject) => {
+          const signal = options.signal as AbortSignal;
+          signal.addEventListener(
+            "abort",
+            () => reject(new DOMException("aborted", "AbortError")),
+            { once: true },
+          );
+        });
+      },
+    });
+    await harness.flush(16);
+
+    expect(handshakeCount).toBe(1);
+    expect(harness.elements.get("#status").dataset.state).toBe("ready");
+    expect(await harness.runNextTimer()).toBe(3000);
+    expect(harness.elements.get("#status").dataset.state).toBe(
+      "service-not-running",
+    );
+    expect(await harness.runNextTimer()).toBe(250);
+    expect(handshakeCount).toBe(2);
+    expect(harness.elements.get("#status").dataset.state).toBe("ready");
+    expect(harness.config).toEqual(savedConfig());
+  });
+
+  it("recovers when response headers arrive but the JSON body stays half-open", async () => {
+    let handshakeCount = 0;
+    const harness = createUiHarness({
+      initialConfig: savedConfig(),
+      fetch: async (url, options) => {
+        if (url.endsWith("/v1/session/handshake")) {
+          handshakeCount += 1;
+          if (handshakeCount === 1) {
+            return {
+              ok: true,
+              status: 200,
+              json: async () =>
+                await new Promise((_, reject) => {
+                  const signal = options.signal as AbortSignal;
+                  signal.addEventListener(
+                    "abort",
+                    () => reject(new DOMException("aborted", "AbortError")),
+                    { once: true },
+                  );
+                }),
+            };
+          }
+          return jsonResponse(200, { protocol: PROTOCOL, accepted: true });
+        }
+        return new Promise(() => undefined);
+      },
+    });
+    await harness.flush(16);
+
+    expect(handshakeCount).toBe(1);
+    expect(await harness.runNextTimer()).toBe(7000);
+    expect(harness.elements.get("#status").dataset.state).toBe(
+      "service-not-running",
+    );
+    expect(await harness.runNextTimer()).toBe(250);
+    expect(handshakeCount).toBe(2);
+    expect(harness.elements.get("#status").dataset.state).toBe("ready");
+  });
+
   it("stops reconnecting on a protocol mismatch and explains the recovery", async () => {
     const harness = createUiHarness({
       initialConfig: savedConfig(),

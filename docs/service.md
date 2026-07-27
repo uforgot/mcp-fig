@@ -126,3 +126,32 @@ npm run smoke:launchd
 `smoke:launchd` uses a temporary label/HOME, validates the plist, permissions, one-time exchange/replay rejection, single port/socket ownership, crash restart, saved-credential authentication, secret absence, and cleanup. It does not alter the production label.
 
 Production live evidence is recorded in [`handoff.md`](handoff.md). Use [`quality-gates.md`](quality-gates.md) to select a canary. Never put real credentials or pairing codes in shell history, docs, logs, reports, or screenshots.
+
+## Production operations gate
+
+Run this only against the installed production service and disposable nodes in the currently targeted Figma file:
+
+```bash
+MCP_FIG_CANARY_REQUIRE_SLEEP_WAKE=1 \
+MCP_FIG_CANARY_FILE_KEYS='<file-key-a>,<file-key-b>' \
+npm run canary:operations
+```
+
+Omit `MCP_FIG_CANARY_FILE_KEYS` for a one-file recovery check. For the full multi-file gate, open the Development Plugin in each intended Figma window first and pass the exact keys printed by `mcp-fig service status --json`. Local Draft keys combine persisted Plugin data `mcp-fig.local-file-id.v1` with a collision-free exact UTF-16 file-name encoding; `local:0:0` is invalid. This stays stable across Plugin restarts and separates Figma's normally renamed file duplicates even though document Plugin data is copied. Renaming a local Draft changes its target key. Figma exposes no stable non-copyable identifier for local files, so two identical local copies manually forced to the same file name cannot be distinguished by a Plugin and are not supported as simultaneous targets. Cloud files continue to use `figma.fileKey`.
+
+The command intentionally pauses twice for real UI/power transitions:
+
+1. At `awaiting_plugin_restart`, close and rerun **MCP Fig Live Bridge** in the same file. Do not re-pair or enter a credential.
+2. At `awaiting_sleep_wake`, put macOS to sleep for at least five seconds, wake it, and unlock it. A display-only sleep is not evidence.
+
+The reconnect phase fails unless all of the following hold after service, fresh MCP child, Plugin, and optional sleep-wake recovery:
+
+- the launchd daemon PID changes on service restart while the configured port stays fixed;
+- exactly one loopback listener owns the Plugin port and its PID is the daemon PID;
+- each ready file key appears once, every requested multi-file key is routable, and a document read succeeds through each exact target;
+- Plugin restart replaces the targeted session ID; superseded sessions cannot revive while the newer one is ready;
+- the persisted credential file's owner/mode/inode/size/mtime metadata and exact byte digest stay unchanged, so no secret was regenerated or re-entered; the digest is compared internally and never printed;
+- a half-open `/next` poll aborts after three seconds and reconnects from the saved credential after service restart or wake;
+- sleep-wake requires both a five-second timer gap and a new `Wake from …` power-transition record from `pmset`, followed by a refreshed handshake and document read for the exact target file.
+
+After recovery, `live-multi-agent-canary.mjs` runs representative write/readback/cleanup through the production IPC path. It preserves the no-write-retry contract: a timed-out dispatched write reports `UNKNOWN_OUTCOME`, is attempted once, and is never automatically retried. The command only passes after final node readback and cleanup residue verification.

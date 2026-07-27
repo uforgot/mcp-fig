@@ -165,7 +165,7 @@ export class DesktopPluginBridgeHost {
     }
     return {
       connected: true,
-      connectionState: session.state,
+      connectionState: "ready",
       lastHeartbeatAt: session.lastSeenAt,
       mode: "desktop-plugin",
       fileKey: session.handshake.file.key,

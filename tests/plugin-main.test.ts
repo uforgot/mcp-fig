@@ -62,7 +62,13 @@ interface MockPluginResult {
   error?: Record<string, unknown>;
 }
 
-function createHarness() {
+function createHarness(
+  options: {
+    fileKey?: string | null;
+    rootName?: string;
+    rootPluginData?: Map<string, string>;
+  } = {},
+) {
   const messages: Record<string, unknown>[] = [];
   const handlers: Record<string, (...args: unknown[]) => unknown> = {};
   const clientStorage = new Map<string, unknown>();
@@ -72,12 +78,19 @@ function createHarness() {
     137, 80, 78, 71, 13, 10, 26, 10,
   ]);
   let allPagesLoaded = false;
+  const rootPluginData = options.rootPluginData ?? new Map<string, string>();
 
   const root: MockNode = {
     id: "0:0",
     type: "DOCUMENT",
-    name: "Plugin test",
+    name: options.rootName ?? "Plugin test",
     children: [],
+    getPluginData(key: string) {
+      return rootPluginData.get(key) ?? "";
+    },
+    setPluginData(key: string, value: string) {
+      rootPluginData.set(key, value);
+    },
   };
   const page: MockNode = {
     id: "1:0",
@@ -651,7 +664,7 @@ function createHarness() {
   }
 
   const figma = {
-    fileKey: "test-file",
+    fileKey: options.fileKey === undefined ? "test-file" : options.fileKey,
     root,
     currentPage: page,
     mixed: Symbol("mixed"),
@@ -1037,6 +1050,53 @@ describe("Figma Plugin main bridge", () => {
         revision: "1",
       },
     });
+  });
+
+  it("persists a unique identity for each local Draft across Plugin restarts", () => {
+    const persisted = new Map<string, string>();
+    const first = createHarness({
+      fileKey: null,
+      rootName: "Draft",
+      rootPluginData: persisted,
+    });
+    const restarted = createHarness({
+      fileKey: null,
+      rootName: "Draft",
+      rootPluginData: persisted,
+    });
+    const duplicateNames = ["draft", " Draft ", "Ｄｒａｆｔ"];
+    const duplicates = duplicateNames.map((rootName) => {
+      const copiedPluginData = new Map(persisted);
+      return {
+        copiedPluginData,
+        harness: createHarness({
+          fileKey: null,
+          rootName,
+          rootPluginData: copiedPluginData,
+        }),
+      };
+    });
+    const other = createHarness({ fileKey: null, rootName: "Draft" });
+    const bootstrapKey = (messages: Record<string, unknown>[]) => {
+      const bootstrap = messages.find(
+        (message) => message.type === "bridge-bootstrap",
+      );
+      if (!bootstrap) throw new Error("Missing bridge bootstrap message.");
+      return (bootstrap.file as { key: string }).key;
+    };
+
+    const firstKey = bootstrapKey(first.messages);
+    expect(firstKey).toMatch(/^local:[a-z0-9-]{16,80}:[0-9a-f]+$/);
+    expect(bootstrapKey(restarted.messages)).toBe(firstKey);
+    const duplicateKeys = duplicates.map(({ harness }) =>
+      bootstrapKey(harness.messages),
+    );
+    expect(new Set([firstKey, ...duplicateKeys]).size).toBe(4);
+    for (const { copiedPluginData } of duplicates) {
+      expect(copiedPluginData).toEqual(persisted);
+    }
+    expect(bootstrapKey(other.messages)).not.toBe(firstKey);
+    expect([...persisted.keys()]).toEqual(["mcp-fig.local-file-id.v1"]);
   });
 
   it("loads all pages before registering documentchange", async () => {

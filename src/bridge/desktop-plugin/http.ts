@@ -319,7 +319,15 @@ export class PluginHttpRouter {
         });
         return;
       }
-      this.#sessions.touch(session);
+      if (!this.#sessions.touch(session)) {
+        writeJson(response, 409, {
+          error: {
+            code: "SESSION_SUPERSEDED",
+            message: "A newer Plugin session owns this file.",
+          },
+        });
+        return;
+      }
       if (request.method === "GET" && action === "next") {
         this.#handleNext(request, response, sessionId);
         return;
@@ -436,20 +444,33 @@ export class PluginHttpRouter {
   ): void {
     const accepted = this.#sessions.acceptHandshake(handshake);
     this.#eventLog?.emit({
-      level: accepted.conflict ? "warn" : "info",
+      level: accepted.conflict || accepted.superseded ? "warn" : "info",
       traceId: handshake.traceId ?? handshake.sessionId,
       clientId: handshake.clientId,
       sessionId: handshake.sessionId,
       fileKey: handshake.file.key,
       revision: handshake.file.revision,
       action: "plugin.handshake",
-      ...(accepted.conflict ? { errorCode: "SESSION_CONFLICT" } : {}),
+      ...(accepted.conflict
+        ? { errorCode: "SESSION_CONFLICT" }
+        : accepted.superseded
+          ? { errorCode: "SESSION_SUPERSEDED" }
+          : {}),
     });
     if (accepted.conflict) {
       writeJson(response, 409, {
         error: {
           code: "SESSION_CONFLICT",
           message: "Session identity changed.",
+        },
+      });
+      return;
+    }
+    if (accepted.superseded) {
+      writeJson(response, 409, {
+        error: {
+          code: "SESSION_SUPERSEDED",
+          message: "A newer Plugin session owns this file.",
         },
       });
       return;

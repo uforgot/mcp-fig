@@ -142,32 +142,46 @@
     }
 
     async function requestJson(url, options = {}) {
-      let response;
+      const { timeoutMs = 7000, ...fetchOptions } = options;
+      const timeoutController = new AbortController();
+      const upstreamSignal = fetchOptions.signal;
+      const abortFromUpstream = () => timeoutController.abort();
+      if (upstreamSignal?.aborted) timeoutController.abort();
+      else upstreamSignal?.addEventListener("abort", abortFromUpstream, { once: true });
+      const timeout = setTimeout(() => timeoutController.abort(), timeoutMs);
       try {
-        response = await fetch(url, options);
+        const response = await fetch(url, {
+          ...fetchOptions,
+          signal: timeoutController.signal,
+        });
+        if (response.status === 204) return null;
+        let payload = {};
+        try {
+          payload = await response.json();
+        } catch (error) {
+          if (timeoutController.signal.aborted) throw error;
+          payload = {};
+        }
+        if (!response.ok) {
+          const serverCode = payload?.error?.code;
+          const code = response.status === 401 ? "CREDENTIAL_EXPIRED" : serverCode || "REQUEST_FAILED";
+          throw new BridgeUiError(
+            code,
+            payload?.error?.message || `Bridge request failed with ${response.status}.`,
+            response.status,
+          );
+        }
+        return payload;
       } catch (error) {
+        if (error instanceof BridgeUiError) throw error;
         throw new BridgeUiError(
           "SERVICE_NOT_RUNNING",
           error instanceof Error ? error.message : "Bridge service is unavailable.",
         );
+      } finally {
+        clearTimeout(timeout);
+        upstreamSignal?.removeEventListener("abort", abortFromUpstream);
       }
-      if (response.status === 204) return null;
-      let payload = {};
-      try {
-        payload = await response.json();
-      } catch {
-        payload = {};
-      }
-      if (!response.ok) {
-        const serverCode = payload?.error?.code;
-        const code = response.status === 401 ? "CREDENTIAL_EXPIRED" : serverCode || "REQUEST_FAILED";
-        throw new BridgeUiError(
-          code,
-          payload?.error?.message || `Bridge request failed with ${response.status}.`,
-          response.status,
-        );
-      }
-      return payload;
     }
 
     async function sendToMain(command) {
@@ -270,7 +284,11 @@
           while (!signal.aborted) {
             const command = await requestJson(
               `${base}/v1/session/${encodeURIComponent(sessionId)}/next`,
-              { headers: { authorization: ["Bearer", config.credential].join(" ") }, signal },
+              {
+                headers: { authorization: ["Bearer", config.credential].join(" ") },
+                signal,
+                timeoutMs: 3000,
+              },
             );
             if (!command) continue;
             const receivedAt = new Date().toISOString();

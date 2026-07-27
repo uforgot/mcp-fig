@@ -1,3 +1,4 @@
+import type { ServerResponse } from "node:http";
 import { describe, expect, it } from "vitest";
 import {
   type DesktopPluginBridgeTransport,
@@ -10,6 +11,7 @@ import {
   DesktopPluginFigmaBridge as CompatibilityFacade,
   DesktopPluginBridgeHost as CompatibilityHost,
 } from "../src/bridge/desktop-plugin.js";
+import type { PluginHandshake } from "../src/bridge/plugin-protocol.js";
 
 const sendJson = () => undefined;
 
@@ -31,6 +33,58 @@ describe("Desktop Plugin service-ready module boundaries", () => {
     expect(sessions.list()).toEqual([]);
     expect(coordinator.metrics()).toEqual([]);
     coordinator.close();
+  });
+
+  it("keeps the newest same-file session authoritative until it becomes stale", () => {
+    const sessions = new PluginSessionRegistry(30_000);
+    const handshake = (sessionId: string): PluginHandshake => ({
+      protocol: "mcp-fig-plugin/v1" as const,
+      sessionId,
+      clientId: `plugin:${sessionId}`,
+      file: { key: "local:file-a", name: "File A", revision: "1" },
+      capabilities: ["selection.read"],
+      sentAt: new Date().toISOString(),
+    });
+
+    const oldSession = sessions.acceptHandshake(handshake("old")).session;
+    if (!oldSession) throw new Error("Expected old Plugin session.");
+    let waiterEndCount = 0;
+    let waiterEnded = false;
+    const waiter = {
+      get writableEnded() {
+        return waiterEnded;
+      },
+      end() {
+        waiterEnded = true;
+        waiterEndCount += 1;
+      },
+    } as unknown as ServerResponse;
+    oldSession.waiters.push(waiter);
+
+    const newSession = sessions.acceptHandshake(handshake("new")).session;
+    if (!newSession)
+      throw new Error("Expected new Plugin session to be accepted.");
+    expect(waiterEndCount).toBe(1);
+    expect(oldSession.waiters).toHaveLength(0);
+    expect(oldSession.state).toBe("superseded");
+    expect(sessions.touch(oldSession)).toBe(false);
+    expect(sessions.list().map((item) => item.sessionId)).toEqual(["new"]);
+
+    oldSession.lastSeenMs = 0;
+    expect(sessions.acceptHandshake(handshake("old"))).toMatchObject({
+      conflict: false,
+      superseded: true,
+    });
+    expect(sessions.get("old")?.state).toBe("superseded");
+    expect(sessions.list().map((item) => item.sessionId)).toEqual(["new"]);
+
+    newSession.lastSeenMs = 0;
+    expect(sessions.acceptHandshake(handshake("old"))).toMatchObject({
+      conflict: false,
+      session: { state: "ready" },
+    });
+    expect(sessions.get("new")).toBeUndefined();
+    expect(sessions.list().map((item) => item.sessionId)).toEqual(["old"]);
   });
 
   it("exports multiple nodes through separate Plugin RPC responses", async () => {

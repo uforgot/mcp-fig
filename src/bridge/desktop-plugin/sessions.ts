@@ -5,7 +5,8 @@ import type { PluginCommand, PluginHandshake } from "../plugin-protocol.js";
 export type PluginSessionConnectionState =
   | "ready"
   | "reconnecting"
-  | "disconnected";
+  | "disconnected"
+  | "superseded";
 
 export interface PluginSessionState {
   handshake: PluginHandshake;
@@ -39,9 +40,11 @@ export class PluginSessionRegistry {
 
   acceptHandshake(handshake: PluginHandshake): {
     conflict: boolean;
+    superseded?: boolean;
     now: string;
     session?: PluginSessionState;
   } {
+    this.expire();
     const existing = this.#sessions.get(handshake.sessionId);
     if (
       existing &&
@@ -49,6 +52,21 @@ export class PluginSessionRegistry {
         existing.handshake.file.key !== handshake.file.key)
     ) {
       return { conflict: true, now: new Date().toISOString() };
+    }
+    if (
+      existing?.state === "superseded" &&
+      [...this.#sessions.values()].some(
+        (session) =>
+          session.handshake.sessionId !== handshake.sessionId &&
+          session.state === "ready" &&
+          session.handshake.file.key === handshake.file.key,
+      )
+    ) {
+      return {
+        conflict: false,
+        superseded: true,
+        now: new Date().toISOString(),
+      };
     }
     if (existing) {
       handshake.file.revision = latestRevision(
@@ -66,15 +84,26 @@ export class PluginSessionRegistry {
       queue: existing?.queue ?? [],
       waiters: existing?.waiters ?? [],
     };
+    for (const candidate of this.#sessions.values()) {
+      if (
+        candidate.handshake.sessionId !== handshake.sessionId &&
+        candidate.handshake.file.key === handshake.file.key
+      ) {
+        candidate.state = "superseded";
+        this.#closeWaiters(candidate);
+      }
+    }
     this.#sessions.set(handshake.sessionId, session);
     this.#lastHandshakeAt = now;
     return { conflict: false, now, session };
   }
 
-  touch(session: PluginSessionState): void {
+  touch(session: PluginSessionState): boolean {
+    if (session.state === "superseded") return false;
     session.lastSeenAt = new Date().toISOString();
     session.lastSeenMs = Date.now();
     session.state = "ready";
+    return true;
   }
 
   updateRevision(session: PluginSessionState, revision: string): void {
@@ -114,19 +143,40 @@ export class PluginSessionRegistry {
 
   expire(): void {
     const now = Date.now();
-    for (const session of this.#sessions.values()) {
-      if (now - session.lastSeenMs > this.#sessionTtlMs) {
-        session.state = "disconnected";
+    const readyFileKeys = new Set(
+      [...this.#sessions.values()]
+        .filter(
+          (session) =>
+            session.state === "ready" &&
+            now - session.lastSeenMs <= this.#sessionTtlMs,
+        )
+        .map((session) => session.handshake.file.key),
+    );
+    for (const [sessionId, session] of this.#sessions) {
+      if (now - session.lastSeenMs <= this.#sessionTtlMs) continue;
+      if (
+        session.state === "superseded" &&
+        readyFileKeys.has(session.handshake.file.key)
+      ) {
+        continue;
       }
+      session.state = "disconnected";
+      this.#closeWaiters(session);
+      this.#sessions.delete(sessionId);
     }
   }
 
   clear(): void {
     for (const session of this.#sessions.values()) {
-      for (const waiter of session.waiters) {
-        if (!waiter.writableEnded) waiter.end();
-      }
+      this.#closeWaiters(session);
     }
     this.#sessions.clear();
+  }
+
+  #closeWaiters(session: PluginSessionState): void {
+    for (const waiter of session.waiters) {
+      if (!waiter.writableEnded) waiter.end();
+    }
+    session.waiters.length = 0;
   }
 }

@@ -1,3 +1,4 @@
+import { runWithTrace } from "../dist/observability/trace-context.js";
 import { ServiceClient } from "../dist/service/client.js";
 import { servicePaths } from "../dist/service/paths.js";
 
@@ -8,12 +9,16 @@ const client = new ServiceClient({
 });
 
 try {
-  const data = await client.request(
-    request.clientId,
-    request.method,
-    request.params,
-    request.options,
-  );
+  const invoke = () =>
+    client.request(
+      request.clientId,
+      request.method,
+      request.params,
+      request.options,
+    );
+  const data = request.traceId
+    ? await runWithTrace(request.traceId, invoke)
+    : await invoke();
   process.stdout.write(`${JSON.stringify({ ok: true, data })}\n`);
 } catch (error) {
   process.stdout.write(
