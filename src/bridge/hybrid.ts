@@ -12,6 +12,7 @@ import type {
   FigmaDocumentSummary,
   FigmaFileSummary,
   FigmaNode,
+  ImageActionInput,
   InstanceActionInput,
   LayoutActionInput,
   MoveNodesInput,
@@ -19,6 +20,7 @@ import type {
   NodeQueryResult,
   QueryNodesInput,
   ResizeNodesInput,
+  TextRangeActionInput,
   TokenActionInput,
   UpdateNodesInput,
 } from "./types.js";
@@ -169,6 +171,28 @@ export class HybridFigmaBridge implements FigmaBridge {
       () => this.#plugin.queryNodes(input),
       () => this.#rest?.queryNodes(input),
     );
+  }
+
+  textRange(input: TextRangeActionInput): Promise<Record<string, unknown>> {
+    if (!this.#plugin.textRange)
+      return Promise.reject(
+        new McpFigError(
+          "UNSUPPORTED_BY_BRIDGE",
+          "Text ranges require the Desktop Plugin.",
+        ),
+      );
+    return this.#plugin.textRange(input);
+  }
+
+  image(input: ImageActionInput): Promise<Record<string, unknown>> {
+    if (!this.#plugin.image)
+      return Promise.reject(
+        new McpFigError(
+          "UNSUPPORTED_BY_BRIDGE",
+          "Images require the Desktop Plugin.",
+        ),
+      );
+    return this.#plugin.image(input);
   }
 
   createNode(input: CreateNodeInput): Promise<FigmaNode[]> {

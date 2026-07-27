@@ -639,6 +639,7 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
     toPluginConstraints,
     fromPluginConstraints,
     serializeNode,
+    serializePaints,
     applyProps,
     validateProps,
     createByType,
@@ -658,6 +659,7 @@ function createCoreNodeDomain({
   nodeById,
   hasChildren,
   serializeNode,
+  serializePaints,
   applyProps,
   validateProps,
   createByType,
@@ -670,6 +672,7 @@ function createCoreNodeDomain({
     PDF: "application/pdf",
   };
   const maxExportBytes = 650_000;
+  const maxTextRangeCharacters = 10_000;
 
   async function queryNodes(input) {
     const maxDepth = input.maxDepth ?? 8;
@@ -793,6 +796,255 @@ function createCoreNodeDomain({
     }
   }
 
+  function assertTextRange(node, start, end) {
+    if (node.type !== "TEXT")
+      fail("INVALID_ARGUMENT", `Node ${node.id} is not a text node.`);
+    if (
+      !Number.isInteger(start) ||
+      !Number.isInteger(end) ||
+      start < 0 ||
+      end <= start ||
+      end > node.characters.length ||
+      end - start > maxTextRangeCharacters
+    )
+      fail(
+        "INVALID_ARGUMENT",
+        `Text range must satisfy 0 <= start < end <= ${node.characters.length} and span at most ${maxTextRangeCharacters} UTF-16 code units.`,
+      );
+  }
+
+  function serializeTextSegments(node, start, end) {
+    return node
+      .getStyledTextSegments(
+        ["fontName", "fontSize", "lineHeight", "letterSpacing", "fills"],
+        start,
+        end,
+      )
+      .map((segment) => ({
+        start: segment.start,
+        end: segment.end,
+        characters: segment.characters,
+        fontName: cloneData(segment.fontName),
+        fontSize: segment.fontSize,
+        lineHeight: cloneData(segment.lineHeight),
+        letterSpacing: cloneData(segment.letterSpacing),
+        fills: serializePaints(segment.fills),
+      }));
+  }
+
+  async function textRangeCommand(input) {
+    const node = await nodeById(input.nodeId);
+    if (input.action === "read") {
+      assertTextRange(node, input.start, input.end);
+      return {
+        nodeId: node.id,
+        start: input.start,
+        end: input.end,
+        characters: node.characters.slice(input.start, input.end),
+        segments: serializeTextSegments(node, input.start, input.end),
+      };
+    }
+    const ranges = input.ranges;
+    if (!Array.isArray(ranges) || ranges.length < 1 || ranges.length > 100)
+      fail("INVALID_ARGUMENT", "text range update requires 1 to 100 ranges.");
+    let previousEnd = -1;
+    let touchedCharacters = 0;
+    for (const range of ranges) {
+      assertTextRange(node, range.start, range.end);
+      touchedCharacters += range.end - range.start;
+      if (touchedCharacters > maxTextRangeCharacters)
+        fail(
+          "INVALID_ARGUMENT",
+          `Text range update may touch at most ${maxTextRangeCharacters} UTF-16 code units.`,
+        );
+      if (range.start < previousEnd)
+        fail(
+          "INVALID_ARGUMENT",
+          "Text ranges must be sorted and non-overlapping.",
+        );
+      if (!range.style || Object.keys(range.style).length === 0)
+        fail("INVALID_ARGUMENT", "Text range style cannot be empty.");
+      previousEnd = range.end;
+    }
+    const snapshots = ranges.flatMap((range) =>
+      serializeTextSegments(node, range.start, range.end),
+    );
+    const fonts = new Map();
+    for (const range of ranges) {
+      const values = range.style.fontName
+        ? [range.style.fontName]
+        : node.getRangeAllFontNames(range.start, range.end);
+      for (const font of values)
+        fonts.set(`${font.family}\u0000${font.style}`, font);
+    }
+    for (const segment of snapshots)
+      fonts.set(
+        `${segment.fontName.family}\u0000${segment.fontName.style}`,
+        segment.fontName,
+      );
+    await Promise.all(
+      [...fonts.values()].map((font) => figma.loadFontAsync(font)),
+    );
+    const apply = (start, end, style) => {
+      if (style.fontName !== undefined)
+        node.setRangeFontName(start, end, style.fontName);
+      if (style.fontSize !== undefined)
+        node.setRangeFontSize(start, end, style.fontSize);
+      if (style.lineHeight !== undefined)
+        node.setRangeLineHeight(start, end, style.lineHeight);
+      if (style.letterSpacing !== undefined)
+        node.setRangeLetterSpacing(start, end, style.letterSpacing);
+      if (style.fills !== undefined)
+        node.setRangeFills(start, end, style.fills);
+    };
+    try {
+      for (const range of ranges) apply(range.start, range.end, range.style);
+    } catch (error) {
+      try {
+        for (const segment of snapshots)
+          apply(segment.start, segment.end, segment);
+      } catch {
+        fail(
+          "UNKNOWN_OUTCOME",
+          "Text range update failed and rollback was incomplete.",
+        );
+      }
+      throw error;
+    }
+    recordChange("text-range-update", [node.id]);
+    return {
+      nodeId: node.id,
+      ranges: ranges.map((range) => ({
+        start: range.start,
+        end: range.end,
+        segments: serializeTextSegments(node, range.start, range.end),
+      })),
+    };
+  }
+
+  function imageMime(bytes) {
+    if (
+      bytes.length >= 8 &&
+      [137, 80, 78, 71, 13, 10, 26, 10].every(
+        (value, index) => bytes[index] === value,
+      )
+    )
+      return "image/png";
+    if (
+      bytes.length >= 3 &&
+      bytes[0] === 255 &&
+      bytes[1] === 216 &&
+      bytes[2] === 255
+    )
+      return "image/jpeg";
+    const header = String.fromCharCode(...bytes.slice(0, 6));
+    if (header === "GIF87a" || header === "GIF89a") return "image/gif";
+    fail(
+      "INVALID_ARGUMENT",
+      "Image bytes are not a supported PNG, JPEG, or GIF.",
+    );
+  }
+
+  async function imageMetadata(image, expectedMime) {
+    const bytes = await image.getBytesAsync();
+    const mimeType = imageMime(bytes);
+    if (expectedMime && mimeType !== expectedMime)
+      fail(
+        "INVALID_ARGUMENT",
+        `Image MIME ${expectedMime} does not match its signature ${mimeType}.`,
+      );
+    const size = await image.getSizeAsync();
+    return {
+      hash: image.hash,
+      mimeType,
+      byteLength: bytes.byteLength,
+      width: size.width,
+      height: size.height,
+    };
+  }
+
+  async function imageCommand(input) {
+    if (input.action === "import") {
+      let bytes;
+      try {
+        bytes = figma.base64Decode(input.dataBase64);
+      } catch {
+        fail("INVALID_ARGUMENT", "Image payload is not valid base64.");
+      }
+      if (bytes.byteLength < 6 || bytes.byteLength > 650_000)
+        fail(
+          "INVALID_ARGUMENT",
+          "Image payload must be from 6 through 650000 bytes.",
+        );
+      const detected = imageMime(bytes);
+      if (detected !== input.mimeType)
+        fail(
+          "INVALID_ARGUMENT",
+          `Image MIME ${input.mimeType} does not match its signature ${detected}.`,
+        );
+      let image;
+      try {
+        image = figma.createImage(bytes);
+      } catch (error) {
+        fail("INVALID_ARGUMENT", `Figma rejected the image: ${String(error)}`);
+      }
+      return imageMetadata(image, detected);
+    }
+    const image = figma.getImageByHash(input.hash);
+    if (!image)
+      fail("INVALID_ARGUMENT", `Image hash ${input.hash} was not found.`);
+    if (input.action === "inspect") return imageMetadata(image);
+    assertNodeIds(input.nodeIds);
+    const nodes = await Promise.all(input.nodeIds.map(nodeById));
+    for (const node of nodes) {
+      if (!("fills" in node))
+        fail("INVALID_ARGUMENT", `Node ${node.id} does not support fills.`);
+      if (node.fills === figma.mixed)
+        fail("INVALID_ARGUMENT", `Node ${node.id} has mixed fills.`);
+      if (
+        input.operation === "replace" &&
+        (!Number.isInteger(input.index) ||
+          input.index < 0 ||
+          input.index >= node.fills.length)
+      )
+        fail(
+          "INVALID_ARGUMENT",
+          `Node ${node.id} has no fill at index ${input.index}.`,
+        );
+    }
+    const snapshots = nodes.map((node) => cloneData(node.fills));
+    try {
+      nodes.forEach((node) => {
+        const fills = [...node.fills];
+        const paint = {
+          type: "IMAGE",
+          imageHash: image.hash,
+          scaleMode: input.scaleMode,
+        };
+        if (input.operation === "append") fills.push(paint);
+        else fills[input.index] = paint;
+        node.fills = fills;
+      });
+    } catch (error) {
+      try {
+        nodes.forEach((node, index) => {
+          node.fills = cloneData(snapshots[index]);
+        });
+      } catch {
+        fail(
+          "UNKNOWN_OUTCOME",
+          "Image fill update failed and rollback was incomplete.",
+        );
+      }
+      throw error;
+    }
+    recordChange("image-fill", input.nodeIds);
+    return {
+      image: await imageMetadata(image),
+      nodes: await Promise.all(nodes.map((node) => serializeNode(node))),
+    };
+  }
+
   async function coreCommand(method, input) {
     if (method === "document.summary") {
       return revisionCached("document.summary", async () => {
@@ -824,6 +1076,8 @@ function createCoreNodeDomain({
     if (method === "selection.get")
       return figma.currentPage.selection.map((node) => node.id);
     if (method === "changes.get") return getChanges();
+    if (method === "node.text_range") return textRangeCommand(input);
+    if (method === "node.image") return imageCommand(input);
     if (method === "node.query") return queryNodes(input);
     if (method === "node.get") {
       assertNodeIds(input.nodeIds);

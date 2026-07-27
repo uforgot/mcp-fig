@@ -401,6 +401,7 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
     toPluginConstraints,
     fromPluginConstraints,
     serializeNode,
+    serializePaints,
     applyProps,
     validateProps,
     createByType,

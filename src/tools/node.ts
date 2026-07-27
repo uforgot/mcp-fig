@@ -2,9 +2,14 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import { saveNodeExports } from "../artifacts/node-export.js";
-import { FIGMA_NODE_TYPES, type FigmaBridge } from "../bridge/types.js";
+import {
+  FIGMA_NODE_TYPES,
+  type FigmaBridge,
+  type TextRangeActionInput,
+} from "../bridge/types.js";
 import type { ConfirmationStore } from "../confirmations.js";
 import { McpFigError } from "../errors.js";
+import { readImageSource } from "../images/import.js";
 import { exposeMcpInputSchema } from "../mcp-schema.js";
 import { handleToolCall, success } from "../tool-result.js";
 import { writeControlSchema } from "./write-control.js";
@@ -143,6 +148,24 @@ const letterSpacing = z
     value: z.number().finite(),
   })
   .strict();
+const textRangeStyle = z
+  .object({
+    fontName: fontName.optional(),
+    fontSize: z.number().finite().min(1).optional(),
+    lineHeight: lineHeight.optional(),
+    letterSpacing: letterSpacing.optional(),
+    fills: paints.optional(),
+  })
+  .strict()
+  .refine((style) => Object.keys(style).length > 0, "style cannot be empty");
+const imageSource = z.discriminatedUnion("type", [
+  z
+    .object({ type: z.literal("local"), path: z.string().min(1).max(4096) })
+    .strict(),
+  z
+    .object({ type: z.literal("url"), url: z.string().url().max(2048) })
+    .strict(),
+]);
 const nodeProps = z
   .object({
     x: z.number().finite().optional(),
@@ -194,6 +217,76 @@ const inputSchema = z.discriminatedUnion("action", [
         name !== undefined || nodeType !== undefined || path !== undefined,
       "query requires name, nodeType, or path",
     ),
+  z
+    .object({
+      action: z.literal("text_range_read"),
+      fileKey,
+      nodeId: z.string().min(1),
+      start: z.number().int().nonnegative(),
+      end: z.number().int().positive(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("text_range_update"),
+      fileKey,
+      nodeId: z.string().min(1),
+      ranges: z
+        .array(
+          z
+            .object({
+              start: z.number().int().nonnegative(),
+              end: z.number().int().positive(),
+              style: textRangeStyle,
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(100),
+      ...writeControlSchema,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("image_import"),
+      fileKey,
+      source: imageSource,
+      ...writeControlSchema,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("image_inspect"),
+      fileKey,
+      hash: z.string().min(1).max(256),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("image_fill"),
+      fileKey,
+      nodeIds,
+      hash: z.string().min(1).max(256),
+      operation: z.enum(["append", "replace"]),
+      index: z.number().int().nonnegative().max(63).optional(),
+      scaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).default("FILL"),
+      ...writeControlSchema,
+    })
+    .strict()
+    .superRefine(({ operation, index }, context) => {
+      if (operation === "replace" && index === undefined)
+        context.addIssue({
+          code: "custom",
+          message: "replace requires index",
+          path: ["index"],
+        });
+      if (operation === "append" && index !== undefined)
+        context.addIssue({
+          code: "custom",
+          message: "append does not accept index",
+          path: ["index"],
+        });
+    }),
   z
     .object({
       action: z.literal("export"),
@@ -307,7 +400,7 @@ export function registerNodeTool(
     {
       title: "Figma node",
       description:
-        "Get/query, export, create, update, move, resize, clone, or explicitly delete Figma nodes without raw execution. Query traversal is depth/limit bounded. Exported files are saved under ~/.mcp-fig/exports.",
+        "Get/query, style bounded text ranges, import/inspect/apply images, export, create, update, move, resize, clone, or explicitly delete Figma nodes without raw execution. Image import is restricted to owner-local files or validated HTTPS PNG/JPEG/GIF inputs. Exported files are saved under ~/.mcp-fig/exports.",
       inputSchema: exposeMcpInputSchema(inputSchema),
       annotations: {
         readOnlyHint: false,
@@ -338,6 +431,100 @@ export function registerNodeTool(
                 limit: input.limit,
               })),
             });
+          case "text_range_read": {
+            if (!bridge.textRange)
+              throw new McpFigError(
+                "UNSUPPORTED_BY_BRIDGE",
+                "Text ranges require the Desktop Plugin.",
+              );
+            return success(
+              "figma_node",
+              input.action,
+              await bridge.textRange({
+                ...scope,
+                action: "read",
+                nodeId: input.nodeId,
+                start: input.start,
+                end: input.end,
+              }),
+            );
+          }
+          case "text_range_update": {
+            if (!bridge.textRange)
+              throw new McpFigError(
+                "UNSUPPORTED_BY_BRIDGE",
+                "Text ranges require the Desktop Plugin.",
+              );
+            return success(
+              "figma_node",
+              input.action,
+              await bridge.textRange({
+                ...scope,
+                ...writeControl(input),
+                action: "update",
+                nodeId: input.nodeId,
+                ranges: input.ranges as NonNullable<
+                  TextRangeActionInput["ranges"]
+                >,
+              }),
+            );
+          }
+          case "image_import": {
+            if (!bridge.image)
+              throw new McpFigError(
+                "UNSUPPORTED_BY_BRIDGE",
+                "Images require the Desktop Plugin.",
+              );
+            const source = await readImageSource(input.source);
+            return success(
+              "figma_node",
+              input.action,
+              await bridge.image({
+                ...scope,
+                ...writeControl(input),
+                action: "import",
+                mimeType: source.mimeType,
+                dataBase64: Buffer.from(source.bytes).toString("base64"),
+              }),
+            );
+          }
+          case "image_inspect": {
+            if (!bridge.image)
+              throw new McpFigError(
+                "UNSUPPORTED_BY_BRIDGE",
+                "Images require the Desktop Plugin.",
+              );
+            return success(
+              "figma_node",
+              input.action,
+              await bridge.image({
+                ...scope,
+                action: "inspect",
+                hash: input.hash,
+              }),
+            );
+          }
+          case "image_fill": {
+            if (!bridge.image)
+              throw new McpFigError(
+                "UNSUPPORTED_BY_BRIDGE",
+                "Images require the Desktop Plugin.",
+              );
+            return success(
+              "figma_node",
+              input.action,
+              await bridge.image({
+                ...scope,
+                ...writeControl(input),
+                action: "fill",
+                nodeIds: input.nodeIds,
+                hash: input.hash,
+                operation: input.operation,
+                ...(input.index !== undefined ? { index: input.index } : {}),
+                scaleMode: input.scaleMode,
+              }),
+            );
+          }
           case "export": {
             const raster = input.format === "PNG" || input.format === "JPG";
             if (!raster && input.scale !== undefined) {

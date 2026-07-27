@@ -102,7 +102,7 @@ export function isReadOnlyRequest(method: string, params: unknown): boolean {
     params && typeof params === "object" && "action" in params
       ? (params as { action?: unknown }).action
       : undefined;
-  return ["inspect", "search", "validate"].includes(String(action));
+  return ["inspect", "search", "validate", "read"].includes(String(action));
 }
 
 function canonicalJson(value: unknown): string {

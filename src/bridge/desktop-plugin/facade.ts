@@ -12,6 +12,7 @@ import type {
   FigmaDocumentSummary,
   FigmaFileSummary,
   FigmaNode,
+  ImageActionInput,
   InstanceActionInput,
   LayoutActionInput,
   MoveNodesInput,
@@ -19,6 +20,7 @@ import type {
   NodeQueryResult,
   QueryNodesInput,
   ResizeNodesInput,
+  TextRangeActionInput,
   TokenActionInput,
   UpdateNodesInput,
 } from "../types.js";
@@ -136,6 +138,20 @@ export class DesktopPluginFigmaBridge implements FigmaBridge {
       input,
       input.fileKey,
     ) as Promise<NodeQueryResult>;
+  }
+
+  async textRange(
+    input: TextRangeActionInput,
+  ): Promise<Record<string, unknown>> {
+    return this.#rpc("node.text_range", input, input.fileKey) as Promise<
+      Record<string, unknown>
+    >;
+  }
+
+  async image(input: ImageActionInput): Promise<Record<string, unknown>> {
+    return this.#rpc("node.image", input, input.fileKey) as Promise<
+      Record<string, unknown>
+    >;
   }
 
   async createNode(input: CreateNodeInput): Promise<FigmaNode[]> {

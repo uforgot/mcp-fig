@@ -91,6 +91,13 @@ function createHarness() {
     layoutAlign: "INHERIT",
     constraints: { horizontal: "LEFT", vertical: "TOP" },
   };
+  const rangeStyles = Array.from({ length: "Before".length }, () => ({
+    fontName: { family: "Inter", style: "Regular" },
+    fontSize: 12,
+    lineHeight: { unit: "AUTO" },
+    letterSpacing: { unit: "PERCENT", value: 0 },
+    fills: [],
+  }));
   const text: MockNode = {
     id: "2:2",
     type: "TEXT",
@@ -116,8 +123,63 @@ function createHarness() {
     layoutPositioning: "AUTO",
     layoutAlign: "INHERIT",
     constraints: { horizontal: "LEFT", vertical: "TOP" },
-    getRangeAllFontNames() {
-      return [this.fontName];
+    getRangeAllFontNames(start = 0, end = "Before".length) {
+      return rangeStyles.slice(start, end).map((style) => style.fontName);
+    },
+    getStyledTextSegments(_fields: string[], start = 0, end = "Before".length) {
+      const segments: Array<
+        Record<string, unknown> & {
+          start: number;
+          end: number;
+          characters: string;
+          style: unknown;
+        }
+      > = [];
+      for (let index = start; index < end; index += 1) {
+        const style = structuredClone(rangeStyles[index]);
+        const previous = segments.at(-1);
+        if (
+          previous &&
+          JSON.stringify(previous.style) === JSON.stringify(style)
+        ) {
+          previous.end = index + 1;
+          previous.characters = "Before".slice(previous.start, index + 1);
+        } else {
+          segments.push({
+            start: index,
+            end: index + 1,
+            characters: "Before"[index] ?? "",
+            ...style,
+            style,
+          });
+        }
+      }
+      return segments.map(({ style: _style, ...segment }) => segment);
+    },
+    setRangeFontName(start: number, end: number, value: unknown) {
+      rangeStyles.slice(start, end).forEach((style) => {
+        style.fontName = structuredClone(value) as never;
+      });
+    },
+    setRangeFontSize(start: number, end: number, value: number) {
+      rangeStyles.slice(start, end).forEach((style) => {
+        style.fontSize = value;
+      });
+    },
+    setRangeLineHeight(start: number, end: number, value: unknown) {
+      rangeStyles.slice(start, end).forEach((style) => {
+        style.lineHeight = structuredClone(value) as never;
+      });
+    },
+    setRangeLetterSpacing(start: number, end: number, value: unknown) {
+      rangeStyles.slice(start, end).forEach((style) => {
+        style.letterSpacing = structuredClone(value) as never;
+      });
+    },
+    setRangeFills(start: number, end: number, value: unknown[]) {
+      rangeStyles.slice(start, end).forEach((style) => {
+        style.fills = structuredClone(value) as never[];
+      });
     },
   };
   const component: MockNode = {
@@ -170,6 +232,17 @@ function createHarness() {
   root.findAllWithCriteria = ({ types }: { types: string[] }) =>
     [...nodes.values()].filter((node) => types.includes(node.type));
 
+  const images = new Map<
+    string,
+    {
+      hash: string;
+      bytes: Uint8Array;
+      width: number;
+      height: number;
+      getBytesAsync(): Promise<Uint8Array>;
+      getSizeAsync(): Promise<{ width: number; height: number }>;
+    }
+  >();
   const figma = {
     fileKey: "test-file",
     root,
@@ -177,6 +250,31 @@ function createHarness() {
     mixed: Symbol("mixed"),
     base64Encode(data: Uint8Array) {
       return Buffer.from(data).toString("base64");
+    },
+    base64Decode(data: string) {
+      return Uint8Array.from(Buffer.from(data, "base64"));
+    },
+    createImage(data: Uint8Array) {
+      if (data.byteLength < 6) throw new Error("invalid image");
+      const hash = `image-${images.size + 1}`;
+      const bytes = Uint8Array.from(data);
+      const image = {
+        hash,
+        bytes,
+        width: 1,
+        height: 1,
+        async getBytesAsync() {
+          return Uint8Array.from(bytes);
+        },
+        async getSizeAsync() {
+          return { width: 1, height: 1 };
+        },
+      };
+      images.set(hash, image);
+      return image;
+    },
+    getImageByHash(hash: string) {
+      return images.get(hash) ?? null;
     },
     async loadFontAsync(font: unknown) {
       loadedFonts.push(font);
@@ -270,6 +368,7 @@ function createHarness() {
     messages,
     clientStorage,
     loadedFonts,
+    rangeStyles,
     exportSettings,
     setExportBytes(value: Uint8Array) {
       exportBytes = value;
@@ -981,5 +1080,151 @@ describe("Figma Plugin main bridge", () => {
     });
     expect(frame.layoutMode).toBe("NONE");
     expect(child.layoutSizingHorizontal).toBe("FIXED");
+  });
+
+  it("styles bounded text ranges while preserving untouched mixed-font characters", async () => {
+    const { command, figma, rangeStyles, text } = createHarness();
+    const outsideRange = rangeStyles.at(4);
+    if (!outsideRange) throw new Error("missing outside range fixture");
+    outsideRange.fontName = { family: "Roboto", style: "Bold" };
+    text.fontName = figma.mixed;
+
+    await expect(
+      command("node.text_range", {
+        action: "update",
+        nodeId: "2:2",
+        ranges: [
+          {
+            start: 0,
+            end: 3,
+            style: {
+              fontName: { family: "Inter", style: "Bold" },
+              fontSize: 18,
+              fills: [{ type: "SOLID", color: { r: 1, g: 0, b: 0 } }],
+            },
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(text.characters).toBe("Before");
+    const firstRange = rangeStyles.at(0);
+    if (!firstRange) throw new Error("missing first range fixture");
+    expect(firstRange).toMatchObject({
+      fontName: { style: "Bold" },
+      fontSize: 18,
+    });
+    expect(outsideRange.fontName).toEqual({
+      family: "Roboto",
+      style: "Bold",
+    });
+
+    await expect(
+      command("node.text_range", {
+        action: "read",
+        nodeId: "2:2",
+        start: 0,
+        end: 5,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { nodeId: "2:2", start: 0, end: 5, characters: "Befor" },
+    });
+    await expect(
+      command("node.text_range", {
+        action: "read",
+        nodeId: "2:2",
+        start: 3,
+        end: 99,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ARGUMENT" },
+    });
+  });
+
+  it("rolls back range styles after a later setter fails", async () => {
+    const { command, rangeStyles, text } = createHarness();
+    const original = text.setRangeFills as (
+      start: number,
+      end: number,
+      fills: unknown[],
+    ) => void;
+    let failOnce = true;
+    text.setRangeFills = (start: number, end: number, fills: unknown[]) => {
+      if (failOnce) {
+        failOnce = false;
+        throw new Error("simulated range fill failure");
+      }
+      original.call(text, start, end, fills);
+    };
+    await expect(
+      command("node.text_range", {
+        action: "update",
+        nodeId: "2:2",
+        ranges: [
+          {
+            start: 0,
+            end: 3,
+            style: {
+              fontSize: 20,
+              fills: [{ type: "SOLID", color: { r: 1, g: 0, b: 0 } }],
+            },
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({ ok: false, error: { code: "INTERNAL_ERROR" } });
+    expect(rangeStyles.at(0)).toMatchObject({ fontSize: 12, fills: [] });
+  });
+
+  it("imports, inspects, appends, and replaces image fills", async () => {
+    const { command, child } = createHarness();
+    const png = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 0]);
+    const imported = await command("node.image", {
+      action: "import",
+      mimeType: "image/png",
+      dataBase64: Buffer.from(png).toString("base64"),
+    });
+    expect(imported).toMatchObject({
+      ok: true,
+      data: { hash: "image-1", mimeType: "image/png", width: 1, height: 1 },
+    });
+    await expect(
+      command("node.image", { action: "inspect", hash: "image-1" }),
+    ).resolves.toMatchObject({ ok: true, data: { byteLength: 9 } });
+    await expect(
+      command("node.image", {
+        action: "fill",
+        nodeIds: ["2:1"],
+        hash: "image-1",
+        operation: "append",
+        scaleMode: "FIT",
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(child.fills).toEqual([
+      { type: "IMAGE", imageHash: "image-1", scaleMode: "FIT" },
+    ]);
+    await expect(
+      command("node.image", {
+        action: "fill",
+        nodeIds: ["2:1"],
+        hash: "image-1",
+        operation: "replace",
+        index: 0,
+        scaleMode: "FILL",
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(child.fills).toEqual([
+      { type: "IMAGE", imageHash: "image-1", scaleMode: "FILL" },
+    ]);
+    await expect(
+      command("node.image", {
+        action: "import",
+        mimeType: "image/png",
+        dataBase64: Buffer.from("not-image").toString("base64"),
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ARGUMENT" },
+    });
   });
 });

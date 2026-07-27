@@ -717,8 +717,50 @@ type TokenAction =
 
 export type TokenActionInput = AddWriteControl<TokenAction, "inspect">;
 
+export interface TextRangeStyle {
+  fontName?: FontName;
+  fontSize?: number;
+  lineHeight?: LineHeight;
+  letterSpacing?: LetterSpacing;
+  fills?: FigmaPaint[];
+}
+
+export interface TextRangeActionInput extends MutationOptions {
+  action: "read" | "update";
+  nodeId: string;
+  start?: number;
+  end?: number;
+  ranges?: { start: number; end: number; style: TextRangeStyle }[];
+}
+
+export interface ImageMetadata {
+  hash: string;
+  mimeType: "image/png" | "image/jpeg" | "image/gif";
+  byteLength: number;
+  width: number;
+  height: number;
+}
+
+export type ImageActionInput =
+  | ({
+      action: "import";
+      dataBase64: string;
+      mimeType: ImageMetadata["mimeType"];
+    } & MutationOptions)
+  | { action: "inspect"; hash: string; fileKey?: string }
+  | ({
+      action: "fill";
+      nodeIds: string[];
+      hash: string;
+      operation: "append" | "replace";
+      index?: number;
+      scaleMode: "FILL" | "FIT" | "CROP" | "TILE";
+    } & MutationOptions);
+
 export interface FigmaBridge {
   close?(): Promise<void> | void;
+  textRange?(input: TextRangeActionInput): Promise<Record<string, unknown>>;
+  image?(input: ImageActionInput): Promise<Record<string, unknown>>;
   status(): Promise<BridgeStatus>;
   listFiles(): Promise<FigmaFileSummary[]>;
   targetFile(fileKey: string): Promise<BridgeStatus>;
