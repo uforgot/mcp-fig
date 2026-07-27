@@ -163,6 +163,16 @@ describe("Desktop Plugin bridge", () => {
     );
   });
 
+  it("queues visual capture preparation and keeps audit/release read-only", () => {
+    expect(isReadOnlyRequest("visual", { action: "prepare_capture" })).toBe(
+      false,
+    );
+    expect(isReadOnlyRequest("visual", { action: "audit" })).toBe(true);
+    expect(isReadOnlyRequest("visual", { action: "release_capture" })).toBe(
+      true,
+    );
+  });
+
   it("classifies style inventory as read-only and writes as mutations", () => {
     expect(isReadOnlyRequest("styles", { action: "inspect" })).toBe(true);
     for (const action of ["create", "update", "delete", "library_import"])

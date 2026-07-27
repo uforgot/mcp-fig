@@ -25,6 +25,7 @@ import type {
   StyleActionInput,
   TokenActionInput,
   UpdateNodesInput,
+  VisualActionInput,
 } from "./types.js";
 
 export class InMemoryFigmaBridge implements FigmaBridge {
@@ -104,6 +105,12 @@ export class InMemoryFigmaBridge implements FigmaBridge {
   }
   styles(input: StyleActionInput): Promise<Record<string, unknown>> {
     return this.#designSystem.styles(input);
+  }
+  async visual(_input: VisualActionInput): Promise<Record<string, unknown>> {
+    throw new McpFigError(
+      "UNSUPPORTED_BY_BRIDGE",
+      "Desktop screenshot and visual audit require the Desktop Plugin bridge.",
+    );
   }
   countNodes(fileKey?: string): number {
     return this.#core.countNodes(fileKey);

@@ -3025,6 +3025,99 @@
     }
   },
   {
+    "name": "figma_screenshot",
+    "title": "Figma screenshot and audit",
+    "description": "Capture a bounded real Figma Desktop window PNG for viewport/selection/node focus, or run bounded model-state accessibility/design-system/layout/lint audits. Desktop screenshots, node exports, and audit evidence are distinct proof types.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "capture"
+            },
+            {
+              "type": "string",
+              "const": "audit"
+            }
+          ]
+        },
+        "fileKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["viewport", "selection", "node"]
+        },
+        "nodeIds": {
+          "minItems": 1,
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "focus": {
+          "type": "boolean"
+        },
+        "scale": {
+          "type": "number",
+          "minimum": 0.25,
+          "maximum": 1
+        },
+        "maxBytes": {
+          "type": "integer",
+          "minimum": 64000,
+          "maximum": 8000000
+        },
+        "delayMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        },
+        "rootNodeIds": {
+          "minItems": 1,
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "categories": {
+          "minItems": 1,
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["accessibility", "design_system", "layout", "lint"]
+          }
+        },
+        "maxDepth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "maxNodes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "maxIssues": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "required": ["action"],
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": {}
+    }
+  },
+  {
     "name": "figma_selection",
     "title": "Figma selection",
     "description": "Read the current Desktop Plugin selection and its nodes.",

@@ -85,6 +85,7 @@ function requiredCapability(method: string): PluginCapability {
   if (method === "instance") return "instance.write";
   if (method === "tokens") return "tokens.write";
   if (method === "styles") return "styles.write";
+  if (method === "visual") return "node.read";
   throw new McpFigError(
     "UNSUPPORTED_BY_BRIDGE",
     `Unknown Desktop Plugin method ${method}.`,
@@ -106,6 +107,11 @@ export function isReadOnlyRequest(method: string, params: unknown): boolean {
     params && typeof params === "object" && "action" in params
       ? (params as { action?: unknown }).action
       : undefined;
+  if (
+    method === "visual" &&
+    ["audit", "release_capture"].includes(String(action))
+  )
+    return true;
   return [
     "inspect",
     "search",

@@ -24,6 +24,7 @@ import type {
   TextRangeActionInput,
   TokenActionInput,
   UpdateNodesInput,
+  VisualActionInput,
 } from "./types.js";
 
 type RestFallbackBridge = FigmaBridge & {
@@ -258,6 +259,10 @@ export class HybridFigmaBridge implements FigmaBridge {
 
   styles(input: StyleActionInput): Promise<Record<string, unknown>> {
     return this.#plugin.styles(input);
+  }
+
+  visual(input: VisualActionInput): Promise<Record<string, unknown>> {
+    return this.#plugin.visual(input);
   }
 
   async #read<Result>(

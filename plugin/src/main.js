@@ -61,6 +61,12 @@ const styles = createStylesDomain({
   cloneData: dataHelpers.cloneData,
 });
 
+const visual = createVisualDomain({
+  figma,
+  fail: errors.fail,
+  nodeById: nodeHelpers.nodeById,
+});
+
 const BRIDGE_CONFIG_KEY = "mcp-fig.bridge-config.v1";
 const BRIDGE_PROTOCOL = "mcp-fig-plugin/v1";
 
@@ -138,6 +144,12 @@ async function execute(command) {
       true,
     );
   }
+  if (visual.captureBlocked(command.method, command.params || {}))
+    errors.fail(
+      "BUSY",
+      "A Desktop screenshot capture holds this Figma file.",
+      true,
+    );
   const prepared = idempotency.prepare(identity.key, command);
   if (prepared?.replayed) return prepared.data;
   if (
@@ -174,6 +186,8 @@ async function execute(command) {
     result = await tokens.command(command.params || {});
   } else if (command.method === "styles") {
     result = await styles.command(command.params || {});
+  } else if (command.method === "visual") {
+    result = await visual.command(command.params || {});
   } else {
     errors.fail(
       "UNSUPPORTED_BY_BRIDGE",

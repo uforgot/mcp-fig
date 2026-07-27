@@ -24,6 +24,7 @@ import type {
   StyleActionInput,
   TokenActionInput,
   UpdateNodesInput,
+  VisualActionInput,
 } from "./types.js";
 
 export const REST_FRESHNESS_WARNING =
@@ -530,6 +531,10 @@ export class RestFigmaBridge implements FigmaBridge {
 
   async styles(input: StyleActionInput): Promise<Record<string, unknown>> {
     return unsupported(`styles.${input.action}`);
+  }
+
+  async visual(input: VisualActionInput): Promise<Record<string, unknown>> {
+    return unsupported(`visual.${input.action}`);
   }
 
   async #loadFile(fileKey: string): Promise<RestFileResponse> {

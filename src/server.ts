@@ -10,6 +10,10 @@ import { registerDocumentTool } from "./tools/document.js";
 import { registerInstanceTool } from "./tools/instance.js";
 import { registerLayoutTool } from "./tools/layout.js";
 import { registerNodeTool } from "./tools/node.js";
+import {
+  type DesktopCapture,
+  registerScreenshotTool,
+} from "./tools/screenshot.js";
 import { registerSelectionTool } from "./tools/selection.js";
 import { registerStylesTool } from "./tools/styles.js";
 import { registerTokensTool } from "./tools/tokens.js";
@@ -17,6 +21,7 @@ import { registerTokensTool } from "./tools/tokens.js";
 export interface ServerOptions {
   bridge?: FigmaBridge;
   confirmations?: ConfirmationStore;
+  desktopCapture?: DesktopCapture;
 }
 
 export function createMcpServer(
@@ -39,5 +44,6 @@ export function createMcpServer(
   registerInstanceTool(server, bridge);
   registerTokensTool(server, bridge, confirmations);
   registerStylesTool(server, bridge, config.profiles, confirmations);
+  registerScreenshotTool(server, bridge, options.desktopCapture);
   return server;
 }

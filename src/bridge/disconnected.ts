@@ -20,6 +20,7 @@ import type {
   StyleActionInput,
   TokenActionInput,
   UpdateNodesInput,
+  VisualActionInput,
 } from "./types.js";
 
 function notConnected(): never {
@@ -121,6 +122,10 @@ export class DisconnectedFigmaBridge implements FigmaBridge {
   }
 
   async styles(_input: StyleActionInput): Promise<Record<string, unknown>> {
+    return notConnected();
+  }
+
+  async visual(_input: VisualActionInput): Promise<Record<string, unknown>> {
     return notConnected();
   }
 }

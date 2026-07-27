@@ -24,6 +24,7 @@ import type {
   TextRangeActionInput,
   TokenActionInput,
   UpdateNodesInput,
+  VisualActionInput,
 } from "../types.js";
 import { isReadOnlyRequest } from "./write-coordinator.js";
 
@@ -232,6 +233,12 @@ export class DesktopPluginFigmaBridge implements FigmaBridge {
 
   async styles(input: StyleActionInput): Promise<Record<string, unknown>> {
     return this.#rpc("styles", input, input.fileKey) as Promise<
+      Record<string, unknown>
+    >;
+  }
+
+  async visual(input: VisualActionInput): Promise<Record<string, unknown>> {
+    return this.#rpc("visual", input, input.fileKey) as Promise<
       Record<string, unknown>
     >;
   }

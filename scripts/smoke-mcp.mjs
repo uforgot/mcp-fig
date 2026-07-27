@@ -25,6 +25,7 @@ const expectedTools = [
   "figma_instance",
   "figma_tokens",
   "figma_styles",
+  "figma_screenshot",
 ];
 
 try {

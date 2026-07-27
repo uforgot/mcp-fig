@@ -18,6 +18,7 @@ const sources = [
   "plugin/domains/instance.js",
   "plugin/domains/tokens.js",
   "plugin/domains/styles.js",
+  "plugin/domains/visual.js",
   "plugin/src/main.js",
 ];
 const outputPath = path.join(root, "plugin/main.js");

@@ -69,6 +69,7 @@ describe("Core Figma facade", () => {
       "figma_instance",
       "figma_tokens",
       "figma_styles",
+      "figma_screenshot",
     ]);
   });
 

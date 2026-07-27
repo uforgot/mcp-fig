@@ -616,6 +616,7 @@ function createHarness() {
   }
 
   const localStyles = new Map<string, MockStyle>();
+  const viewportFocuses: string[][] = [];
   let nextStyleId = 1;
   function createStyle(type: MockStyle["type"]): MockStyle {
     const id = `S:test:${nextStyleId++}`;
@@ -654,6 +655,12 @@ function createHarness() {
     root,
     currentPage: page,
     mixed: Symbol("mixed"),
+    viewport: {
+      bounds: { x: 0, y: 0, width: 1200, height: 800 },
+      scrollAndZoomIntoView(focusNodes: MockNode[]) {
+        viewportFocuses.push(focusNodes.map((node) => node.id));
+      },
+    },
     createComponent() {
       const created = installComponent({
         id: `dynamic:${nextDynamicId++}`,
@@ -926,6 +933,7 @@ function createHarness() {
     loadedFonts,
     rangeStyles,
     exportSettings,
+    viewportFocuses,
     setExportBytes(value: Uint8Array) {
       exportBytes = value;
     },
@@ -1216,6 +1224,179 @@ describe("Figma Plugin main bridge", () => {
     ).resolves.toMatchObject({ ok: false });
     expect(child.opacity).toBe(1);
     expect(textOpacity).toBe(1);
+  });
+
+  it("prepares viewport, selection, and node Desktop screenshot scopes under a lease", async () => {
+    const { command, page, child, viewportFocuses } = createHarness();
+    page.selection = [child];
+    child.absoluteBoundingBox = { x: 10, y: 20, width: 100, height: 40 };
+
+    const viewport = (await command("visual", {
+      action: "prepare_capture",
+      scope: "viewport",
+      focus: true,
+    })) as unknown as MockPluginResult;
+    expect(viewport).toMatchObject({
+      ok: true,
+      data: {
+        fileName: "Plugin test",
+        pageId: "1:0",
+        scope: "viewport",
+        focusNodeIds: [],
+        viewportBounds: { x: 0, y: 0, width: 1200, height: 800 },
+      },
+    });
+    expect(viewport.data.leaseId).toMatch(/^capture-/);
+    await expect(
+      command("visual", {
+        action: "prepare_capture",
+        scope: "selection",
+        focus: true,
+      }),
+    ).resolves.toMatchObject({ ok: false, error: { code: "BUSY" } });
+    await expect(
+      command("visual", {
+        action: "release_capture",
+        leaseId: viewport.data.leaseId,
+      }),
+    ).resolves.toMatchObject({ ok: true, data: { released: true } });
+
+    const selection = (await command("visual", {
+      action: "prepare_capture",
+      scope: "selection",
+      focus: true,
+    })) as unknown as MockPluginResult;
+    expect(selection).toMatchObject({
+      ok: true,
+      data: {
+        scope: "selection",
+        focusNodeIds: ["2:1"],
+        focusBounds: { x: 10, y: 20, width: 100, height: 40 },
+      },
+    });
+    await command("visual", {
+      action: "release_capture",
+      leaseId: selection.data.leaseId,
+    });
+
+    const node = (await command("visual", {
+      action: "prepare_capture",
+      scope: "node",
+      nodeIds: ["2:1"],
+      focus: true,
+    })) as unknown as MockPluginResult;
+    expect(node).toMatchObject({ ok: true });
+    await command("visual", {
+      action: "release_capture",
+      leaseId: node.data.leaseId,
+    });
+    expect(viewportFocuses).toEqual([["2:1"], ["2:1"]]);
+  });
+
+  it("audits clipped, overlapping, and low-contrast P0 fixtures within caps", async () => {
+    const { command, frame, child, text } = createHarness();
+    frame.clipsContent = true;
+    frame.layoutMode = "HORIZONTAL";
+    child.layoutPositioning = "ABSOLUTE";
+    text.layoutPositioning = "AUTO";
+    frame.absoluteBoundingBox = { x: 0, y: 0, width: 100, height: 100 };
+    frame.absoluteRenderBounds = { x: 0, y: 0, width: 100, height: 100 };
+    frame.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+    child.absoluteBoundingBox = { x: 80, y: 10, width: 40, height: 40 };
+    child.absoluteRenderBounds = { x: 80, y: 10, width: 20, height: 40 };
+    child.fills = [{ type: "SOLID", color: { r: 0.8, g: 0.8, b: 0.8 } }];
+    text.absoluteBoundingBox = { x: 85, y: 15, width: 60, height: 20 };
+    text.absoluteRenderBounds = { x: 85, y: 15, width: 60, height: 20 };
+    text.fontSize = 10;
+    text.fontWeight = 400;
+    text.fills = [{ type: "SOLID", color: { r: 0.8, g: 0.8, b: 0.8 } }];
+    text.textStyleId = "";
+
+    const result = (await command("visual", {
+      action: "audit",
+      rootNodeIds: ["2:0"],
+      categories: ["accessibility", "design_system", "layout", "lint"],
+      maxDepth: 2,
+      maxNodes: 20,
+      maxIssues: 20,
+    })) as unknown as MockPluginResult;
+    expect(result.ok).toBe(true);
+    const issues = result.data.issues as Array<{ code: string }>;
+    expect(issues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining([
+        "CLIPPED_CONTENT",
+        "OVERLAP",
+        "TEXT_TOO_SMALL",
+        "UNSTYLED_TEXT",
+      ]),
+    );
+    expect(result.data).toMatchObject({
+      inspectedNodes: 3,
+      truncated: false,
+      proof: { type: "model-state-audit", pixelAnalysis: false },
+    });
+    expect(issues.map((issue) => issue.code)).not.toContain(
+      "LOW_TEXT_CONTRAST",
+    );
+
+    child.absoluteBoundingBox = { x: 10, y: 60, width: 20, height: 20 };
+    child.absoluteRenderBounds = { x: 10, y: 60, width: 20, height: 20 };
+    text.fontSize = 20;
+    text.fills = [{ type: "SOLID", color: { r: 0.5, g: 0.5, b: 0.5 } }];
+    const outsideParent = (await command("visual", {
+      action: "audit",
+      rootNodeIds: ["2:0"],
+      categories: ["accessibility"],
+      maxDepth: 2,
+      maxNodes: 20,
+      maxIssues: 20,
+    })) as unknown as MockPluginResult;
+    expect(
+      (outsideParent.data.issues as Array<{ code: string }>).map(
+        (issue) => issue.code,
+      ),
+    ).not.toContain("LOW_TEXT_CONTRAST");
+
+    text.absoluteBoundingBox = { x: 30, y: 15, width: 60, height: 20 };
+    text.absoluteRenderBounds = { x: 30, y: 15, width: 60, height: 20 };
+    const threshold = (await command("visual", {
+      action: "audit",
+      rootNodeIds: ["2:0"],
+      categories: ["accessibility"],
+      maxDepth: 2,
+      maxNodes: 20,
+      maxIssues: 20,
+    })) as unknown as MockPluginResult;
+    expect(
+      (threshold.data.issues as Array<{ code: string }>).map(
+        (issue) => issue.code,
+      ),
+    ).toContain("LOW_TEXT_CONTRAST");
+
+    text.opacity = 0.5;
+    const alpha = (await command("visual", {
+      action: "audit",
+      rootNodeIds: ["2:0"],
+      categories: ["accessibility"],
+      maxDepth: 2,
+      maxNodes: 20,
+      maxIssues: 20,
+    })) as unknown as MockPluginResult;
+    expect(
+      (alpha.data.issues as Array<{ code: string }>).map((issue) => issue.code),
+    ).not.toContain("LOW_TEXT_CONTRAST");
+    text.opacity = 1;
+
+    const capped = (await command("visual", {
+      action: "audit",
+      rootNodeIds: ["2:0"],
+      categories: ["accessibility", "design_system", "layout", "lint"],
+      maxDepth: 2,
+      maxNodes: 20,
+      maxIssues: 2,
+    })) as unknown as MockPluginResult;
+    expect(capped.data.issues).toHaveLength(2);
+    expect(capped.data.truncated).toBe(true);
   });
 
   it("exports a node with typed image settings and base64 data", async () => {

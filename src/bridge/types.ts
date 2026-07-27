@@ -598,6 +598,53 @@ export interface NodeExportPayload {
   dataBase64: string;
 }
 
+export type ScreenshotScope = "viewport" | "selection" | "node";
+export type VisualAuditCategory =
+  | "accessibility"
+  | "design_system"
+  | "layout"
+  | "lint";
+
+export interface ScreenshotBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface ScreenshotPreparation {
+  fileName: string;
+  pageId: string;
+  scope: ScreenshotScope;
+  focusNodeIds: string[];
+  viewportBounds: ScreenshotBounds;
+  focusBounds?: ScreenshotBounds | undefined;
+  leaseId: string;
+}
+
+export type VisualActionInput =
+  | {
+      action: "prepare_capture";
+      scope: ScreenshotScope;
+      nodeIds?: string[];
+      focus?: boolean;
+      fileKey?: string;
+    }
+  | {
+      action: "release_capture";
+      leaseId: string;
+      fileKey?: string;
+    }
+  | {
+      action: "audit";
+      rootNodeIds: string[];
+      categories: VisualAuditCategory[];
+      maxDepth: number;
+      maxNodes: number;
+      maxIssues: number;
+      fileKey?: string;
+    };
+
 export type LayoutOperation =
   | { op: "apply"; nodeIds: string[]; layout: LayoutConfig }
   | { op: "sizing"; nodeIds: string[]; sizing: LayoutSizingConfig }
@@ -1006,4 +1053,5 @@ export interface FigmaBridge {
   instance(input: InstanceActionInput): Promise<Record<string, unknown>>;
   tokens(input: TokenActionInput): Promise<Record<string, unknown>>;
   styles(input: StyleActionInput): Promise<Record<string, unknown>>;
+  visual(input: VisualActionInput): Promise<Record<string, unknown>>;
 }
