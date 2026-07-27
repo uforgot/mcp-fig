@@ -6,7 +6,7 @@ import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { InMemoryFigmaBridge } from "../src/bridge/in-memory.js";
-import type { FigmaFileFixture } from "../src/bridge/types.js";
+import type { FigmaFileFixture, FigmaNode } from "../src/bridge/types.js";
 import type { ProfileName } from "../src/config.js";
 import { createMcpServer } from "../src/server.js";
 
@@ -54,6 +54,16 @@ async function call(
     result,
     payload: JSON.parse(text?.type === "text" ? text.text : "{}"),
   };
+}
+
+function fixtureNode(root: FigmaNode, id: string): FigmaNode {
+  if (root.id === id) return root;
+  for (const child of root.children ?? []) {
+    try {
+      return fixtureNode(child, id);
+    } catch {}
+  }
+  throw new Error(`Fixture node ${id} was not found.`);
 }
 
 describe("Component, instance, and token facade", () => {
@@ -126,6 +136,66 @@ describe("Component, instance, and token facade", () => {
         boundVariables: { fills: "variable:brand" },
       }),
     ]);
+  });
+
+  it("rejects unknown fixture properties when definitions are absent", async () => {
+    const custom = structuredClone(fixture);
+    const component = fixtureNode(custom.document, "3:0");
+    delete component.componentProperties;
+    const bridge = new InMemoryFigmaBridge([custom], "fixture-file");
+    await expect(
+      bridge.instance({
+        action: "create",
+        componentId: "3:0",
+        parentId: "2:0",
+        properties: { Rogue: "value" },
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_ARGUMENT" });
+  });
+
+  it("prevalidates fixture update and reset batches before mutation", async () => {
+    const custom = structuredClone(fixture);
+    const frame = fixtureNode(custom.document, "2:0");
+    frame.children = [
+      {
+        id: "instance:valid",
+        type: "INSTANCE",
+        name: "Valid",
+        parentId: frame.id,
+        mainComponentId: "3:0",
+        instanceProperties: { Label: "Before", State: "Default" },
+        children: [],
+      },
+      {
+        id: "instance:invalid",
+        type: "INSTANCE",
+        name: "Invalid",
+        parentId: frame.id,
+        mainComponentId: "missing:component",
+        instanceProperties: { Label: "Invalid", State: "Default" },
+        children: [],
+      },
+    ];
+    const bridge = new InMemoryFigmaBridge([custom], "fixture-file");
+    await expect(
+      bridge.instance({
+        action: "update",
+        instanceIds: ["instance:valid", "instance:invalid"],
+        properties: { Label: "After" },
+      }),
+    ).rejects.toMatchObject({ code: "NODE_NOT_FOUND" });
+    expect((await bridge.getNodes(["instance:valid"]))[0]).toMatchObject({
+      instanceProperties: { Label: "Before", State: "Default" },
+    });
+    await expect(
+      bridge.instance({
+        action: "reset",
+        instanceIds: ["instance:valid", "instance:invalid"],
+      }),
+    ).rejects.toMatchObject({ code: "NODE_NOT_FOUND" });
+    expect((await bridge.getNodes(["instance:valid"]))[0]).toMatchObject({
+      instanceProperties: { Label: "Before", State: "Default" },
+    });
   });
 
   it("keeps library components key-addressed and profile-gated", async () => {

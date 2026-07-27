@@ -2193,11 +2193,11 @@ function createComponentDomain({
       try {
         for (const combination of combinations) {
           const component = figma.createComponent();
+          variants.push(component);
           component.name = Object.entries(combination)
             .map(([key, value]) => `${key}=${value}`)
             .join(", ");
           parent.appendChild(component);
-          variants.push(component);
         }
         set = figma.combineAsVariants(variants, parent);
         set.name = input.name;

@@ -417,15 +417,17 @@ export class InMemoryDesignSystem {
             node.instanceProperties = defaults;
         }
       } else {
-        for (const node of instances) {
+        const resets = instances.map((node) => {
           const component = this.#findComponentForInstance(file, node);
-          node.instanceProperties = Object.fromEntries(
+          return Object.fromEntries(
             Object.entries(component.properties ?? {}).flatMap(
               ([name, property]) =>
                 property.type === "SLOT" ? [] : [[name, property.defaultValue]],
             ),
           );
-        }
+        });
+        for (const [index, node] of instances.entries())
+          node.instanceProperties = resets[index];
       }
       this.store.record(
         file,
@@ -440,7 +442,7 @@ export class InMemoryDesignSystem {
       const instances = input.instanceIds.map((id) =>
         this.store.requireNode(file, id),
       );
-      for (const node of instances) {
+      const updates = instances.map((node) => {
         if (node.type !== "INSTANCE") {
           throw new McpFigError(
             "INVALID_ARGUMENT",
@@ -453,8 +455,10 @@ export class InMemoryDesignSystem {
           ...input.properties,
         };
         this.#validateProperties(component, properties);
-        node.instanceProperties = properties;
-      }
+        return properties;
+      });
+      for (const [index, node] of instances.entries())
+        node.instanceProperties = updates[index];
       this.store.record(
         file,
         "instance.update",
@@ -707,7 +711,14 @@ export class InMemoryDesignSystem {
     component: ComponentRecord,
     properties: Record<string, string | boolean>,
   ): void {
-    if (!component.properties) return;
+    if (!component.properties) {
+      const [name] = Object.keys(properties);
+      if (!name) return;
+      throw new McpFigError(
+        "INVALID_ARGUMENT",
+        `Component property ${name} was not found.`,
+      );
+    }
     for (const [name, value] of Object.entries(properties)) {
       const definition = component.properties[name];
       if (!definition) {

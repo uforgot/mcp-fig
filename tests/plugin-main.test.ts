@@ -495,7 +495,7 @@ function createHarness() {
     currentPage: page,
     mixed: Symbol("mixed"),
     createComponent() {
-      return installComponent({
+      const created = installComponent({
         id: `dynamic:${nextDynamicId++}`,
         type: "COMPONENT",
         name: "Component",
@@ -510,6 +510,10 @@ function createHarness() {
         description: "",
         componentPropertyDefinitions: {},
       });
+      (page.appendChild as ((childNode: MockNode) => void) | undefined)?.(
+        created,
+      );
+      return created;
     },
     combineAsVariants(variants: MockNode[], parent: MockNode) {
       const definitions: Record<string, Record<string, unknown>> = {};
@@ -1551,6 +1555,26 @@ describe("Figma Plugin main bridge", () => {
       ok: false,
       error: { code: "INVALID_ARGUMENT" },
     });
+  });
+
+  it("cleans up the current component when variant append fails", async () => {
+    const { command, page, frame } = createHarness();
+    const beforePage = page.children?.map((node) => node.id);
+    frame.appendChild = () => {
+      throw new Error("variant append failed");
+    };
+    await expect(
+      command("component", {
+        action: "create_set",
+        parentId: "2:0",
+        name: "Broken set",
+        axes: { State: ["Default"] },
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "INTERNAL_ERROR" },
+    });
+    expect(page.children?.map((node) => node.id)).toEqual(beforePage);
   });
 
   it("creates and inspects a local component set with canonical variant properties", async () => {
