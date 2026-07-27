@@ -412,6 +412,46 @@ describe("Figma Plugin main bridge", () => {
     });
   });
 
+  it("rejects plain text replacement on mixed-font nodes", async () => {
+    const { command, figma, text } = createHarness();
+    text.fontName = figma.mixed;
+    text.getRangeAllFontNames = () => [
+      { family: "Inter", style: "Regular" },
+      { family: "Roboto", style: "Bold" },
+    ];
+
+    await expect(
+      command("node.update", {
+        nodeIds: ["2:2"],
+        patch: { text: "After" },
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ARGUMENT" },
+    });
+    expect(text.characters).toBe("Before");
+  });
+
+  it("allows explicit font unification while replacing mixed-font text", async () => {
+    const { command, figma, loadedFonts, text } = createHarness();
+    text.fontName = figma.mixed;
+
+    await expect(
+      command("node.update", {
+        nodeIds: ["2:2"],
+        patch: {
+          text: "After",
+          fontName: { family: "Inter", style: "Bold" },
+        },
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(text).toMatchObject({
+      characters: "After",
+      fontName: { family: "Inter", style: "Bold" },
+    });
+    expect(loadedFonts).toEqual([{ family: "Inter", style: "Bold" }]);
+  });
+
   it("loads each mixed font once before applying uniform typography", async () => {
     const { command, figma, loadedFonts, text } = createHarness();
     text.fontName = figma.mixed;

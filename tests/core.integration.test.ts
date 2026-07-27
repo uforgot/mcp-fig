@@ -71,6 +71,29 @@ describe("Core Figma facade", () => {
     ]);
   });
 
+  it("enforces Figma's minimum font size at the MCP boundary", async () => {
+    const client = await createConnectedClient();
+
+    const invalid = CallToolResultSchema.parse(
+      await client.callTool({
+        name: "figma_node",
+        arguments: {
+          action: "update",
+          nodeIds: ["2:1"],
+          patch: { fontSize: 0.5 },
+        },
+      }),
+    );
+    expect(invalid.isError).toBe(true);
+
+    const valid = await call(client, "figma_node", {
+      action: "update",
+      nodeIds: ["2:1"],
+      patch: { fontSize: 1 },
+    });
+    expect(valid.payload.ok).toBe(true);
+  });
+
   it("reports the targeted fixture and reads document and selection", async () => {
     const client = await createConnectedClient();
 

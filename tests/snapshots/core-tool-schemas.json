@@ -1007,7 +1007,7 @@
             },
             "fontSize": {
               "type": "number",
-              "exclusiveMinimum": 0
+              "minimum": 1
             },
             "lineHeight": {
               "oneOf": [
@@ -1139,7 +1139,7 @@
             },
             "fontSize": {
               "type": "number",
-              "exclusiveMinimum": 0
+              "minimum": 1
             },
             "lineHeight": {
               "oneOf": [

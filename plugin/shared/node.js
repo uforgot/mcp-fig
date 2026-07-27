@@ -47,6 +47,15 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
     if (!hasTextMutation(props)) return;
     if (node.type !== "TEXT")
       fail("INVALID_ARGUMENT", `Node ${node.id} is not a text node.`);
+    if (
+      props.text !== undefined &&
+      node.fontName === figma.mixed &&
+      props.fontName === undefined
+    )
+      fail(
+        "INVALID_ARGUMENT",
+        `Text node ${node.id} uses mixed fonts; provide fontName to replace its text uniformly.`,
+      );
 
     let fonts;
     if (props.fontName !== undefined) {

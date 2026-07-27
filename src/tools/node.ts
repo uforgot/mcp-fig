@@ -43,7 +43,7 @@ const nodeProps = z
     locked: z.boolean().optional(),
     text: z.string().optional(),
     fontName: fontName.optional(),
-    fontSize: z.number().positive().optional(),
+    fontSize: z.number().finite().min(1).optional(),
     lineHeight: lineHeight.optional(),
     letterSpacing: letterSpacing.optional(),
     textAlignHorizontal: z

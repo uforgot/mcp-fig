@@ -170,7 +170,7 @@ The full action registry is in `api-surface.json`. The following schemas define 
 - `get`: requires `nodeIds`.
 - `create`: requires `parentId` and `nodeType`.
 - `update`: requires `nodeIds` and a non-empty typed `patch`.
-  Text nodes accept `fontName`, `fontSize`, `lineHeight`, `letterSpacing`, and horizontal/vertical alignment. Figma font weight and style are selected through `fontName.style`; the Plugin loads the target font before mutation and deduplicates mixed-font loads.
+  Text nodes accept `fontName`, `fontSize`, `lineHeight`, `letterSpacing`, and horizontal/vertical alignment. `fontSize` has Figma's minimum value of `1`. Figma font weight and style are selected through `fontName.style`; the Plugin loads the target font before mutation and deduplicates mixed-font loads. Uniform typography updates preserve mixed font runs, but replacing mixed-font text requires an explicit `fontName` because assigning `characters` resets range styling.
 - `move`: requires `nodeIds`; accepts `parentId`, `index`, or coordinates.
 - `resize`: requires `nodeIds` and positive dimensions.
 - `clone`: requires `nodeIds`; accepts destination and offset.
