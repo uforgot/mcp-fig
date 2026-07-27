@@ -92,6 +92,19 @@ async function names(directory) {
   return new Set(await readdir(directory).catch(() => []));
 }
 
+async function readNodeResidue(nodeId, targetFileKey) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await bridge.getNodes([nodeId], targetFileKey);
+    } catch (error) {
+      if (error?.code === "NODE_NOT_FOUND") return [];
+      if (error?.code !== "NOT_CONNECTED" || attempt === 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+    }
+  }
+  return [];
+}
+
 try {
   const health = await client.health();
   const connected = await waitForPlugin();
@@ -234,6 +247,7 @@ try {
       maxBytes: 8_000_000,
       delayMs: 250,
     });
+    artifactPaths.push(screenshotArtifact.path);
   } finally {
     await bridge.visual({
       action: "release_capture",
@@ -242,7 +256,6 @@ try {
     });
     activeLeaseId = undefined;
   }
-  artifactPaths.push(screenshotArtifact.path);
   assert(
     nodeArtifact.path !== screenshotArtifact.path,
     "Node export and Desktop screenshot reused one artifact path.",
@@ -345,6 +358,7 @@ try {
   }
   if (fileKey && createdNodeIds[0]) {
     let cleanupConfirmedNotFound = false;
+    let deleteError;
     try {
       await bridge.deleteNodes({
         fileKey,
@@ -353,17 +367,18 @@ try {
       });
     } catch (error) {
       if (error?.code === "NODE_NOT_FOUND") cleanupConfirmedNotFound = true;
-      else cleanupError ??= error;
+      else deleteError = error;
     }
     if (!cleanupConfirmedNotFound) {
       try {
-        const residual = await bridge.getNodes([createdNodeIds[0]], fileKey);
+        const residual = await readNodeResidue(createdNodeIds[0], fileKey);
         if (residual.length > 0)
           cleanupError ??= new Error(
             `Visual fixture cleanup left ${residual.length} root node(s).`,
           );
       } catch (error) {
-        if (error?.code !== "NODE_NOT_FOUND") cleanupError ??= error;
+        if (error?.code !== "NODE_NOT_FOUND")
+          cleanupError ??= deleteError ?? error;
       }
     }
   }
