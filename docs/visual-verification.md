@@ -33,7 +33,7 @@ Capture preparation creates a 15-second lease in that Figma Plugin instance. Fro
 - `delayMs`: 0–2,000 after Plugin focus, default 250 ms.
 - PNG signature and width/height are verified before persistence.
 - Artifacts are written mode `0600` below owner-only `~/.mcp-fig/screenshots` (`0700`).
-- Directory quota is 100 MB. Quota check and exclusive artifact creation are serialized per directory.
+- Directory quota is 100 MB. Quota check and exclusive artifact creation are serialized across MCP processes with a bounded, stale-recoverable owner-only filesystem lock.
 - A payload/signature/capture failure creates no final artifact and removes its temporary directory.
 
 The host enumerates all layer-0 windows whose CoreGraphics owner is exactly `Figma`. It requires exactly one title equal to the Plugin file name and requires that window to be on-screen. Zero matches, duplicate-title windows, minimized windows, and off-Space windows fail closed. Current native capture is macOS-only and requires an unlocked display plus Screen Recording permission for the Hermes gateway process.

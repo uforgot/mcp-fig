@@ -24,6 +24,8 @@ import { McpFigError } from "../errors.js";
 const execFile = promisify(execFileCallback);
 export const SCREENSHOT_MAX_BYTES = 8_000_000;
 export const SCREENSHOT_DIRECTORY_MAX_BYTES = 100_000_000;
+const SCREENSHOT_LOCK_WAIT_MS = 10_000;
+const SCREENSHOT_LOCK_STALE_MS = 30_000;
 
 export interface DesktopWindow {
   id: number;
@@ -155,6 +157,62 @@ async function directoryBytes(directory: string): Promise<number> {
 }
 
 const directoryLocks = new Map<string, Promise<void>>();
+
+function filesystemErrorCode(error: unknown): string | undefined {
+  return error && typeof error === "object" && "code" in error
+    ? String(error.code)
+    : undefined;
+}
+
+async function withFilesystemDirectoryLock<T>(
+  directory: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const lockPath = `${resolve(directory)}.quota.lock`;
+  const deadline = Date.now() + SCREENSHOT_LOCK_WAIT_MS;
+  let handle: Awaited<ReturnType<typeof open>> | undefined;
+  while (!handle) {
+    try {
+      const candidate = await open(lockPath, "wx", 0o600);
+      try {
+        await candidate.writeFile(
+          JSON.stringify({ pid: process.pid, createdAt: Date.now() }),
+        );
+        await candidate.sync();
+        handle = candidate;
+      } catch (error) {
+        await candidate.close().catch(() => undefined);
+        await rm(lockPath, { force: true }).catch(() => undefined);
+        throw error;
+      }
+    } catch (error) {
+      if (filesystemErrorCode(error) !== "EEXIST") throw error;
+      try {
+        const info = await stat(lockPath);
+        if (Date.now() - info.mtimeMs > SCREENSHOT_LOCK_STALE_MS) {
+          await rm(lockPath, { force: true });
+          continue;
+        }
+      } catch (inspectionError) {
+        if (filesystemErrorCode(inspectionError) === "ENOENT") continue;
+        throw inspectionError;
+      }
+      if (Date.now() >= deadline)
+        throw new McpFigError(
+          "BUSY",
+          "Screenshot quota storage is busy; retry after the active capture finishes.",
+          { retryable: true },
+        );
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 25));
+    }
+  }
+  try {
+    return await operation();
+  } finally {
+    await handle.close().catch(() => undefined);
+    await rm(lockPath, { force: true });
+  }
+}
 
 async function withDirectoryLock<T>(
   directory: string,
@@ -350,31 +408,33 @@ export async function captureFigmaDesktop(
       );
     const maxDirectoryBytes =
       dependencies.maxDirectoryBytes ?? SCREENSHOT_DIRECTORY_MAX_BYTES;
-    const path = await withDirectoryLock(directoryPath, async () => {
-      if (
-        (await directoryBytes(directoryPath)) + bytes.byteLength >
-        maxDirectoryBytes
-      )
-        throw new McpFigError(
-          "INVALID_ARGUMENT",
-          `Screenshot directory quota would exceed ${maxDirectoryBytes} bytes; remove old artifacts first.`,
-        );
-      let created = false;
-      try {
-        const handle = await open(candidatePath, "wx", 0o600);
-        created = true;
+    const path = await withDirectoryLock(directoryPath, () =>
+      withFilesystemDirectoryLock(directoryPath, async () => {
+        if (
+          (await directoryBytes(directoryPath)) + bytes.byteLength >
+          maxDirectoryBytes
+        )
+          throw new McpFigError(
+            "INVALID_ARGUMENT",
+            `Screenshot directory quota would exceed ${maxDirectoryBytes} bytes; remove old artifacts first.`,
+          );
+        let created = false;
         try {
-          await handle.writeFile(bytes);
-          await handle.sync();
-        } finally {
-          await handle.close();
+          const artifactHandle = await open(candidatePath, "wx", 0o600);
+          created = true;
+          try {
+            await artifactHandle.writeFile(bytes);
+            await artifactHandle.sync();
+          } finally {
+            await artifactHandle.close();
+          }
+        } catch (error) {
+          if (created) await rm(candidatePath, { force: true });
+          throw error;
         }
-      } catch (error) {
-        if (created) await rm(candidatePath, { force: true });
-        throw error;
-      }
-      return candidatePath;
-    });
+        return candidatePath;
+      }),
+    );
     return {
       scope: preparation.scope,
       focusNodeIds: preparation.focusNodeIds,

@@ -4,6 +4,7 @@ import {
   readFile,
   rm,
   stat,
+  utimes,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -205,6 +206,35 @@ describe("Desktop screenshot artifacts", () => {
     ).toHaveLength(1);
     expect(await readdir(directory)).toHaveLength(1);
     expect(await readdir(tempRoot)).toEqual([]);
+  });
+
+  it("recovers a stale cross-process quota lock", async () => {
+    const directory = await temporaryDirectory(
+      "mcp-fig-screenshot-stale-lock-output-",
+    );
+    const tempRoot = await temporaryDirectory(
+      "mcp-fig-screenshot-stale-lock-temp-",
+    );
+    const lockPath = `${directory}.quota.lock`;
+    await writeFile(lockPath, "stale", { mode: 0o600 });
+    const stale = new Date(Date.now() - 31_000);
+    await utimes(lockPath, stale, stale);
+
+    const artifact = await captureFigmaDesktop(
+      preparation,
+      { scale: 1, maxBytes: 64_000, delayMs: 0 },
+      {
+        directory,
+        tempRoot,
+        randomId: () => "stale-lock",
+        findWindow: async () => window,
+        captureWindow: async (_windowId, path) =>
+          writeFile(path, png(40, 40, 40)),
+      },
+    );
+
+    await expect(readFile(artifact.path)).resolves.toHaveLength(40);
+    await expect(stat(lockPath)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("rejects invalid signatures and out-of-contract caps without residue", async () => {
