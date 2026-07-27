@@ -560,8 +560,30 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
       node.constraints = toPluginConstraints(props.constraints);
   }
 
+  const visualMutationKeys = new Set([
+    "fills",
+    "strokes",
+    "opacity",
+    "cornerRadius",
+    "effects",
+    "blendMode",
+    "constraints",
+  ]);
+
   async function validateProps(node, props) {
     if (!props) return;
+    for (const key of Object.keys(props)) {
+      const property = key === "text" ? "characters" : key;
+      if (
+        visualMutationKeys.has(key) &&
+        property in node &&
+        node[property] === figma.mixed
+      )
+        fail(
+          "INVALID_ARGUMENT",
+          `Node ${node.id} has mixed ${property}; whole-node mutation is unsupported.`,
+        );
+    }
     if (
       (props.width !== undefined || props.height !== undefined) &&
       !("resize" in node)
@@ -736,16 +758,17 @@ function createCoreNodeDomain({
     return { matches, limit, truncated };
   }
 
-  function snapshotValue(value) {
-    return typeof value === "symbol" ? value : cloneData(value);
-  }
-
   function capturePatchState(node, patch) {
-    const state = {};
+    const state = { unrestorableMixed: [] };
     for (const key of Object.keys(patch)) {
       if (key === "width" || key === "height") continue;
       const property = key === "text" ? "characters" : key;
-      if (property in node) state[property] = snapshotValue(node[property]);
+      if (!(property in node)) continue;
+      if (typeof node[property] === "symbol") {
+        state.unrestorableMixed.push(property);
+        continue;
+      }
+      state[property] = cloneData(node[property]);
     }
     if (
       (patch.width !== undefined || patch.height !== undefined) &&
@@ -765,7 +788,8 @@ function createCoreNodeDomain({
     if (state.size && "resize" in node)
       node.resize(state.size.width, state.size.height);
     for (const [key, value] of Object.entries(state)) {
-      if (key !== "size") node[key] = snapshotValue(value);
+      if (key !== "size" && key !== "unrestorableMixed")
+        node[key] = cloneData(value);
     }
   }
 
@@ -970,7 +994,13 @@ function createCoreNodeDomain({
         const rollback = await Promise.allSettled(
           nodes.map((node) => restorePatchState(node, snapshots.get(node.id))),
         );
-        if (rollback.some((result) => result.status === "rejected"))
+        const hasUnrestorableMixed = [...snapshots.values()].some(
+          (state) => state.unrestorableMixed.length > 0,
+        );
+        if (
+          hasUnrestorableMixed ||
+          rollback.some((result) => result.status === "rejected")
+        )
           fail(
             "UNKNOWN_OUTCOME",
             "Node update failed and rollback could not restore every node.",

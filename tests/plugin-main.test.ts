@@ -459,8 +459,8 @@ describe("Figma Plugin main bridge", () => {
     ).resolves.toMatchObject({ ok: true, data: { matches: [] } });
   });
 
-  it("round-trips visual properties and serializes mixed values explicitly", async () => {
-    const { command, child, figma } = createHarness();
+  it("round-trips visual properties and rejects whole-node mixed writes", async () => {
+    const { command, child, figma, text } = createHarness();
     const patch = {
       fills: [
         { type: "SOLID", color: { r: 0.2, g: 0.3, b: 0.4 }, opacity: 0.8 },
@@ -505,6 +505,25 @@ describe("Figma Plugin main bridge", () => {
         },
       ],
     });
+
+    child.fills = figma.mixed;
+    text.fills = [];
+    await expect(
+      command("node.update", {
+        nodeIds: ["2:2", "2:1"],
+        patch: {
+          fills: [{ type: "SOLID", color: { r: 1, g: 0, b: 0 } }],
+        },
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "INVALID_ARGUMENT",
+        message: expect.stringContaining("mixed fills"),
+      },
+    });
+    expect(text.fills).toEqual([]);
+    expect(child.fills).toBe(figma.mixed);
   });
 
   it("validates the whole visual-property batch before mutating any node", async () => {

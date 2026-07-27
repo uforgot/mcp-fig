@@ -322,8 +322,30 @@ function createPluginNodeHelpers({ figma, fail, countSceneTraversal }) {
       node.constraints = toPluginConstraints(props.constraints);
   }
 
+  const visualMutationKeys = new Set([
+    "fills",
+    "strokes",
+    "opacity",
+    "cornerRadius",
+    "effects",
+    "blendMode",
+    "constraints",
+  ]);
+
   async function validateProps(node, props) {
     if (!props) return;
+    for (const key of Object.keys(props)) {
+      const property = key === "text" ? "characters" : key;
+      if (
+        visualMutationKeys.has(key) &&
+        property in node &&
+        node[property] === figma.mixed
+      )
+        fail(
+          "INVALID_ARGUMENT",
+          `Node ${node.id} has mixed ${property}; whole-node mutation is unsupported.`,
+        );
+    }
     if (
       (props.width !== undefined || props.height !== undefined) &&
       !("resize" in node)
