@@ -84,7 +84,7 @@ Callers must inspect `truncated` and `skippedChecks`. A clean bounded audit is e
 Automated gates:
 
 ```bash
-npm test -- --run tests/plugin-main.test.ts tests/screenshot-artifact.test.ts tests/screenshot-tool.test.ts tests/desktop-plugin-bridge.test.ts
+npx vitest run tests/plugin-main.test.ts tests/screenshot-artifact.test.ts tests/screenshot-tool.test.ts tests/desktop-plugin-bridge.test.ts
 npm run typecheck
 npm run typecheck:plugin
 node scripts/build-plugin.mjs --check
