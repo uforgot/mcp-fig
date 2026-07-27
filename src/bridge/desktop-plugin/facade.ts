@@ -7,6 +7,7 @@ import type {
   ComponentActionInput,
   CreateNodeInput,
   DeleteNodesInput,
+  ExportNodesInput,
   FigmaBridge,
   FigmaDocumentSummary,
   FigmaFileSummary,
@@ -14,6 +15,7 @@ import type {
   InstanceActionInput,
   LayoutActionInput,
   MoveNodesInput,
+  NodeExportPayload,
   ResizeNodesInput,
   TokenActionInput,
   UpdateNodesInput,
@@ -156,6 +158,23 @@ export class DesktopPluginFigmaBridge implements FigmaBridge {
 
   async deleteNodes(input: DeleteNodesInput): Promise<string[]> {
     return this.#rpc("node.delete", input, input.fileKey) as Promise<string[]>;
+  }
+
+  async exportNodes(input: ExportNodesInput): Promise<NodeExportPayload[]> {
+    const exports: NodeExportPayload[] = [];
+    for (const nodeId of input.nodeIds) {
+      const result = (await this.#rpc(
+        "node.export",
+        {
+          nodeIds: [nodeId],
+          format: input.format,
+          ...(input.scale !== undefined ? { scale: input.scale } : {}),
+        },
+        input.fileKey,
+      )) as NodeExportPayload[];
+      exports.push(...result);
+    }
+    return exports;
   }
 
   async layout(input: LayoutActionInput): Promise<Record<string, unknown>> {

@@ -64,6 +64,7 @@ function makeBridge(overrides: Partial<FigmaBridge> = {}): FigmaBridge {
     resizeNodes: vi.fn(async () => []),
     cloneNodes: vi.fn(async () => []),
     deleteNodes: vi.fn(async () => []),
+    exportNodes: vi.fn(async () => []),
     layout: vi.fn(async () => ({})),
     component: vi.fn(async () => ({})),
     instance: vi.fn(async () => ({})),

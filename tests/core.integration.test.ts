@@ -94,6 +94,32 @@ describe("Core Figma facade", () => {
     expect(valid.payload.ok).toBe(true);
   });
 
+  it("dispatches node export and rejects vector scale before bridge IO", async () => {
+    const client = await createConnectedClient();
+
+    const unsupported = await call(client, "figma_node", {
+      action: "export",
+      nodeIds: ["2:0"],
+      format: "PNG",
+      scale: 1,
+    });
+    expect(unsupported.payload).toMatchObject({
+      ok: false,
+      error: { code: "UNSUPPORTED_BY_BRIDGE" },
+    });
+
+    const invalid = await call(client, "figma_node", {
+      action: "export",
+      nodeIds: ["2:0"],
+      format: "SVG",
+      scale: 2,
+    });
+    expect(invalid.payload).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_ARGUMENT" },
+    });
+  });
+
   it("reports the targeted fixture and reads document and selection", async () => {
     const client = await createConnectedClient();
 

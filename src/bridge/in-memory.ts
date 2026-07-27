@@ -1,3 +1,4 @@
+import { McpFigError } from "../errors.js";
 import { InMemoryCore } from "./in-memory/core.js";
 import { InMemoryDesignSystem } from "./in-memory/design-system.js";
 import { InMemoryLayout } from "./in-memory/layout.js";
@@ -9,6 +10,7 @@ import type {
   ComponentActionInput,
   CreateNodeInput,
   DeleteNodesInput,
+  ExportNodesInput,
   FigmaBridge,
   FigmaFileFixture,
   FigmaFileSummary,
@@ -16,6 +18,7 @@ import type {
   InstanceActionInput,
   LayoutActionInput,
   MoveNodesInput,
+  NodeExportPayload,
   ResizeNodesInput,
   TokenActionInput,
   UpdateNodesInput,
@@ -74,6 +77,12 @@ export class InMemoryFigmaBridge implements FigmaBridge {
   }
   deleteNodes(input: DeleteNodesInput): Promise<string[]> {
     return this.#core.deleteNodes(input);
+  }
+  async exportNodes(_input: ExportNodesInput): Promise<NodeExportPayload[]> {
+    throw new McpFigError(
+      "UNSUPPORTED_BY_BRIDGE",
+      "node.export requires the Desktop Plugin bridge.",
+    );
   }
   layout(input: LayoutActionInput): Promise<Record<string, unknown>> {
     return this.#layout.layout(input);

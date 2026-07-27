@@ -880,7 +880,7 @@
   {
     "name": "figma_node",
     "title": "Figma node",
-    "description": "Get, create, update, move, resize, clone, or explicitly delete Figma nodes without raw execution.",
+    "description": "Get, export, create, update, move, resize, clone, or explicitly delete Figma nodes without raw execution. Exported files are saved under ~/.mcp-fig/exports.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -889,6 +889,10 @@
             {
               "type": "string",
               "const": "get"
+            },
+            {
+              "type": "string",
+              "const": "export"
             },
             {
               "type": "string",
@@ -928,6 +932,15 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "format": {
+          "type": "string",
+          "enum": ["PNG", "JPG", "SVG", "PDF"]
+        },
+        "scale": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 4
         },
         "parentId": {
           "anyOf": [

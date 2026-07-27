@@ -35,7 +35,7 @@ This avoids both bad extremes: 113 tiny tools and one untyped mega-tool.
 | `figma_connection` | Connection, target file, capability discovery | `status`, `list_files`, `target`, `reconnect`, `capabilities` |
 | `figma_document` | File-level views and change summaries | `inspect`, `summary`, `changes` |
 | `figma_selection` | Current selection and contextual inspection | `get`, `inspect` |
-| `figma_node` | Generic node lifecycle and visual properties | `get`, `create`, `update`, `move`, `resize`, `clone`, `delete` |
+| `figma_node` | Generic node lifecycle, export, and visual properties | `get`, `export`, `create`, `update`, `move`, `resize`, `clone`, `delete` |
 | `figma_layout` | Typed Auto Layout operations | `inspect`, `apply`, `sizing`, `batch`, `validate`, `repair` |
 | `figma_component` | Components, sets, properties, and slots | `search`, `inspect`, `create_set`, `arrange_set`, property and slot actions |
 | `figma_instance` | Instantiate and configure instances | `create`, `update`, `slot_append`, `slot_reset` |
@@ -168,6 +168,7 @@ The full action registry is in `api-surface.json`. The following schemas define 
 ```
 
 - `get`: requires `nodeIds`.
+- `export`: requires up to 200 `nodeIds`; supports `PNG`, `JPG`, `SVG`, and `PDF`. Raster formats accept `scale` from `0.1` through `4` (default `1`). The Desktop Plugin exports one node per transport response, caps each raw payload at `650 KB`, and the MCP process writes verified owner-only artifacts under `~/.mcp-fig/exports/` subject to a `100 MB` directory quota. Validation finishes before writes begin, and files created by a reported batch-write failure are rolled back.
 - `create`: requires `parentId` and `nodeType`.
 - `update`: requires `nodeIds` and a non-empty typed `patch`.
   Text nodes accept `fontName`, `fontSize`, `lineHeight`, `letterSpacing`, and horizontal/vertical alignment. `fontSize` has Figma's minimum value of `1`. Figma font weight and style are selected through `fontName.style`; the Plugin loads the target font before mutation and deduplicates mixed-font loads. Uniform typography updates preserve mixed font runs, but replacing mixed-font text requires an explicit `fontName` because assigning `characters` resets range styling.

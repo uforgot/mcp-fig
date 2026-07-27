@@ -8,12 +8,14 @@ import type {
   ComponentRecord,
   CreateNodeInput,
   DeleteNodesInput,
+  ExportNodesInput,
   FigmaBridge,
   FigmaFileSummary,
   FigmaNode,
   InstanceActionInput,
   LayoutActionInput,
   MoveNodesInput,
+  NodeExportPayload,
   ResizeNodesInput,
   TokenActionInput,
   UpdateNodesInput,
@@ -351,6 +353,10 @@ export class RestFigmaBridge implements FigmaBridge {
 
   async deleteNodes(_input: DeleteNodesInput): Promise<string[]> {
     return unsupported("node.delete");
+  }
+
+  async exportNodes(_input: ExportNodesInput): Promise<NodeExportPayload[]> {
+    return unsupported("node.export");
   }
 
   async layout(input: LayoutActionInput): Promise<Record<string, unknown>> {

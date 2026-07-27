@@ -61,7 +61,7 @@ The refactor must preserve all of the following exactly.
 | `figma_connection` | `status`, `list_files`, `target`, `reconnect`, `capabilities` |
 | `figma_document` | `inspect`, `summary`, `changes` |
 | `figma_selection` | `get`, `inspect` |
-| `figma_node` | `get`, `create`, `update`, `move`, `resize`, `clone`, `delete` |
+| `figma_node` | `get`, `export`, `create`, `update`, `move`, `resize`, `clone`, `delete` |
 | `figma_layout` | `inspect`, `apply`, `sizing`, `batch`, `validate`, `repair` |
 | `figma_component` | `search`, `inspect`, `library_search`, `library_inspect`, `create_set`, `arrange_set`, `set_description`, `property_add`, `property_update`, `property_delete`, `slots`, `slot_create` |
 | `figma_instance` | `create`, `update`, `slot_append`, `slot_reset` |

@@ -262,6 +262,15 @@
             "nodeIds"
           ]
         },
+        "export": {
+          "mode": "read",
+          "profile": "core",
+          "risk": "normal",
+          "dryRun": false,
+          "required": [
+            "nodeIds"
+          ]
+        },
         "create": {
           "mode": "write",
           "profile": "core",

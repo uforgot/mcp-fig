@@ -11,7 +11,7 @@ MCP Fig keeps its public MCP tools independent from any one Figma transport. Dom
 | File metadata and published document reads | Pre-dispatch fallback | Primary/live context | Test implementation |
 | Node reads by ID | Supported | Supported | Supported |
 | Current selection | Not available | Primary | Supported |
-| Node create/update/move/resize/clone/delete | Not available | Primary | Supported |
+| Node export/create/update/move/resize/clone/delete | Not available | Primary | Export requires Plugin; fixture supports mutations only |
 | Local unsaved state | Not available | Primary | Supported |
 | Deterministic integration tests | No | No | Primary |
 

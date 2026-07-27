@@ -7,6 +7,7 @@ import type {
   ComponentActionInput,
   CreateNodeInput,
   DeleteNodesInput,
+  ExportNodesInput,
   FigmaBridge,
   FigmaDocumentSummary,
   FigmaFileSummary,
@@ -14,6 +15,7 @@ import type {
   InstanceActionInput,
   LayoutActionInput,
   MoveNodesInput,
+  NodeExportPayload,
   ResizeNodesInput,
   TokenActionInput,
   UpdateNodesInput,
@@ -180,6 +182,10 @@ export class HybridFigmaBridge implements FigmaBridge {
 
   deleteNodes(input: DeleteNodesInput): Promise<string[]> {
     return this.#plugin.deleteNodes(input);
+  }
+
+  exportNodes(input: ExportNodesInput): Promise<NodeExportPayload[]> {
+    return this.#plugin.exportNodes(input);
   }
 
   async layout(input: LayoutActionInput): Promise<Record<string, unknown>> {

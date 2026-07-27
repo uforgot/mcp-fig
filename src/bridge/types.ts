@@ -312,6 +312,24 @@ export interface DeleteNodesInput extends MutationOptions {
   nodeIds: string[];
 }
 
+export type NodeExportFormat = "PNG" | "JPG" | "SVG" | "PDF";
+
+export interface ExportNodesInput {
+  nodeIds: string[];
+  format: NodeExportFormat;
+  scale?: number;
+  fileKey?: string;
+}
+
+export interface NodeExportPayload {
+  nodeId: string;
+  nodeName: string;
+  format: NodeExportFormat;
+  mimeType: string;
+  byteLength: number;
+  dataBase64: string;
+}
+
 export type LayoutOperation =
   | { op: "apply"; nodeIds: string[]; layout: LayoutConfig }
   | { op: "sizing"; nodeIds: string[]; sizing: LayoutSizingConfig }
@@ -601,6 +619,7 @@ export interface FigmaBridge {
   resizeNodes(input: ResizeNodesInput): Promise<FigmaNode[]>;
   cloneNodes(input: CloneNodesInput): Promise<FigmaNode[]>;
   deleteNodes(input: DeleteNodesInput): Promise<string[]>;
+  exportNodes(input: ExportNodesInput): Promise<NodeExportPayload[]>;
   layout(input: LayoutActionInput): Promise<Record<string, unknown>>;
   component(input: ComponentActionInput): Promise<Record<string, unknown>>;
   instance(input: InstanceActionInput): Promise<Record<string, unknown>>;

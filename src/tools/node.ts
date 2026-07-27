@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
+import { saveNodeExports } from "../artifacts/node-export.js";
 import { FIGMA_NODE_TYPES, type FigmaBridge } from "../bridge/types.js";
 import type { ConfirmationStore } from "../confirmations.js";
 import { McpFigError } from "../errors.js";
@@ -60,6 +61,15 @@ const nodePatch = nodeProps
 
 const inputSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("get"), fileKey, nodeIds }).strict(),
+  z
+    .object({
+      action: z.literal("export"),
+      fileKey,
+      nodeIds,
+      format: z.enum(["PNG", "JPG", "SVG", "PDF"]).default("PNG"),
+      scale: z.number().finite().min(0.1).max(4).optional(),
+    })
+    .strict(),
   z
     .object({
       action: z.literal("create"),
@@ -164,7 +174,7 @@ export function registerNodeTool(
     {
       title: "Figma node",
       description:
-        "Get, create, update, move, resize, clone, or explicitly delete Figma nodes without raw execution.",
+        "Get, export, create, update, move, resize, clone, or explicitly delete Figma nodes without raw execution. Exported files are saved under ~/.mcp-fig/exports.",
       inputSchema: exposeMcpInputSchema(inputSchema),
       annotations: {
         readOnlyHint: false,
@@ -181,6 +191,24 @@ export function registerNodeTool(
             return success("figma_node", input.action, {
               nodes: await bridge.getNodes(input.nodeIds, input.fileKey),
             });
+          case "export": {
+            const raster = input.format === "PNG" || input.format === "JPG";
+            if (!raster && input.scale !== undefined) {
+              throw new McpFigError(
+                "INVALID_ARGUMENT",
+                `${input.format} export does not accept scale.`,
+              );
+            }
+            const exports = await bridge.exportNodes({
+              ...scope,
+              nodeIds: input.nodeIds,
+              format: input.format,
+              ...(raster ? { scale: input.scale ?? 1 } : {}),
+            });
+            return success("figma_node", input.action, {
+              artifacts: await saveNodeExports(exports),
+            });
+          }
           case "create": {
             const nodes = await bridge.createNode({
               ...scope,

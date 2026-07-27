@@ -15,6 +15,15 @@ function createCoreNodeDomain({
   validateProps,
   createByType,
 }) {
+  const exportFormats = ["PNG", "JPG", "SVG", "PDF"];
+  const exportMimeTypes = {
+    PNG: "image/png",
+    JPG: "image/jpeg",
+    SVG: "image/svg+xml",
+    PDF: "application/pdf",
+  };
+  const maxExportBytes = 650_000;
+
   async function coreCommand(method, input) {
     if (method === "document.summary") {
       return revisionCached("document.summary", async () => {
@@ -51,6 +60,58 @@ function createCoreNodeDomain({
       return Promise.all(
         input.nodeIds.map(async (id) => serializeNode(await nodeById(id))),
       );
+    }
+    if (method === "node.export") {
+      assertNodeIds(input.nodeIds);
+      const format = input.format;
+      if (!exportFormats.includes(format))
+        fail("INVALID_ARGUMENT", `Unsupported export format ${format}.`);
+      const raster = format === "PNG" || format === "JPG";
+      if (
+        raster &&
+        (typeof input.scale !== "number" ||
+          !Number.isFinite(input.scale) ||
+          input.scale <= 0 ||
+          input.scale > 4)
+      )
+        fail(
+          "INVALID_ARGUMENT",
+          "Raster export scale must be greater than 0 and at most 4.",
+        );
+      if (!raster && input.scale !== undefined)
+        fail("INVALID_ARGUMENT", `${format} export does not accept scale.`);
+
+      const nodes = await Promise.all(input.nodeIds.map(nodeById));
+      const settings = raster
+        ? {
+            format,
+            constraint: { type: "SCALE", value: input.scale },
+          }
+        : { format };
+      const results = [];
+      for (const node of nodes) {
+        if (typeof node.exportAsync !== "function")
+          fail("UNSUPPORTED_BY_BRIDGE", `Node ${node.id} cannot be exported.`);
+        const bytes = await node.exportAsync(settings);
+        if (bytes.byteLength > maxExportBytes) {
+          const recovery = raster
+            ? "lower the scale"
+            : `reduce the source complexity or export ${format} content as PNG/JPG`;
+          fail(
+            "INVALID_ARGUMENT",
+            `Export for node ${node.id} is ${bytes.byteLength} bytes; ${recovery} to stay at or below ${maxExportBytes} bytes.`,
+          );
+        }
+        results.push({
+          nodeId: node.id,
+          nodeName: node.name,
+          format,
+          mimeType: exportMimeTypes[format],
+          byteLength: bytes.byteLength,
+          dataBase64: figma.base64Encode(bytes),
+        });
+      }
+      return results;
     }
     if (method === "node.create") {
       const parent = await nodeById(input.parentId);

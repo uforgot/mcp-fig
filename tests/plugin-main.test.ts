@@ -17,6 +17,10 @@ function createHarness() {
   const handlers: Record<string, (...args: unknown[]) => unknown> = {};
   const clientStorage = new Map<string, unknown>();
   const loadedFonts: unknown[] = [];
+  const exportSettings: unknown[] = [];
+  let exportBytes: Uint8Array = Uint8Array.from([
+    137, 80, 78, 71, 13, 10, 26, 10,
+  ]);
   let allPagesLoaded = false;
 
   const root: MockNode = {
@@ -55,6 +59,10 @@ function createHarness() {
     primaryAxisSizingMode: "FIXED",
     counterAxisSizingMode: "FIXED",
     constraints: { horizontal: "LEFT", vertical: "TOP" },
+    async exportAsync(settings: unknown) {
+      exportSettings.push(settings);
+      return exportBytes;
+    },
   };
   const child: MockNode = {
     id: "2:1",
@@ -157,6 +165,9 @@ function createHarness() {
     root,
     currentPage: page,
     mixed: Symbol("mixed"),
+    base64Encode(data: Uint8Array) {
+      return Buffer.from(data).toString("base64");
+    },
     async loadFontAsync(font: unknown) {
       loadedFonts.push(font);
     },
@@ -249,6 +260,10 @@ function createHarness() {
     messages,
     clientStorage,
     loadedFonts,
+    exportSettings,
+    setExportBytes(value: Uint8Array) {
+      exportBytes = value;
+    },
     figma,
   };
 }
@@ -395,6 +410,113 @@ describe("Figma Plugin main bridge", () => {
           textAlignVertical: "CENTER",
         },
       ],
+    });
+  });
+
+  it("exports a node with typed image settings and base64 data", async () => {
+    const { command, exportSettings } = createHarness();
+
+    await expect(
+      command("node.export", {
+        nodeIds: ["2:0"],
+        format: "PNG",
+        scale: 2,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: [
+        {
+          nodeId: "2:0",
+          nodeName: "Parent",
+          format: "PNG",
+          mimeType: "image/png",
+          byteLength: 8,
+          dataBase64: "iVBORw0KGgo=",
+        },
+      ],
+    });
+    expect(exportSettings).toEqual([
+      { format: "PNG", constraint: { type: "SCALE", value: 2 } },
+    ]);
+  });
+
+  it.each([
+    [
+      "JPG",
+      2,
+      "image/jpeg",
+      { format: "JPG", constraint: { type: "SCALE", value: 2 } },
+    ],
+    ["SVG", undefined, "image/svg+xml", { format: "SVG" }],
+    ["PDF", undefined, "application/pdf", { format: "PDF" }],
+  ] as const)(
+    "maps %s export settings and MIME type",
+    async (format, scale, mimeType, settings) => {
+      const { command, exportSettings } = createHarness();
+
+      await expect(
+        command("node.export", {
+          nodeIds: ["2:0"],
+          format,
+          ...(scale === undefined ? {} : { scale }),
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        data: [{ format, mimeType }],
+      });
+      expect(exportSettings).toEqual([settings]);
+    },
+  );
+
+  it("rejects non-exportable nodes and oversized exports", async () => {
+    const { command, setExportBytes } = createHarness();
+
+    await expect(
+      command("node.export", {
+        nodeIds: ["0:0"],
+        format: "PNG",
+        scale: 1,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "UNSUPPORTED_BY_BRIDGE" },
+    });
+
+    setExportBytes(new Uint8Array(650_000));
+    await expect(
+      command("node.export", {
+        nodeIds: ["2:0"],
+        format: "PNG",
+        scale: 1,
+      }),
+    ).resolves.toMatchObject({ ok: true });
+
+    setExportBytes(new Uint8Array(650_001));
+    await expect(
+      command("node.export", {
+        nodeIds: ["2:0"],
+        format: "PNG",
+        scale: 1,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "INVALID_ARGUMENT",
+        message: expect.stringContaining("lower the scale"),
+      },
+    });
+
+    await expect(
+      command("node.export", {
+        nodeIds: ["2:0"],
+        format: "SVG",
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "INVALID_ARGUMENT",
+        message: expect.stringContaining("source complexity"),
+      },
     });
   });
 
