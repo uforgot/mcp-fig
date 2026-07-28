@@ -17,6 +17,100 @@ MCP Fig replaces the owner's routine Figma Console MCP workflow with ten typed c
 
 The replacement does not claim Figma API parity. Raw arbitrary execution, FigJam, Slides, enabled-library inventory, comment edit/delete, Plugin annotations, version history, and console streaming are either intentionally excluded or still limited. See [the replacement capability matrix](docs/console-mcp-replacement.md).
 
+## Install with an AI agent
+
+Give the following prompt to an AI agent that has terminal and file access on the target Mac. The prompt is intentionally self-contained: it defines the supported platform, safety boundary, install path, Figma Plugin handoff, Hermes registration, and verification criteria.
+
+```text
+Install MCP Fig from https://github.com/uforgot/mcp-fig.
+
+Target environment:
+- macOS login-user account
+- Figma Desktop
+- Node.js 20 or newer
+- Hermes Agent as the MCP client
+- source checkout at ~/repos/mcp-fig unless that path already exists elsewhere
+- persistent per-user MCP Fig service
+- core profile only by default
+
+Scope and safety:
+1. Read README.md, docs/service.md, docs/agent-startup.md, and docs/handoff.md before changing the machine.
+2. Do not install, configure, or use legacy figma-console-mcp.
+3. Do not remove or overwrite an existing MCP Fig checkout, service, credential, or Hermes entry without inspecting it first.
+4. Never print, copy, log, screenshot, or type a long-lived service credential, Figma access token, password, or API key.
+5. Stop and ask the user at macOS permission, password, keychain, login, security, or payment dialogs.
+6. Enter a short-lived MCP Fig one-time pairing code only after explicit user approval for that pairing attempt.
+7. Do not modify a Figma document until the user confirms the exact safe target file. Installation verification is read-only by default.
+8. If any dispatched mutation has an unknown outcome, do not retry it. Read the exact target back first.
+
+Install or update the source checkout:
+- If ~/repos/mcp-fig does not exist, clone https://github.com/uforgot/mcp-fig.git there.
+- If it exists, inspect git status first. Do not discard local work. Pull only when the worktree is clean or after preserving user-owned changes.
+- Run:
+  cd ~/repos/mcp-fig
+  npm ci
+  npm run build
+  npm test
+
+Install and inspect the persistent service:
+  node dist/index.js service install
+  node dist/index.js service status --json
+
+The service must report service=running before continuing. Do not start a second daemon.
+
+Connect Figma Desktop:
+- Ask the user to import ~/repos/mcp-fig/plugin/manifest.json as a Figma development Plugin if it is not already imported.
+- In the exact safe Figma file, run Plugins > Development > MCP Fig Live Bridge.
+- If pairing is requested, ask for approval, run:
+    node dist/index.js service pair
+  Then have the user enter only the short-lived one-time code in the Plugin.
+- Do not use any manual development token field.
+- Verify with:
+    node dist/index.js service status --json
+
+Figma connection success requires all of:
+- service == "running"
+- pluginSessionCount >= 1
+- files.length >= 1
+- lastHandshakeAt is not null
+
+Register the compiled stdio server in Hermes. Start by inspecting the current registry:
+  hermes mcp list
+
+If no `mcp-fig` entry exists, run the following from ~/repos/mcp-fig so $PWD expands to the absolute checkout path. The --args option must remain last:
+  hermes mcp add mcp-fig \
+    --command node \
+    --connect-timeout 60 \
+    --env MCP_FIG_DESKTOP_MODE=service MCP_FIG_PROFILES=core \
+    --args "$PWD/dist/index.js"
+
+If an `mcp-fig` entry already points to the same absolute dist/index.js path with service mode and the intended profiles, keep it and test it. If it is stale or incorrect, show the difference and ask before replacing it with `hermes mcp remove mcp-fig` followed by the add command. Do not hand-edit unrelated Hermes config.
+
+Verify Hermes registration:
+  hermes mcp list
+  hermes mcp test mcp-fig
+
+Success requires:
+- mcp-fig is enabled
+- transport is stdio through node and the absolute dist/index.js path
+- the MCP test connects
+- exactly the ten core domain tools are discovered
+
+Finally:
+- Tell the user to run /reload-mcp in an active Hermes session, or restart the Hermes CLI/gateway through its supported command.
+- Do not force-restart the gateway from inside the gateway if it refuses self-restart.
+- Report the checkout path, service status summary, Figma file identity, Hermes test result, commands run, and every remaining manual step.
+- Do not claim success from a visible Plugin label alone; use service status and hermes mcp test output.
+
+Optional collaboration profile:
+- Do not enable it unless the user explicitly requests Figma comment read/post/reply and provides a token with the required file_comments permissions through a secure user-controlled step.
+- Never place the token in documentation, chat, command arguments, plist XML, logs, or screenshots.
+- After the service securely ingests the token, replace MCP_FIG_PROFILES=core with MCP_FIG_PROFILES=core,collaboration in the Hermes entry and rerun hermes mcp test mcp-fig.
+- Collaboration success discovers eleven tools. Existing comment text editing and comment deletion remain unsupported.
+```
+
+The AI must return real command output and stop at required user-only Figma or permission steps. A plan without a running service and successful `hermes mcp test mcp-fig` is not a completed installation.
+
 ## Quick start
 
 Prerequisites: macOS, Node.js 20+, npm, Figma Desktop, and a safe file for development Plugin use.
