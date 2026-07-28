@@ -52,8 +52,21 @@ Success requires `service: "running"`, at least one Plugin session/file, and a n
 - [Design-system contract](docs/design-system-contract.md)
 - [Trace logging and focused bug loop](docs/observability.md)
 
+## Optional collaboration profile
+
+Read-only Figma file comments are exposed only when the collaboration profile is enabled. A Figma REST access token is required because comments are not available through the Desktop Plugin API.
+
+```bash
+MCP_FIG_PROFILES=core,collaboration \
+FIGMA_ACCESS_TOKEN=... \
+FIGMA_FILE_KEY=... \
+node dist/index.js
+```
+
+Use `figma_collaboration(action: "comments")` to read all comments, or filter by `nodeIds`, `resolved`, and `limit`. Comment posting and deletion are not implemented.
+
 ## Project status
 
-MCP Fig currently exposes eight domain tools: connection, document, selection, node, layout, component, instance, and tokens. The default Desktop path uses one persistent per-user daemon and owner-only service IPC; fixtures and fake transports do not claim live Figma rendering.
+MCP Fig currently exposes ten core domain tools plus the optional read-only `figma_collaboration` tool. The default Desktop path uses one persistent per-user daemon and owner-only service IPC; fixtures and fake transports do not claim live Figma rendering.
 
 MCP Fig is an independent, unofficial project informed by existing Figma tooling, including [Figma Console MCP](https://github.com/southleft/figma-console-mcp). It is not affiliated with Figma. No license has been selected, so the repository is not licensed for reuse or redistribution.

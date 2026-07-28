@@ -11,6 +11,7 @@ import type {
   DeleteNodesInput,
   ExportNodesInput,
   FigmaBridge,
+  FigmaComment,
   FigmaEffect,
   FigmaFileSummary,
   FigmaNode,
@@ -404,6 +405,52 @@ export class RestFigmaBridge implements FigmaBridge {
         source: "rest" as const,
         freshnessWarning: REST_FRESHNESS_WARNING,
       }));
+  }
+
+  async getComments(fileKey?: string): Promise<FigmaComment[]> {
+    const key = this.#requireFileKey(fileKey);
+    const response = await this.#request<{ comments?: unknown[] }>(
+      `/v1/files/${encodeURIComponent(key)}/comments`,
+    );
+    return (response.comments ?? [])
+      .map(toRecord)
+      .filter((comment) => comment !== undefined)
+      .map((comment) => {
+        const user = toRecord(comment.user);
+        const clientMeta = toRecord(comment.client_meta);
+        const nodeOffset = toRecord(clientMeta?.node_offset);
+        return {
+          id: String(comment.id ?? "unknown"),
+          message: String(comment.message ?? ""),
+          createdAt: String(comment.created_at ?? new Date(0).toISOString()),
+          resolvedAt:
+            typeof comment.resolved_at === "string"
+              ? comment.resolved_at
+              : null,
+          user: {
+            ...(typeof user?.id === "string" ? { id: user.id } : {}),
+            ...(typeof user?.handle === "string"
+              ? { handle: user.handle }
+              : {}),
+            ...(typeof user?.img_url === "string"
+              ? { imgUrl: user.img_url }
+              : {}),
+          },
+          ...(typeof clientMeta?.node_id === "string"
+            ? { nodeId: clientMeta.node_id }
+            : {}),
+          ...(typeof nodeOffset?.x === "number" &&
+          typeof nodeOffset.y === "number"
+            ? { nodeOffset: { x: nodeOffset.x, y: nodeOffset.y } }
+            : {}),
+          ...(typeof comment.parent_id === "string"
+            ? { parentId: comment.parent_id }
+            : {}),
+          ...(typeof comment.order_id === "string"
+            ? { orderId: comment.order_id }
+            : {}),
+        };
+      });
   }
 
   async getNodes(nodeIds: string[], fileKey?: string): Promise<FigmaNode[]> {

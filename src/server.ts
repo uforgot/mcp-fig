@@ -4,6 +4,7 @@ import { createDefaultBridge } from "./bridge/factory.js";
 import type { FigmaBridge } from "./bridge/types.js";
 import type { ServerConfig } from "./config.js";
 import { ConfirmationStore } from "./confirmations.js";
+import { registerCollaborationTool } from "./tools/collaboration.js";
 import { registerComponentTool } from "./tools/component.js";
 import { registerConnectionTool } from "./tools/connection.js";
 import { registerDocumentTool } from "./tools/document.js";
@@ -45,5 +46,8 @@ export function createMcpServer(
   registerTokensTool(server, bridge, confirmations);
   registerStylesTool(server, bridge, config.profiles, confirmations);
   registerScreenshotTool(server, bridge, options.desktopCapture);
+  if (config.profiles.includes("collaboration")) {
+    registerCollaborationTool(server, bridge);
+  }
   return server;
 }

@@ -29,6 +29,15 @@ const REGISTERED_CORE_TOOLS = [
   "figma_screenshot",
 ] as const;
 
+function registeredTools(config: ServerConfig): string[] {
+  return [
+    ...REGISTERED_CORE_TOOLS,
+    ...(config.profiles.includes("collaboration")
+      ? ["figma_collaboration"]
+      : []),
+  ];
+}
+
 export function registerConnectionTool(
   server: McpServer,
   config: ServerConfig,
@@ -79,7 +88,7 @@ export function registerConnectionTool(
 
         return success("figma_connection", action, {
           profiles: config.profiles,
-          registeredTools: REGISTERED_CORE_TOOLS,
+          registeredTools: registeredTools(config),
           dryRun: true,
           rawExecuteDryRun: false,
           bridge: status,

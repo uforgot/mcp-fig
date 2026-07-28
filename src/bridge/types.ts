@@ -1027,6 +1027,22 @@ export type ImageActionInput =
       scaleMode: "FILL" | "FIT" | "CROP" | "TILE";
     } & MutationOptions);
 
+export interface FigmaComment {
+  id: string;
+  message: string;
+  createdAt: string;
+  resolvedAt: string | null;
+  user: {
+    id?: string;
+    handle?: string;
+    imgUrl?: string;
+  };
+  nodeId?: string;
+  nodeOffset?: { x: number; y: number };
+  parentId?: string;
+  orderId?: string;
+}
+
 export interface FigmaBridge {
   close?(): Promise<void> | void;
   textRange?(input: TextRangeActionInput): Promise<Record<string, unknown>>;
@@ -1039,6 +1055,7 @@ export interface FigmaBridge {
   getDocumentSummary?(fileKey?: string): Promise<FigmaDocumentSummary>;
   getSelection(fileKey?: string): Promise<string[]>;
   getChanges(fileKey?: string): Promise<ChangeRecord[]>;
+  getComments?(fileKey?: string): Promise<FigmaComment[]>;
   getNodes(nodeIds: string[], fileKey?: string): Promise<FigmaNode[]>;
   queryNodes(input: QueryNodesInput): Promise<NodeQueryResult>;
   createNode(input: CreateNodeInput): Promise<FigmaNode[]>;

@@ -9,6 +9,7 @@ import type {
   DeleteNodesInput,
   ExportNodesInput,
   FigmaBridge,
+  FigmaComment,
   FigmaDocumentSummary,
   FigmaFileSummary,
   FigmaNode,
@@ -157,6 +158,23 @@ export class HybridFigmaBridge implements FigmaBridge {
       () => this.#plugin.getChanges(fileKey),
       () => this.#rest?.getChanges(fileKey),
     );
+  }
+
+  async getComments(fileKey?: string): Promise<FigmaComment[]> {
+    if (!(await this.#restAvailable()) || !this.#rest?.getComments) {
+      throw new McpFigError(
+        "NOT_CONNECTED",
+        "Figma comments require configured REST access.",
+        {
+          details: {
+            source: "rest",
+            reason: "REST_COMMENTS_UNAVAILABLE",
+            dispatched: false,
+          },
+        },
+      );
+    }
+    return this.#rest.getComments(fileKey);
   }
 
   async getNodes(nodeIds: string[], fileKey?: string): Promise<FigmaNode[]> {
