@@ -93,13 +93,17 @@ async function names(directory) {
 }
 
 async function readNodeResidue(nodeId, targetFileKey) {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  const attempts = 5;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
       return await bridge.getNodes([nodeId], targetFileKey);
     } catch (error) {
       if (error?.code === "NODE_NOT_FOUND") return [];
-      if (error?.code !== "NOT_CONNECTED" || attempt === 1) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      if (error?.code !== "NOT_CONNECTED" || attempt === attempts - 1)
+        throw error;
+      await new Promise((resolve) =>
+        setTimeout(resolve, 1_500 * (attempt + 1)),
+      );
     }
   }
   return [];

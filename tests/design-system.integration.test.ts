@@ -276,6 +276,7 @@ describe("Component, instance, and token facade", () => {
       componentKey: "library-card-key",
       kind: "COMPONENT",
     });
+    expect(imported.payload.data.alreadyImported).toBe(false);
     expect(imported.payload.data.imported).toMatchObject({
       source: "library",
       kind: "COMPONENT",
@@ -285,6 +286,24 @@ describe("Component, instance, and token facade", () => {
     expect(imported.payload.data.node).toMatchObject({
       type: "COMPONENT",
       componentKey: "library-card-key",
+    });
+    const idempotentImport = await call(client, "figma_component", {
+      action: "library_import",
+      componentKey: "library-card-key",
+      kind: "COMPONENT",
+    });
+    expect(idempotentImport.payload.data).toMatchObject({
+      alreadyImported: true,
+      imported: {
+        source: "library",
+        kind: "COMPONENT",
+        key: "library-card-key",
+        name: "Card",
+      },
+      node: {
+        type: "COMPONENT",
+        componentKey: "library-card-key",
+      },
     });
 
     const created = await call(client, "figma_instance", {

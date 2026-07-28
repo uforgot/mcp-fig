@@ -218,6 +218,8 @@ export function registerComponentTool(
     ],
   );
 
+  const knownLibraryComponents = new Map<string, Record<string, unknown>>();
+
   server.registerTool(
     "figma_component",
     {
@@ -267,6 +269,69 @@ export function registerComponentTool(
             resolvedFileKey,
             [target],
           );
+        }
+        if (input.action === "inspect") {
+          const inspected = await bridge.component(input);
+          const component = inspected.component as
+            | { source?: string; kind?: string; key?: string }
+            | undefined;
+          if (component?.source === "library" && component.key)
+            knownLibraryComponents.set(component.key, inspected);
+          return success("figma_component", input.action, inspected);
+        }
+        if (input.action === "library_import" && !input.dryRun) {
+          const known = knownLibraryComponents.get(input.componentKey);
+          const knownComponent = known?.component as
+            | { source?: string; kind?: string }
+            | undefined;
+          if (
+            knownComponent?.source === "library" &&
+            knownComponent.kind === input.kind
+          )
+            return success("figma_component", input.action, {
+              alreadyImported: true,
+              imported: known?.component,
+              node: known?.node,
+            });
+          try {
+            const existing = await bridge.component({
+              action: "inspect",
+              componentKey: input.componentKey,
+              ...(input.fileKey ? { fileKey: input.fileKey } : {}),
+            });
+            const component = existing.component as
+              | { source?: string; kind?: string }
+              | undefined;
+            if (
+              component?.source === "library" &&
+              component.kind === input.kind
+            ) {
+              return success("figma_component", input.action, {
+                alreadyImported: true,
+                imported: existing.component,
+                node: existing.node,
+              });
+            }
+          } catch (error) {
+            if (
+              !(error instanceof McpFigError) ||
+              error.code !== "NODE_NOT_FOUND"
+            )
+              throw error;
+          }
+          const imported = await bridge.component(input);
+          const importedComponent = imported.imported as
+            | { source?: string; kind?: string; key?: string }
+            | undefined;
+          if (importedComponent?.source === "library" && importedComponent.key)
+            knownLibraryComponents.set(importedComponent.key, {
+              component: importedComponent,
+              node: imported.node,
+            });
+          return success("figma_component", input.action, {
+            alreadyImported: false,
+            ...imported,
+          });
         }
         return success(
           "figma_component",

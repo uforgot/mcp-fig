@@ -749,6 +749,7 @@ function createHarness(
     async importComponentByKeyAsync(key: string) {
       if (key === "pending-key") return await new Promise(() => {});
       if (key !== "library-card-key") throw new Error("library denied");
+      nodes.set(remoteComponent.id, remoteComponent);
       return remoteComponent;
     },
     async importComponentSetByKeyAsync(_key: string) {
@@ -2692,6 +2693,24 @@ describe("Figma Plugin main bridge", () => {
     ).resolves.toMatchObject({
       ok: false,
       error: { code: "LIBRARY_SEARCH_UNAVAILABLE" },
+    });
+    await expect(
+      command("component", {
+        action: "library_import",
+        componentKey: "library-card-key",
+        kind: "COMPONENT",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: {
+        alreadyImported: true,
+        imported: {
+          source: "library",
+          kind: "COMPONENT",
+          nodeId: "library:card",
+          key: "library-card-key",
+        },
+      },
     });
     await expect(
       command("component", {

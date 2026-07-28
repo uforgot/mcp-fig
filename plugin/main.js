@@ -2166,12 +2166,27 @@ function createComponentDomain({
           componentKey: input.componentKey,
           kind: input.kind,
         };
+      const components = await localComponents();
+      countSceneTraversal(components.length);
+      const existing = components.find(
+        (component) =>
+          component.remote &&
+          component.type === input.kind &&
+          component.key === input.componentKey,
+      );
+      if (existing)
+        return {
+          alreadyImported: true,
+          imported: componentRecord(existing),
+          node: await serializeNode(existing, true),
+        };
       const imported = await importPublishedComponent(
         input.componentKey,
         input.kind,
       );
       recordChange("component.library_import", [imported.id]);
       return {
+        alreadyImported: false,
         imported: componentRecord(imported),
         node: await serializeNode(imported, true),
       };
