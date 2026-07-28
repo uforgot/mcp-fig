@@ -43,9 +43,10 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 | `core` | yes | 아래 10개 facade가 항상 등록됨 |
 | `libraries` | yes | `figma_component` library actions와 `figma_styles.library_import`를 허용. import는 known key 전용이며 local write와 분리 |
 | `tokens` | yes | 새 등록 없음. `figma_tokens`는 이미 Core에 포함 |
-| `collaboration`, `history`, `slides`, `figjam`, `debug`, `advanced` | yes | **등록 tool/action 없음**. 목표 이름이며 capability evidence가 아님 |
+| `collaboration` | yes | optional `figma_collaboration` 등록. Figma REST를 통한 `comments`, `post`, `reply`를 제공 |
+| `history`, `slides`, `figjam`, `debug`, `advanced` | yes | **등록 tool/action 없음**. 목표 이름이며 capability evidence가 아님 |
 
-현재 실제 Core runtime/schema surface는 10개다.
+현재 실제 Core runtime/schema surface는 10개이며, `collaboration` profile은 optional tool 1개를 추가한다.
 
 | 실제 등록 tool | 현재 action |
 |---|---|
@@ -59,6 +60,7 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 | `figma_tokens` | `inspect`, `apply`, `library_import`, collection/variable create-update-delete, mode add-rename-remove, set value, alias, bind/unbind |
 | `figma_styles` | `inspect`, local `create`, `update`, `delete`; `libraries` profile에서 known-key `library_import` |
 | `figma_screenshot` | `capture` (`viewport`, `selection`, `node` focus scopes), bounded `audit` (`accessibility`, `design_system`, `layout`, `lint`) |
+| `figma_collaboration` (optional) | `comments`, `post`, `reply`; cloud file key와 Figma REST 권한 필요 |
 
 이 목록은 `tests/snapshots/core-tool-schemas.json`으로 고정되고 `tests/quality-gates.test.ts`와 `scripts/smoke-mcp.mjs`가 runtime registry를 검증한다.
 
@@ -84,7 +86,7 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 | Multi-file·restart·sleep-wake 운영 | open files, reconnect, reload/diagnose | persistent service, exact local Draft identity, latest-ready ownership, stale-session cleanup, bounded half-open recovery, no unknown-write retry, production operations canary 구현 | **complete** | P0 | `1158` | 두 lightweight Draft exact routing, service/MCP/Plugin restart, actual non-DarkWake sleep-wake, listener 1, credential byte 불변, recovery write/readback/cleanup 통과 (`3d20fb3`) |
 | Final no-fallback replacement | Console MCP 자체 | 모든 P0 typed workflow를 active `Untitled` fixture에서 MCP Fig로 실행했고 exact readback, export/screenshot, restart smoke, cleanup을 확인 | **complete** | P0 | `1159`; 제거는 `1160` | 2026-07-28 E2E evidence 기준 P0 complete, restart 뒤 name/opacity exact readback, residual node 0, MCP Fig fallback 0. Console baseline은 같은 시점 plugin 미연결/port fallback 상태였고 mutation에 사용하지 않음 |
 | Plugin/service diagnostics | console logs/watch/reload/clear/diagnose | service status, structured errors, trace/event log, bug report가 있음. Figma console stream은 없음 | **partial** | P1 | `1158` | 일상 장애를 status/trace/bug report로 원인 분류 가능. console stream이 꼭 필요한 사례가 나오면 별도 item으로 승격 |
-| Comments·annotations | get/post/delete comments, get/set annotations | optional `collaboration` profile의 `figma_collaboration`이 Figma REST를 통해 file comments read/post/reply를 지원. read는 node/resolution/limit filter, post는 explicit node anchor, reply는 root comment thread를 사용. Figma API에 existing comment edit endpoint가 없고 delete·Plugin annotations는 미구현 | **partial** | P1 | 실제 comment dogfood로 read/write 요구 확인 | collaboration profile tools/list, REST contract, live target comment read 통과. post/reply는 unknown-outcome 시 retry 금지·readback 확인 계약. delete는 destructive safety 설계 후 별도 진행 |
+| Comments·annotations | get/post/delete comments, get/set annotations | optional `collaboration` profile의 `figma_collaboration`이 Figma REST를 통해 file comments read/post/reply를 지원. read는 node/resolution/limit filter, post는 explicit node anchor, reply는 root comment thread를 사용. Figma API에 existing comment edit endpoint가 없고 delete·Plugin annotations는 미구현 | **partial** | P1 | edit/delete/annotations는 필요가 확인될 때 별도 진행 | collaboration profile runtime/schema와 REST contract 통과. 실제 review comment 4개 read 후 각 원본 thread에 completion reply 1개를 post하고 reply ID `1860606205`, `1860606217`, `1860606222`, `1860606235`를 readback. unknown outcome은 retry하지 않는 계약 유지 |
 | Version history·changelog·blame | versions, diff, changelog, blame | 실제 등록 없음 | **not-needed** | P1 | 없음 | version/history는 Figma UI와 Git에서 확인. authoring replacement gate에 포함하지 않음 |
 | Raw arbitrary execute | `figma_execute` | 의도적으로 없음 | **not-needed** | P1 | 없음 | P0 workflow가 typed actions만으로 통과. raw code fallback 0을 `1159`에서 확인 |
 | FigJam | 10 tools | 실제 등록 없음 | **not-needed** | 제외 | 없음 | scope exclusion |
@@ -134,7 +136,24 @@ Target fixture:
 | screenshot/audit | `scripts/live-visual-canary.mjs`: Desktop 1400×900 screenshot, renderer clip 40×40 → 20×40, clipping 2, overlap IDs exact, payload-cap residue 0, residual nodes 0, artifacts cleanup 2. 별도 node-focus screenshot proof는 `/Users/bbangbbang/.mcp-fig/screenshots/Untitled-node-2026-07-28T04-23-48-196Z-16f51d5c.png` |
 | restart/operations | production service restart 후 PID `15464`, Plugin session 1, actionable error/circuit 0. fresh lightweight smoke의 node `77:2841`을 `MCP1159 Restart Smoke PASS`, opacity `0.64`로 exact readback하고 cleanup/fallback false. `1158`의 multi-file/restart/actual sleep-wake gate는 `3d20fb3` evidence를 재사용 |
 
-### Console MCP side-by-side와 fallback 판정
+## 2026-07-28 reviewed-page hard dogfood evidence
+
+Disposable fixture가 아닌 실제 reviewed page 작업을 같은 `Untitled` file에서 MCP Fig만으로 수행했다.
+
+- source wireframe `62:8502`는 변경하지 않았다.
+- desktop design `66:2755`는 `1920 × 5853`, root `VERTICAL`, gap `0`, fixed section wrapper 7개 구조로 완성했다.
+- reference GNB instance를 유지하고 desktop footer master `80:2826`, stage-card masters `80:2848`, `80:2860`, `80:2872`, `80:2884`와 linked page instances를 사용했다.
+- card row `83:2904`, card masters, footer master, component-library frame `80:2824`에 nested Auto Layout을 적용하고 native layout readback으로 확인했다.
+- full-page export, component-library export, Desktop screenshot, instance/component inspect, accessibility/layout/lint audit, FFmpeg pixel comparison을 서로 다른 proof로 사용했다.
+- root Auto Layout 전환 후 baseline 대비 FFmpeg difference 평균은 `0.0520364/255`였고, 육안 검증에서 section 이동·누락·중복·footer clipping이 없었다.
+- mobile design `85:2460`을 별도 `390 × 5400` root `VERTICAL` frame으로 생성했다. mobile GNB, 2단 tabs, portrait overview, linked stage-card instance 4개의 1열 stack, product stack, mobile footer를 적용했다.
+- mobile full-page export에서 diagram crop과 product text collision을 발견해 수정했고, 최종 export에서 card 4개 panel 수용, product/CTA 분리, footer 보존, section clipping 없음이 확인됐다.
+- review comments는 optional collaboration profile로 읽었고, 원본 thread별 completion reply를 정확히 한 번 post/readback했다.
+- Figma Console MCP, raw execute, browser document mutation fallback은 `0`이었다.
+
+이 결과는 MCP Fig가 신빵의 현재 Figma Design authoring workflow에서 legacy Figma Console MCP를 대체할 수 있다는 내부 운영 판정의 근거다. public package/release readiness와는 별도 판정이다.
+
+## Console MCP side-by-side와 fallback 판정
 
 동일 시점·동일 Figma Desktop fixture에서 availability를 side-by-side로 확인했다. 이 비교는 latency benchmark가 아니다.
 
@@ -157,7 +176,7 @@ Console MCP가 같은 fixture에 연결되지 않은 상태였기 때문에 Cons
 - `npm run typecheck && npm run typecheck:plugin && npm test && npm run lint && npm run build`
 - `npm run smoke && npm run smoke:plugin && npm run smoke:service && npm run smoke:launchd`
 
-Final automated result: 28 test files / 195 tests, host·Plugin typecheck, lint, build, MCP·Plugin·service·launchd smoke 모두 통과했다. Production은 PID `15464`가 `127.0.0.1:3847` listener 하나를 소유하고 ready Plugin session `1`, actionable error/circuit `0` 상태다. run 중 생성한 Console baseline child 3개는 종료했고, `1160` 제거 대상인 기존 Console MCP processes에는 손대지 않았다.
+Final replacement E2E 당시 automated result는 28 test files / 195 tests였고 host·Plugin typecheck, lint, build, MCP·Plugin·service·launchd smoke가 통과했다. Collaboration post/reply 추가 후 현재 suite는 28 test files / 197 tests이며 2026-07-28 재실행에서 전부 통과했다. Production E2E 당시 PID `15464`가 `127.0.0.1:3847` listener 하나를 소유하고 ready Plugin session `1`, actionable error/circuit `0` 상태였다. PID 같은 process identity는 historical evidence이며 현재 상태로 해석하지 않는다.
 
 ## 현재 evidence와 한계
 
@@ -177,6 +196,7 @@ Final automated result: 28 test files / 195 tests, host·Plugin typecheck, lint,
 - live variables/styles gate: Light/Dark collection, per-mode COLOR, alias, binding, 네 local style kind의 exact readback과 cleanup을 확인했다. invalid alias cycle/type mismatch는 `INVALID_ARGUMENT/no-mutation`이었다.
 - live operations gate (`3d20fb3`): 두 lightweight Draft exact routing, service/MCP/Plugin restart, actual non-DarkWake sleep-wake, listener 1, credential byte 불변, recovery write/readback/cleanup을 확인했다.
 - final replacement E2E: active `Untitled` fixture에서 모든 P0 typed workflow를 실행하고 node `74:2862` subtree와 component/instance residue 0을 확인했다. service restart 뒤 node `77:2841` name/opacity exact readback과 cleanup/fallback false를 재확인했다.
+- reviewed-page hard dogfood: source `62:8502` 보존, desktop `66:2755`, mobile `85:2460`, reusable component instances, nested/root Auto Layout, comment read/post/reply, export/screenshot/audit/pixel proof를 MCP Fig only로 완료하고 fallback 0을 확인했다.
 - live URL source gate: DNS-validated/pinned HTTPS로 Wikimedia PNG를 `image/png`/38,692 bytes로 fetch·signature 확인
 
 명시적 한계:

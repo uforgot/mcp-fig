@@ -1,66 +1,83 @@
 # Current handoff
 
-## Current state
+## Current decision
 
-MCP Fig exposes eight MCP tools through one adapter-neutral `FigmaBridge` contract. The normal macOS write path is MCP stdio -> owner-only service IPC -> one persistent daemon -> Plugin UI transport -> generated Plugin sandbox -> Figma API.
+MCP Fig is replacement-ready for the owner's routine Figma Design workflow on macOS. The legacy Figma Console MCP is not required for the verified internal workflow. This is an internal production decision, not a public-release claim: the project remains version `0.0.0`, private, unlicensed, and without external installation support.
 
-The former large Plugin, Desktop bridge, and fixture implementations are split by ownership. Compatibility entries remain at `plugin/main.js`, `src/bridge/desktop-plugin.ts`, and `src/bridge/in-memory.ts`; do not move behavior back into them.
+The runtime exposes ten typed core domain tools plus the optional `figma_collaboration` tool. The normal write path is:
 
-The installed service uses a per-user LaunchAgent, an owner-only Unix socket, one-time pairing, Plugin `clientStorage` reconnect, per-file write serialization, revision checks, idempotency, non-retried unknown outcomes, and correlated redacted events. Agent-assisted Figma startup is a bounded best-effort adapter; it is not part of daemon ownership.
+`MCP stdio → owner-only service IPC → persistent per-user daemon → Figma Desktop Plugin → Figma API`
 
-## Live paths actually passed
+Cloud comments use a separate typed boundary:
 
-Item `1110` ran these paths against a disposable local Figma Draft through the production LaunchAgent:
+`figma_collaboration → Figma REST API`
 
-- fresh service install and one-time pairing;
-- saved reconnect after service restart, fresh MCP process, and explicit Plugin restart with no port/token re-entry;
-- live selection/document read, frame create/update/readback/delete, and cleanup;
-- ten separate client processes with isolated responses;
-- one winner and one `REVISION_CONFLICT` for same-revision writes;
-- one mutation for duplicate idempotency nonce;
-- non-retryable `UNKNOWN_OUTCOME` with no automatic write retry;
-- one owner of TCP `3847` and zero remaining matching canary nodes.
+Local unsaved canvas operations must use the exact Desktop Plugin file identity; cloud comments must use the cloud file key. Do not substitute one identity or transport for the other.
 
-The canaries in `scripts/live-plugin-canary.mjs`, `live-reconnect-canary.mjs`, and `live-multi-agent-canary.mjs` use service IPC. They do not create a second Plugin host or require a manual token.
+## Verified replacement gates
 
-At `2026-07-26T23:07:52Z`, item `1105` reran `npm run canary:plugin` against the connected `Untitled` local Draft. It reported `transport=persistent-service-ipc`, selection/read/write/readback all true, and `cleanup=true`. The same item ran the bug-report CLI against a temporary two-event redacted trace; the output mode was `0600`, both events matched, the focused fix loop was present, and injected forbidden fields were absent.
+The P0 replacement gate passed against the connected `Untitled` Figma Desktop file using MCP Fig typed actions only:
 
-The same item built the documentation commit from a detached clean worktree with fresh `npm ci`, then exercised the production user service through uninstall, install, logs, rotate, stop, start, restart, uninstall, and a final install from the stable repository path. Final checks found one port `3847` owner, expected `0700` directories and `0600` files/socket, no credential in plist/process/status/log output, and a running service. Credential replacement intentionally left the Plugin disconnected; pairing was not automated without explicit approval.
+- exact file targeting, selection, document inspection, and reconnect;
+- bounded node query and node create/update/move/resize/clone/delete;
+- whole-node and text-range typography;
+- local and HTTPS image import, image fills, and PNG/JPG/SVG/PDF export;
+- Auto Layout apply, sizing, validation, repair contracts, and exact readback;
+- components, variants, instances, slots, overrides, swaps, and resets;
+- variables, modes, aliases, bindings, and local styles;
+- known-key enabled-library import and idempotent reuse;
+- Desktop screenshots, node exports, model-state audits, and artifact cleanup;
+- multi-file routing, service/Plugin restart recovery, write serialization, revision conflict, idempotency, and unknown-outcome safety;
+- zero Figma Console MCP, browser mutation, or raw-execute fallback.
 
-Item `1111` added the Plugin-primary, read-only REST fallback. Against the production service with no active Plugin session, the composite bridge read an existing cloud document through REST and returned `source=rest`, a revision, the unsaved-state warning, root type `DOCUMENT`, and 18 top-level children; status reported `mode=hybrid`, `pluginConnected=false`, `restAvailable=true`, `readSource=rest`, and `writeSource=none`. A temporary authenticated production-protocol session then changed status to `pluginConnected=true`, `readSource=desktop-plugin`, and `writeSource=desktop-plugin`; the service was restarted immediately afterward to remove that canary session. This proves daemon protocol routing, not a newly paired Figma GUI session. The REST token was ingested into the existing `0600` credential file and was absent from plist and service logs.
+The automated suite currently passes 28 test files / 197 tests. See [`console-mcp-replacement.md`](console-mcp-replacement.md) for the capability matrix and exact evidence.
 
-Static and local integration coverage includes generated Plugin drift checking, service IPC, temporary real launchd bootstrap/crash recovery, owner and mode checks, secret scans, process lifecycle, fixture domains, trace correlation/redaction, and startup-state behavior. See [`quality-gates.md`](quality-gates.md) for the minimum command by change class.
+## Reviewed-page hard dogfood
 
-## Not verified
+A production-style design task was completed in the same `Untitled` file without Console MCP fallback.
 
-Do not infer these from fixture or local smoke tests:
+- Source wireframe `62:8502` remained unchanged.
+- Desktop design `66:2755` remained `1920 × 5853` and was organized as a vertical root Auto Layout with seven fixed section wrappers.
+- The existing library GNB instance was retained.
+- A desktop footer master and four fire-safety stage-card masters were created and used through linked instances.
+- The four-card row, card masters, footer master, and component-library frame received nested Auto Layout.
+- Review comments were read through the collaboration profile; completion replies were posted once per original thread and read back.
+- Full-page exports, Desktop screenshots, component/instance readback, accessibility/layout/lint audits, and FFmpeg pixel-difference checks were used as distinct evidence.
+- Mobile design `85:2460` was created as a separate `390 × 5400` vertical Auto Layout frame with a mobile GNB, two-level tabs, portrait overview, one-column linked stage-card instances, stacked product content, and mobile footer.
+- Final visual QA found no missing sections, duplicated content, clipping blocker, card overflow, product text collision, or footer loss.
 
-- cloud-file mutations and full lifecycle behavior; item `1111` verified only a read-only cloud `document.get`, while mutation acceptance used local Draft key `local:0:0`;
-- actual Figma GUI re-pair and Plugin-primary transition for item `1111`; that item used a temporary production-protocol session because entering a one-time code was not automated;
-- unattended Plugin startup while Figma is closed or no safe document is open;
-- pixel/visual correctness of every mutation; fixture structural assertions are not rendered screenshots;
-- a complete live matrix for every tool/action;
-- external-user package installation, MCP client configuration, profile selection, or release packaging;
-- long-duration daemon soak, sleep/wake, multiple macOS accounts, or non-macOS service management.
+This dogfood is stronger evidence for the internal replacement decision than disposable CRUD fixtures alone because it exercised long-lived document state, reviewed content, reusable components, absolute overlays inside section flow, full-page rendering, and responsive adaptation.
+
+## Runtime and ownership
+
+The installed service uses a per-user LaunchAgent, an owner-only Unix socket, one-time pairing, Plugin `clientStorage` reconnect, per-file write serialization, revision checks, idempotency, non-retried unknown outcomes, and correlated redacted events. Agent-assisted Figma startup is bounded best effort; it is not part of daemon ownership.
+
+Compatibility entries remain at `plugin/main.js`, `src/bridge/desktop-plugin.ts`, and `src/bridge/in-memory.ts`. `plugin/main.js` is generated and checked for deterministic drift. Do not move domain behavior back into compatibility or generated files.
+
+The production canaries in `scripts/live-plugin-canary.mjs`, `scripts/live-reconnect-canary.mjs`, and `scripts/live-multi-agent-canary.mjs` use service IPC. They do not create a second Plugin host or require repeated manual token entry.
 
 ## Known limits
 
-- launchd can keep the daemon alive but cannot force Figma to run a development Plugin. The Plugin must run in an open safe file, manually or through the bounded startup adapter.
-- Figma development hot reload can briefly leave stale same-file sessions until TTL expiry. Routing selects the latest ready session.
-- Agent startup must stop at permission/password dialogs and manual-token-only UI. Automated pairing can enter only a one-time code after explicit user approval.
-- `src/service/startup-state.ts` currently enforces stage inactivity budgets of 90 seconds for Figma launch, 60 seconds for Plugin location, 60 seconds for Plugin start, and 30 seconds for handshake. Dudu item `1109` later states 180/90/90/60 seconds; the implementation and request are inconsistent. This document records the implemented values. Resolve the policy in a separate task before changing code or docs.
-- `service stop` boots out the launchd label, and current `service status` reports that state as `not_installed` even though retained config can be loaded by `service start`.
-- The project remains version `0.0.0`, private, and unlicensed for reuse. It is not a release candidate.
+- Figma must be open with the development Plugin running in a safe file. launchd cannot force a development Plugin to remain active.
+- Enabled component-library inventory is unavailable through the Plugin API. Known-key import and already-imported component reuse are supported.
+- Existing comment text cannot be edited through Figma's API. Comment deletion and Plugin annotations are not implemented.
+- Raw arbitrary execution is intentionally absent.
+- FigJam, Figma Slides, cloud canvas mutation relay, MCP Apps, version history, and blame are outside the replacement scope.
+- Service status, structured events, traces, and bug reports replace routine diagnostics, but a live Figma console stream is not implemented.
+- Full-document serialization can exceed bounded request budgets; prefer targeted node reads and exact root scopes.
+- A timed-out or serialization-failed mutation can have an unknown outcome. Never retry blindly; perform exact readback first.
+- External-user installation, release packaging, license selection, upgrade policy, and long-duration public support are not complete.
 
 ## Next priorities
 
-1. Resolve the startup-budget contract mismatch with focused tests and an explicit policy decision.
-2. Keep dogfood failures in the trace -> reproduce -> failing test -> minimal fix -> focused test -> relevant canary loop.
-3. Complete release task `#1076`. Its remaining blockers are setup documentation for external users, MCP client configuration examples, profile guidance, contribution rules, a license decision, changelog/release notes, an initial release candidate, and a fresh external-environment install/connect/sample-operation verification.
-4. Add broader live coverage only from observed failures or release requirements; do not create an all-tool live matrix by default.
+1. Keep observed dogfood failures in the `trace → reproduce → failing test → minimal fix → focused test → live readback` loop.
+2. Split manual mega files only when their ownership causes real review or maintenance failures; do not hand-edit generated `plugin/main.js` or schema snapshots.
+3. Before a public release, choose a license and version, define package/install/upgrade support, run a clean external-environment setup, and publish release notes.
+4. Preserve the replacement rule: typed MCP Fig actions first, exact readback after uncertain writes, and no silent Console/browser fallback.
 
 ## Start here
 
+- Replacement status and evidence: [`console-mcp-replacement.md`](console-mcp-replacement.md)
 - Architecture and change ownership: [`maintenance.md`](maintenance.md)
 - Service operations and recovery: [`service.md`](service.md)
 - Agent-assisted Plugin startup: [`agent-startup.md`](agent-startup.md)
