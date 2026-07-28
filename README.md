@@ -54,7 +54,7 @@ Success requires `service: "running"`, at least one Plugin session/file, and a n
 
 ## Optional collaboration profile
 
-Read-only Figma file comments are exposed only when the collaboration profile is enabled. A Figma REST access token is required because comments are not available through the Desktop Plugin API.
+Figma file comments are exposed only when the collaboration profile is enabled. A Figma REST access token is required because comments are not available through the Desktop Plugin API. Reading requires `file_comments:read`; posting and replying require `file_comments:write`.
 
 ```bash
 MCP_FIG_PROFILES=core,collaboration \
@@ -63,10 +63,10 @@ FIGMA_FILE_KEY=... \
 node dist/index.js
 ```
 
-Use `figma_collaboration(action: "comments")` to read all comments, or filter by `nodeIds`, `resolved`, and `limit`. Comment posting and deletion are not implemented.
+Use `figma_collaboration(action: "comments")` to read comments or filter by `nodeIds`, `resolved`, and `limit`. Use `action: "post"` with an explicit file key, node ID, and node offset for a new anchored comment. Use `action: "reply"` with an explicit file key and root comment ID to reply on the original thread. Comment writes are not idempotent: if a request times out, read comments back before retrying. Figma exposes no endpoint for editing existing comment text; deletion is intentionally not implemented.
 
 ## Project status
 
-MCP Fig currently exposes ten core domain tools plus the optional read-only `figma_collaboration` tool. The default Desktop path uses one persistent per-user daemon and owner-only service IPC; fixtures and fake transports do not claim live Figma rendering.
+MCP Fig currently exposes ten core domain tools plus the optional `figma_collaboration` tool. The default Desktop path uses one persistent per-user daemon and owner-only service IPC; fixtures and fake transports do not claim live Figma rendering.
 
 MCP Fig is an independent, unofficial project informed by existing Figma tooling, including [Figma Console MCP](https://github.com/southleft/figma-console-mcp). It is not affiliated with Figma. No license has been selected, so the repository is not licensed for reuse or redistribution.

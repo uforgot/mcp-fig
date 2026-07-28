@@ -133,4 +133,148 @@ describe("figma_collaboration", () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("posts a positioned comment and replies to a root comment", async () => {
+    const requestBodies: Record<string, unknown>[] = [];
+    const fetchMock = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const request =
+          input instanceof Request ? input : new Request(input, init);
+        expect(request.method).toBe("POST");
+        expect(request.url).toBe(
+          "https://api.figma.com/v1/files/file-1/comments",
+        );
+        const body = (await request.json()) as Record<string, unknown>;
+        requestBodies.push(body);
+        return jsonResponse({
+          id: `comment-${requestBodies.length + 2}`,
+          message: body.message,
+          user: { id: "bot-1", handle: "Boong" },
+          created_at: "2026-07-28T05:00:00Z",
+          resolved_at: null,
+          parent_id: typeof body.comment_id === "string" ? body.comment_id : "",
+          client_meta: body.client_meta,
+        });
+      },
+    );
+    const bridge = new RestFigmaBridge({
+      accessToken: "secret-token",
+      fileKey: "file-1",
+      fetch: fetchMock,
+    });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    const server = createMcpServer(
+      {
+        version: "0.0.0-test",
+        profiles: ["core", "collaboration"],
+        logLevel: "error",
+      },
+      { bridge },
+    );
+    const client = new Client({
+      name: "comments-write-test",
+      version: "0.0.0",
+    });
+    clients.push(client);
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+
+    const post = CallToolResultSchema.parse(
+      await client.callTool({
+        name: "figma_collaboration",
+        arguments: {
+          action: "post",
+          fileKey: "file-1",
+          message: "Updated design is ready.",
+          nodeId: "66:2755",
+          nodeOffset: { x: 100, y: 200 },
+        },
+      }),
+    );
+    const postText = post.content.find((item) => item.type === "text");
+    const postPayload = JSON.parse(
+      postText?.type === "text" ? postText.text : "{}",
+    );
+    expect(post.isError).not.toBe(true);
+    expect(postPayload).toMatchObject({
+      ok: true,
+      action: "post",
+      data: {
+        comment: {
+          id: "comment-3",
+          message: "Updated design is ready.",
+          nodeId: "66:2755",
+          nodeOffset: { x: 100, y: 200 },
+        },
+        source: "rest",
+      },
+    });
+
+    const reply = CallToolResultSchema.parse(
+      await client.callTool({
+        name: "figma_collaboration",
+        arguments: {
+          action: "reply",
+          fileKey: "file-1",
+          commentId: "comment-1",
+          message: "Fixed and verified.",
+        },
+      }),
+    );
+    const replyText = reply.content.find((item) => item.type === "text");
+    const replyPayload = JSON.parse(
+      replyText?.type === "text" ? replyText.text : "{}",
+    );
+    expect(reply.isError).not.toBe(true);
+    expect(replyPayload).toMatchObject({
+      ok: true,
+      action: "reply",
+      data: {
+        comment: {
+          id: "comment-4",
+          message: "Fixed and verified.",
+          parentId: "comment-1",
+        },
+        source: "rest",
+      },
+    });
+    expect(requestBodies).toEqual([
+      {
+        message: "Updated design is ready.",
+        client_meta: {
+          node_id: "66:2755",
+          node_offset: { x: 100, y: 200 },
+        },
+      },
+      { message: "Fixed and verified.", comment_id: "comment-1" },
+    ]);
+  });
+
+  it("marks comment transport failures as unknown outcomes that must not be retried", async () => {
+    const bridge = new RestFigmaBridge({
+      accessToken: "secret-token",
+      fileKey: "file-1",
+      fetch: vi.fn(async () => {
+        throw new Error("socket closed after dispatch");
+      }),
+    });
+
+    await expect(
+      bridge.postComment({
+        action: "reply",
+        fileKey: "file-1",
+        commentId: "comment-1",
+        message: "Fixed and verified.",
+      }),
+    ).rejects.toMatchObject({
+      code: "UNKNOWN_OUTCOME",
+      retryable: false,
+      details: {
+        dispatched: true,
+        outcome: "unknown",
+        retrySafe: false,
+      },
+    });
+  });
 });

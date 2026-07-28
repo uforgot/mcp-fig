@@ -1043,6 +1043,21 @@ export interface FigmaComment {
   orderId?: string;
 }
 
+export type PostFigmaCommentInput =
+  | {
+      action: "post";
+      fileKey?: string;
+      message: string;
+      nodeId: string;
+      nodeOffset: { x: number; y: number };
+    }
+  | {
+      action: "reply";
+      fileKey?: string;
+      message: string;
+      commentId: string;
+    };
+
 export interface FigmaBridge {
   close?(): Promise<void> | void;
   textRange?(input: TextRangeActionInput): Promise<Record<string, unknown>>;
@@ -1056,6 +1071,7 @@ export interface FigmaBridge {
   getSelection(fileKey?: string): Promise<string[]>;
   getChanges(fileKey?: string): Promise<ChangeRecord[]>;
   getComments?(fileKey?: string): Promise<FigmaComment[]>;
+  postComment?(input: PostFigmaCommentInput): Promise<FigmaComment>;
   getNodes(nodeIds: string[], fileKey?: string): Promise<FigmaNode[]>;
   queryNodes(input: QueryNodesInput): Promise<NodeQueryResult>;
   createNode(input: CreateNodeInput): Promise<FigmaNode[]>;

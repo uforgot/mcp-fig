@@ -20,6 +20,7 @@ import type {
   MoveNodesInput,
   NodeExportPayload,
   NodeQueryResult,
+  PostFigmaCommentInput,
   QueryNodesInput,
   ResizeNodesInput,
   StyleActionInput,
@@ -58,6 +59,37 @@ function toRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object"
     ? (value as Record<string, unknown>)
     : undefined;
+}
+
+function toFigmaComment(value: unknown): FigmaComment {
+  const comment = toRecord(value) ?? {};
+  const user = toRecord(comment.user);
+  const clientMeta = toRecord(comment.client_meta);
+  const nodeOffset = toRecord(clientMeta?.node_offset);
+  return {
+    id: String(comment.id ?? "unknown"),
+    message: String(comment.message ?? ""),
+    createdAt: String(comment.created_at ?? new Date(0).toISOString()),
+    resolvedAt:
+      typeof comment.resolved_at === "string" ? comment.resolved_at : null,
+    user: {
+      ...(typeof user?.id === "string" ? { id: user.id } : {}),
+      ...(typeof user?.handle === "string" ? { handle: user.handle } : {}),
+      ...(typeof user?.img_url === "string" ? { imgUrl: user.img_url } : {}),
+    },
+    ...(typeof clientMeta?.node_id === "string"
+      ? { nodeId: clientMeta.node_id }
+      : {}),
+    ...(typeof nodeOffset?.x === "number" && typeof nodeOffset.y === "number"
+      ? { nodeOffset: { x: nodeOffset.x, y: nodeOffset.y } }
+      : {}),
+    ...(typeof comment.parent_id === "string"
+      ? { parentId: comment.parent_id }
+      : {}),
+    ...(typeof comment.order_id === "string"
+      ? { orderId: comment.order_id }
+      : {}),
+  };
 }
 
 function toPaints(value: unknown): Record<string, unknown>[] | undefined {
@@ -412,45 +444,26 @@ export class RestFigmaBridge implements FigmaBridge {
     const response = await this.#request<{ comments?: unknown[] }>(
       `/v1/files/${encodeURIComponent(key)}/comments`,
     );
-    return (response.comments ?? [])
-      .map(toRecord)
-      .filter((comment) => comment !== undefined)
-      .map((comment) => {
-        const user = toRecord(comment.user);
-        const clientMeta = toRecord(comment.client_meta);
-        const nodeOffset = toRecord(clientMeta?.node_offset);
-        return {
-          id: String(comment.id ?? "unknown"),
-          message: String(comment.message ?? ""),
-          createdAt: String(comment.created_at ?? new Date(0).toISOString()),
-          resolvedAt:
-            typeof comment.resolved_at === "string"
-              ? comment.resolved_at
-              : null,
-          user: {
-            ...(typeof user?.id === "string" ? { id: user.id } : {}),
-            ...(typeof user?.handle === "string"
-              ? { handle: user.handle }
-              : {}),
-            ...(typeof user?.img_url === "string"
-              ? { imgUrl: user.img_url }
-              : {}),
-          },
-          ...(typeof clientMeta?.node_id === "string"
-            ? { nodeId: clientMeta.node_id }
-            : {}),
-          ...(typeof nodeOffset?.x === "number" &&
-          typeof nodeOffset.y === "number"
-            ? { nodeOffset: { x: nodeOffset.x, y: nodeOffset.y } }
-            : {}),
-          ...(typeof comment.parent_id === "string"
-            ? { parentId: comment.parent_id }
-            : {}),
-          ...(typeof comment.order_id === "string"
-            ? { orderId: comment.order_id }
-            : {}),
-        };
-      });
+    return (response.comments ?? []).map(toFigmaComment);
+  }
+
+  async postComment(input: PostFigmaCommentInput): Promise<FigmaComment> {
+    const key = this.#requireFileKey(input.fileKey);
+    const body =
+      input.action === "reply"
+        ? { message: input.message, comment_id: input.commentId }
+        : {
+            message: input.message,
+            client_meta: {
+              node_id: input.nodeId,
+              node_offset: input.nodeOffset,
+            },
+          };
+    const response = await this.#request<unknown>(
+      `/v1/files/${encodeURIComponent(key)}/comments`,
+      { method: "POST", body, mutation: true },
+    );
+    return toFigmaComment(response);
   }
 
   async getNodes(nodeIds: string[], fileKey?: string): Promise<FigmaNode[]> {
@@ -655,31 +668,57 @@ export class RestFigmaBridge implements FigmaBridge {
     return token;
   }
 
-  async #request<T>(path: string): Promise<T> {
+  async #request<T>(
+    path: string,
+    options: {
+      method?: "POST";
+      body?: unknown;
+      mutation?: boolean;
+    } = {},
+  ): Promise<T> {
     const accessToken = await this.#requireAccessToken();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.#timeoutMs);
     let response: Response;
     try {
-      response = await this.#fetch(`${this.#baseUrl}${path}`, {
-        headers: { "X-Figma-Token": accessToken },
+      const requestInit: RequestInit = {
+        headers: {
+          "X-Figma-Token": accessToken,
+          ...(options.body === undefined
+            ? {}
+            : { "Content-Type": "application/json" }),
+        },
+        ...(options.body === undefined
+          ? {}
+          : { body: JSON.stringify(options.body) }),
         signal: controller.signal,
-      });
+      };
+      if (options.method) requestInit.method = options.method;
+      response = await this.#fetch(`${this.#baseUrl}${path}`, requestInit);
     } catch (error) {
       this.#verified = false;
       const timedOut = controller.signal.aborted;
       throw new McpFigError(
-        "NOT_CONNECTED",
-        timedOut
-          ? `Figma REST request timed out after ${this.#timeoutMs}ms.`
-          : error instanceof Error
-            ? error.message
-            : "Figma REST request failed.",
+        options.mutation ? "UNKNOWN_OUTCOME" : "NOT_CONNECTED",
+        options.mutation
+          ? "Figma comment write outcome is unknown; read comments back before retrying."
+          : timedOut
+            ? `Figma REST request timed out after ${this.#timeoutMs}ms.`
+            : error instanceof Error
+              ? error.message
+              : "Figma REST request failed.",
         {
-          retryable: true,
+          retryable: !options.mutation,
           details: {
             source: "rest",
             path,
+            ...(options.mutation
+              ? {
+                  dispatched: true,
+                  outcome: "unknown",
+                  retrySafe: false,
+                }
+              : {}),
             ...(timedOut ? { timeoutMs: this.#timeoutMs } : {}),
           },
         },
@@ -699,11 +738,14 @@ export class RestFigmaBridge implements FigmaBridge {
         code,
         `Figma REST request failed with HTTP ${response.status}.`,
         {
-          retryable: response.status === 429 || response.status >= 500,
+          retryable:
+            !options.mutation &&
+            (response.status === 429 || response.status >= 500),
           details: {
             source: "rest",
             status: response.status,
             path,
+            ...(options.mutation ? { retrySafe: false } : {}),
             ...(response.headers.get("retry-after")
               ? { retryAfter: response.headers.get("retry-after") }
               : {}),

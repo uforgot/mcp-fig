@@ -19,6 +19,7 @@ import type {
   MoveNodesInput,
   NodeExportPayload,
   NodeQueryResult,
+  PostFigmaCommentInput,
   QueryNodesInput,
   ResizeNodesInput,
   StyleActionInput,
@@ -175,6 +176,23 @@ export class HybridFigmaBridge implements FigmaBridge {
       );
     }
     return this.#rest.getComments(fileKey);
+  }
+
+  async postComment(input: PostFigmaCommentInput): Promise<FigmaComment> {
+    if (!(await this.#restAvailable()) || !this.#rest?.postComment) {
+      throw new McpFigError(
+        "NOT_CONNECTED",
+        "Posting Figma comments requires configured REST write access.",
+        {
+          details: {
+            source: "rest",
+            reason: "REST_COMMENT_WRITE_UNAVAILABLE",
+            dispatched: false,
+          },
+        },
+      );
+    }
+    return this.#rest.postComment(input);
   }
 
   async getNodes(nodeIds: string[], fileKey?: string): Promise<FigmaNode[]> {
