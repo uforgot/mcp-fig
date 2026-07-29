@@ -78,6 +78,25 @@ function readJson<Value>(relativePath: string): Value {
   ) as Value;
 }
 
+function findArrayValuedItems(
+  value: unknown,
+  path = "$",
+  found: string[] = [],
+) {
+  if (!value || typeof value !== "object") return found;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      findArrayValuedItems(item, `${path}[${index}]`, found);
+    });
+    return found;
+  }
+  for (const [key, item] of Object.entries(value)) {
+    if (key === "items" && Array.isArray(item)) found.push(`${path}.items`);
+    findArrayValuedItems(item, `${path}.${key}`, found);
+  }
+  return found;
+}
+
 async function createHarness(
   fixtureName: WorkflowDefinition["fixture"],
 ): Promise<Harness> {
@@ -297,6 +316,10 @@ describe("MCP Fig quality gates", () => {
         Object.keys(tool.inputSchema.properties ?? {}).length,
         `${tool.name} must expose actionable fields`,
       ).toBeGreaterThan(1);
+      expect(
+        findArrayValuedItems(tool.inputSchema),
+        `${tool.name} must not expose legacy tuple items arrays`,
+      ).toEqual([]);
     }
 
     const actionMismatch = CallToolResultSchema.parse(
@@ -319,7 +342,7 @@ describe("MCP Fig quality gates", () => {
         title,
         description,
         inputSchema,
-        annotations,
+        ...(annotations ? { annotations } : {}),
       }));
     expect(actual).toEqual(expected);
   });

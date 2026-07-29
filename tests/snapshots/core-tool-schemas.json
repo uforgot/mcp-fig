@@ -1413,37 +1413,17 @@
                               ]
                             },
                             "gradientTransform": {
+                              "minItems": 2,
+                              "maxItems": 2,
                               "type": "array",
-                              "items": [
-                                {
-                                  "type": "array",
-                                  "items": [
-                                    {
-                                      "type": "number"
-                                    },
-                                    {
-                                      "type": "number"
-                                    },
-                                    {
-                                      "type": "number"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "array",
-                                  "items": [
-                                    {
-                                      "type": "number"
-                                    },
-                                    {
-                                      "type": "number"
-                                    },
-                                    {
-                                      "type": "number"
-                                    }
-                                  ]
+                              "items": {
+                                "minItems": 3,
+                                "maxItems": 3,
+                                "type": "array",
+                                "items": {
+                                  "type": "number"
                                 }
-                              ]
+                              }
                             },
                             "gradientStops": {
                               "minItems": 2,
@@ -1825,37 +1805,17 @@
                         ]
                       },
                       "gradientTransform": {
+                        "minItems": 2,
+                        "maxItems": 2,
                         "type": "array",
-                        "items": [
-                          {
-                            "type": "array",
-                            "items": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              }
-                            ]
-                          },
-                          {
-                            "type": "array",
-                            "items": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              }
-                            ]
+                        "items": {
+                          "minItems": 3,
+                          "maxItems": 3,
+                          "type": "array",
+                          "items": {
+                            "type": "number"
                           }
-                        ]
+                        }
                       },
                       "gradientStops": {
                         "minItems": 2,
@@ -2022,37 +1982,17 @@
                         ]
                       },
                       "gradientTransform": {
+                        "minItems": 2,
+                        "maxItems": 2,
                         "type": "array",
-                        "items": [
-                          {
-                            "type": "array",
-                            "items": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              }
-                            ]
-                          },
-                          {
-                            "type": "array",
-                            "items": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              }
-                            ]
+                        "items": {
+                          "minItems": 3,
+                          "maxItems": 3,
+                          "type": "array",
+                          "items": {
+                            "type": "number"
                           }
-                        ]
+                        }
                       },
                       "gradientStops": {
                         "minItems": 2,
@@ -2488,37 +2428,17 @@
                         ]
                       },
                       "gradientTransform": {
+                        "minItems": 2,
+                        "maxItems": 2,
                         "type": "array",
-                        "items": [
-                          {
-                            "type": "array",
-                            "items": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              }
-                            ]
-                          },
-                          {
-                            "type": "array",
-                            "items": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              }
-                            ]
+                        "items": {
+                          "minItems": 3,
+                          "maxItems": 3,
+                          "type": "array",
+                          "items": {
+                            "type": "number"
                           }
-                        ]
+                        }
                       },
                       "gradientStops": {
                         "minItems": 2,
@@ -2685,37 +2605,17 @@
                         ]
                       },
                       "gradientTransform": {
+                        "minItems": 2,
+                        "maxItems": 2,
                         "type": "array",
-                        "items": [
-                          {
-                            "type": "array",
-                            "items": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              }
-                            ]
-                          },
-                          {
-                            "type": "array",
-                            "items": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "number"
-                              }
-                            ]
+                        "items": {
+                          "minItems": 3,
+                          "maxItems": 3,
+                          "type": "array",
+                          "items": {
+                            "type": "number"
                           }
-                        ]
+                        }
                       },
                       "gradientStops": {
                         "minItems": 2,
@@ -3309,37 +3209,17 @@
                             ]
                           },
                           "gradientTransform": {
+                            "minItems": 2,
+                            "maxItems": 2,
                             "type": "array",
-                            "items": [
-                              {
-                                "type": "array",
-                                "items": [
-                                  {
-                                    "type": "number"
-                                  },
-                                  {
-                                    "type": "number"
-                                  },
-                                  {
-                                    "type": "number"
-                                  }
-                                ]
-                              },
-                              {
-                                "type": "array",
-                                "items": [
-                                  {
-                                    "type": "number"
-                                  },
-                                  {
-                                    "type": "number"
-                                  },
-                                  {
-                                    "type": "number"
-                                  }
-                                ]
+                            "items": {
+                              "minItems": 3,
+                              "maxItems": 3,
+                              "type": "array",
+                              "items": {
+                                "type": "number"
                               }
-                            ]
+                            }
                           },
                           "gradientStops": {
                             "minItems": 2,

@@ -59,10 +59,11 @@ const paint = z.discriminatedUnion("type", [
         "GRADIENT_ANGULAR",
         "GRADIENT_DIAMOND",
       ]),
-      gradientTransform: z.tuple([
-        z.tuple([z.number(), z.number(), z.number()]),
-        z.tuple([z.number(), z.number(), z.number()]),
-      ]),
+      gradientTransform: z
+        .array(z.array(z.number()).length(3))
+        .length(2) as unknown as z.ZodType<
+        [[number, number, number], [number, number, number]]
+      >,
       gradientStops: z
         .array(
           z

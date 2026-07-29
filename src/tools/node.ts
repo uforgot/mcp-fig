@@ -69,18 +69,11 @@ const paints = z.array(
           "GRADIENT_ANGULAR",
           "GRADIENT_DIAMOND",
         ]),
-        gradientTransform: z.tuple([
-          z.tuple([
-            z.number().finite(),
-            z.number().finite(),
-            z.number().finite(),
-          ]),
-          z.tuple([
-            z.number().finite(),
-            z.number().finite(),
-            z.number().finite(),
-          ]),
-        ]),
+        gradientTransform: z
+          .array(z.array(z.number().finite()).length(3))
+          .length(2) as unknown as z.ZodType<
+          [[number, number, number], [number, number, number]]
+        >,
         gradientStops: z
           .array(
             z
