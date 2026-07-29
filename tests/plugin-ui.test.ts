@@ -15,6 +15,7 @@ interface BridgeConfig {
 
 interface MockElement {
   textContent: string;
+  title: string;
   className: string;
   dataset: Record<string, string>;
   hidden: boolean;
@@ -104,6 +105,7 @@ function createUiHarness(
   ]) {
     elements.set(selector, {
       textContent: "",
+      title: "",
       className: "",
       dataset: {},
       hidden: selector === "#connected-panel",
@@ -261,6 +263,12 @@ describe("Figma Plugin UI pairing", () => {
     expect(harness.elements.get("#pairing-panel").hidden).toBe(true);
     expect(harness.elements.get("#connected-panel").hidden).toBe(false);
     expect(harness.elements.get("#status").dataset.state).toBe("ready");
+    expect(harness.elements.get("#status").textContent).toBe("Connected");
+    expect(harness.elements.get("#status").title).toBe("Connected: Test");
+    expect(harness.pluginMessages).toContainEqual({
+      type: "bridge-ui-resize",
+      mode: "connected",
+    });
     expect(JSON.stringify([...harness.elements.values()])).not.toContain(
       CREDENTIAL,
     );
@@ -320,6 +328,10 @@ describe("Figma Plugin UI pairing", () => {
     expect(harness.elements.get("#pairing-panel").hidden).toBe(false);
     expect(harness.elements.get("#connected-panel").hidden).toBe(true);
     expect(harness.elements.get("#status").textContent).toContain("Forgotten");
+    expect(harness.pluginMessages.at(-1)).toEqual({
+      type: "bridge-ui-resize",
+      mode: "pairing",
+    });
     expect(harness.elements.get("#status").textContent).not.toContain(
       CREDENTIAL,
     );

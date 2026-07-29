@@ -4022,7 +4022,15 @@ function createVisualDomain({ figma, fail, nodeById }) {
 }
 
 // Source: plugin/src/main.js
-figma.showUI(__html__, { width: 360, height: 300, themeColors: true });
+const BRIDGE_UI_SIZES = {
+  pairing: { width: 320, height: 280 },
+  connected: { width: 240, height: 52 },
+};
+
+figma.showUI(__html__, {
+  ...BRIDGE_UI_SIZES.pairing,
+  themeColors: true,
+});
 
 const dataHelpers = createPluginDataHelpers();
 const errors = createPluginErrors();
@@ -4223,6 +4231,16 @@ async function execute(command) {
 }
 
 figma.ui.onmessage = async (message) => {
+  if (message?.type === "bridge-ui-resize") {
+    const size =
+      message.mode === "pairing"
+        ? BRIDGE_UI_SIZES.pairing
+        : message.mode === "connected"
+          ? BRIDGE_UI_SIZES.connected
+          : null;
+    if (size) figma.ui.resize(size.width, size.height);
+    return;
+  }
   if (
     message?.type === "bridge-config-get" ||
     message?.type === "bridge-config-set" ||

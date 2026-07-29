@@ -70,6 +70,8 @@ function createHarness(
   } = {},
 ) {
   const messages: Record<string, unknown>[] = [];
+  const shownUiSizes: Array<Record<string, unknown>> = [];
+  const resizedUiSizes: Array<{ width: number; height: number }> = [];
   const handlers: Record<string, (...args: unknown[]) => unknown> = {};
   const clientStorage = new Map<string, unknown>();
   const loadedFonts: unknown[] = [];
@@ -793,6 +795,9 @@ function createHarness(
       postMessage(message: Record<string, unknown>) {
         messages.push(message);
       },
+      resize(width: number, height: number) {
+        resizedUiSizes.push({ width, height });
+      },
     },
     async getLocalPaintStylesAsync() {
       return [...localStyles.values()].filter(
@@ -880,7 +885,9 @@ function createHarness(
         clientStorage.delete(key);
       },
     },
-    showUI() {},
+    showUI(_html: string, options: Record<string, unknown>) {
+      shownUiSizes.push(structuredClone(options));
+    },
     on(event: string, handler: (...args: unknown[]) => unknown) {
       if (event === "documentchange" && !allPagesLoaded) {
         throw new Error(
@@ -943,6 +950,8 @@ function createHarness(
     instance,
     handlers,
     messages,
+    shownUiSizes,
+    resizedUiSizes,
     clientStorage,
     loadedFonts,
     rangeStyles,
@@ -956,6 +965,29 @@ function createHarness(
 }
 
 describe("Figma Plugin main bridge", () => {
+  it("starts compact and resizes only to known bridge UI modes", async () => {
+    const { figma, shownUiSizes, resizedUiSizes } = createHarness();
+
+    expect(shownUiSizes).toEqual([
+      { width: 320, height: 280, themeColors: true },
+    ]);
+
+    await figma.ui.onmessage?.({
+      type: "bridge-ui-resize",
+      mode: "connected",
+    });
+    await figma.ui.onmessage?.({ type: "bridge-ui-resize", mode: "pairing" });
+    await figma.ui.onmessage?.({
+      type: "bridge-ui-resize",
+      mode: "constructor",
+    });
+
+    expect(resizedUiSizes).toEqual([
+      { width: 240, height: 52 },
+      { width: 320, height: 280 },
+    ]);
+  });
+
   it("gets, validates, stores, and clears the owner bridge config", async () => {
     const { figma, messages, clientStorage } = createHarness();
     const config = {

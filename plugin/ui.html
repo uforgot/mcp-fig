@@ -5,16 +5,22 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root { color-scheme: light dark; font: 12px/1.45 Inter, system-ui, sans-serif; }
-    body { margin: 0; padding: 16px; }
-    form { display: grid; gap: 10px; }
+    body { margin: 0; padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 8px; }
+    form { display: grid; gap: 8px; }
     label { display: grid; gap: 4px; font-weight: 600; }
-    input { padding: 7px 8px; border: 1px solid #8888; border-radius: 5px; background: transparent; }
-    button { padding: 8px; border: 0; border-radius: 5px; background: #0d99ff; color: white; font-weight: 700; }
+    input { padding: 6px 8px; border: 1px solid #8888; border-radius: 5px; background: transparent; }
+    button { padding: 7px; border: 0; border-radius: 5px; background: #0d99ff; color: white; font-weight: 700; }
     button.secondary { background: #8883; color: inherit; }
-    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    details { margin-top: 12px; }
-    details form { margin-top: 10px; }
-    #status { margin-top: 12px; padding: 9px; border-radius: 5px; background: #8882; word-break: break-word; }
+    #pairing-panel { grid-column: 1 / -1; }
+    #connected-panel { grid-column: 2; grid-row: 1; }
+    .actions { display: flex; gap: 4px; }
+    .actions button { width: 28px; height: 28px; padding: 0; font-size: 16px; line-height: 1; }
+    details { margin-top: 10px; }
+    details form { margin-top: 8px; }
+    #status { border-radius: 5px; word-break: break-word; }
+    #pairing-panel:not([hidden]) ~ #status { grid-column: 1 / -1; grid-row: 2; margin-top: 8px; padding: 7px; background: #8882; }
+    #connected-panel:not([hidden]) ~ #status { grid-column: 1; grid-row: 1; align-self: center; min-width: 0; padding: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    #connected-panel:not([hidden]) ~ #status.ok::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: currentColor; }
     .ok { color: #16a34a; } .bad { color: #dc2626; }
   </style>
 </head>
@@ -36,8 +42,8 @@
   </section>
   <section id="connected-panel" hidden>
     <div class="actions">
-      <button id="forget" type="button" class="secondary">Forget</button>
-      <button id="repair" type="button">Re-pair</button>
+      <button id="forget" type="button" class="secondary" title="Forget saved connection" aria-label="Forget saved connection">×</button>
+      <button id="repair" type="button" title="Re-pair" aria-label="Re-pair">↻</button>
     </div>
   </section>
   <div id="status">Loading saved connection…</div>
@@ -86,6 +92,7 @@
 
     function setStatus(text, ok) {
       statusNode.textContent = text;
+      statusNode.title = text;
       statusNode.className = ok === true ? "ok" : ok === false ? "bad" : "";
     }
 
@@ -99,11 +106,13 @@
     function showPairing() {
       pairingPanel.hidden = false;
       connectedPanel.hidden = true;
+      pluginMessage({ type: "bridge-ui-resize", mode: "pairing" });
     }
 
     function showConnected() {
       pairingPanel.hidden = true;
       connectedPanel.hidden = false;
+      pluginMessage({ type: "bridge-ui-resize", mode: "connected" });
     }
 
     function pluginMessage(message) {
@@ -278,7 +287,8 @@
           reconnectAttempt = 0;
           lastDisconnectReason = "none";
           showConnected();
-          setConnectionState("ready", `Connected: ${file.name}`, true);
+          setConnectionState("ready", "Connected", true);
+          statusNode.title = `Connected: ${file.name}`;
           backoff = 250;
 
           while (!signal.aborted) {
