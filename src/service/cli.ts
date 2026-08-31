@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { EventLogger } from "../observability/event-log.js";
 import { buildAgentServiceStatus } from "./agent-status.js";
 import { ServiceClient } from "./client.js";
 import {
@@ -26,6 +27,8 @@ import {
   readServiceConfig,
   removeServiceFiles,
   rotateServiceLogs,
+  SERVICE_LOG_BACKUPS,
+  SERVICE_LOG_MAX_BYTES,
   type ServicePaths,
   servicePaths,
   writeServiceConfig,
@@ -431,23 +434,35 @@ export async function runInstalledService(
   const state = context(options);
   const config = await readServiceConfig(state.paths);
   const credential = await readCredential(state.paths);
-  await runForegroundDaemon({
-    token: credential.pluginToken,
-    port: config.port,
-    socketPath: config.socketPath,
-    version: config.serviceVersion,
-    exchangePairingCode: async (code) => {
-      try {
-        const exchanged = await consumePairingCode(state.paths, code, {
-          now: state.now(),
-        });
-        return { ok: true, credential: exchanged.pluginToken };
-      } catch (error) {
-        if (error instanceof PairingCredentialError) {
-          return { ok: false, code: error.code, message: error.message };
-        }
-        throw error;
-      }
-    },
+  const eventLog = new EventLogger({
+    jsonlPath: state.paths.stderrLogPath,
+    maxBytes: SERVICE_LOG_MAX_BYTES,
+    backups: SERVICE_LOG_BACKUPS,
+    minLevel: "info",
+    mirrorToStderr: false,
   });
+  try {
+    await runForegroundDaemon({
+      token: credential.pluginToken,
+      port: config.port,
+      socketPath: config.socketPath,
+      version: config.serviceVersion,
+      eventLog,
+      exchangePairingCode: async (code) => {
+        try {
+          const exchanged = await consumePairingCode(state.paths, code, {
+            now: state.now(),
+          });
+          return { ok: true, credential: exchanged.pluginToken };
+        } catch (error) {
+          if (error instanceof PairingCredentialError) {
+            return { ok: false, code: error.code, message: error.message };
+          }
+          throw error;
+        }
+      },
+    });
+  } finally {
+    await eventLog.flush();
+  }
 }

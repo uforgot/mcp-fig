@@ -45,11 +45,19 @@ export interface EventLoggerOptions {
   jsonlPath?: string;
   maxBytes?: number;
   backups?: number;
+  minLevel?: EventLevel;
+  mirrorToStderr?: boolean;
   daemonPid?: number;
   now?: () => Date;
 }
 
 const LEVELS = new Set<EventLevel>(["debug", "info", "warn", "error"]);
+const LEVEL_ORDER: Record<EventLevel, number> = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3,
+};
 
 function cleanString(value: unknown, max = 512): string | undefined {
   if (typeof value !== "string" || value.length === 0) return undefined;
@@ -152,6 +160,17 @@ async function rotate(
   incoming: number,
 ) {
   await verifyFile(path);
+  for (let index = 1; index <= backups; index += 1) {
+    const backupPath = `${path}.${index}`;
+    await verifyFile(backupPath);
+    try {
+      if ((await stat(backupPath)).size > maxBytes) {
+        await rm(backupPath);
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
   let size = 0;
   try {
     size = (await stat(path)).size;
@@ -180,6 +199,8 @@ export class EventLogger implements EventSink {
   readonly #jsonlPath: string | undefined;
   readonly #maxBytes: number;
   readonly #backups: number;
+  readonly #minLevel: EventLevel;
+  readonly #mirrorToStderr: boolean;
   readonly #daemonPid: number;
   readonly #now: () => Date;
   #pending = Promise.resolve();
@@ -189,6 +210,8 @@ export class EventLogger implements EventSink {
     this.#jsonlPath = options.jsonlPath;
     this.#maxBytes = options.maxBytes ?? 1_000_000;
     this.#backups = options.backups ?? 3;
+    this.#minLevel = options.minLevel ?? "debug";
+    this.#mirrorToStderr = options.mirrorToStderr ?? true;
     this.#daemonPid = options.daemonPid ?? process.pid;
     this.#now = options.now ?? (() => new Date());
   }
@@ -199,8 +222,9 @@ export class EventLogger implements EventSink {
       this.#now().toISOString(),
       this.#daemonPid,
     );
+    if (LEVEL_ORDER[record.level] < LEVEL_ORDER[this.#minLevel]) return;
     const line = `${JSON.stringify(record)}\n`;
-    this.#stderr.write(line);
+    if (this.#mirrorToStderr) this.#stderr.write(line);
     if (!this.#jsonlPath) return;
     this.#pending = this.#pending
       .then(async () => {

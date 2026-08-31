@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -143,6 +143,43 @@ describe("observability event log", () => {
     expect((await stat(`${path}.1`)).mode & 0o777).toBe(0o600);
     expect(await readFile(path, "utf8")).toMatch(/"action":"dispatch"/);
     expect(await readFile(`${path}.1`, "utf8")).toMatch(/"traceId":"trace-/);
+    await expect(stat(`${path}.3`)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("filters debug events and bounds a file without mirroring it", async () => {
+    const directory = await temporaryDirectory();
+    const path = join(directory, "service.stderr.log");
+    const stderr = sink();
+    await writeFile(`${path}.2`, "x".repeat(1_000), { mode: 0o600 });
+    const logger = new EventLogger({
+      stderr: stderr.stream,
+      jsonlPath: path,
+      maxBytes: 360,
+      backups: 2,
+      minLevel: "info",
+      mirrorToStderr: false,
+      daemonPid: 987,
+    });
+
+    logger.emit({
+      level: "debug",
+      traceId: "polling-noise",
+      action: "waiter.open",
+    });
+    for (let index = 0; index < 20; index += 1) {
+      logger.emit({
+        level: "info",
+        traceId: `trace-${index}`,
+        action: "dispatch",
+      });
+    }
+    await logger.flush();
+
+    expect(stderr.read()).toBe("");
+    expect(await readFile(path, "utf8")).not.toContain("polling-noise");
+    expect((await stat(path)).size).toBeLessThanOrEqual(360);
+    expect((await stat(`${path}.1`)).size).toBeLessThanOrEqual(360);
+    expect((await stat(`${path}.2`)).size).toBeLessThanOrEqual(360);
     await expect(stat(`${path}.3`)).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

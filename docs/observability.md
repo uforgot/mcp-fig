@@ -16,7 +16,7 @@ Never add token, Authorization, pairing code/credential, raw Unix-socket payload
 
 ## Destinations
 
-The foreground daemon writes one JSON event per line to **stderr**. MCP stdio stdout remains protocol-only and receives no event log lines.
+The foreground daemon writes one JSON event per line to **stderr**. MCP stdio stdout remains protocol-only and receives no event log lines. The installed launchd service instead writes `info` and higher events through the app-managed `service.stderr.log` writer, which rotates at 10 MB and keeps three backups. Debug polling events are omitted from the installed service log.
 
 A rotating JSONL destination is opt-in:
 

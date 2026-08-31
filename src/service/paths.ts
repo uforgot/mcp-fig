@@ -16,6 +16,8 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 
 export const SERVICE_LABEL = "com.uforgot.mcp-fig";
+export const SERVICE_LOG_MAX_BYTES = 10_000_000;
+export const SERVICE_LOG_BACKUPS = 3;
 
 export interface ServicePathsOptions {
   home?: string;
@@ -257,8 +259,8 @@ export async function rotateServiceLogs(
   paths: ServicePaths,
   options: { maxBytes?: number; backups?: number } = {},
 ): Promise<void> {
-  const maxBytes = options.maxBytes ?? 1_000_000;
-  const backups = options.backups ?? 3;
+  const maxBytes = options.maxBytes ?? SERVICE_LOG_MAX_BYTES;
+  const backups = options.backups ?? SERVICE_LOG_BACKUPS;
   if (!Number.isInteger(maxBytes) || maxBytes < 1) {
     throw new Error("Log maxBytes must be a positive integer.");
   }

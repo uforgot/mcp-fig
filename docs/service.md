@@ -63,7 +63,7 @@ Security rules:
 - Reads reject symlinks, foreign owners, non-regular files, and group/other permission bits.
 - Config and credential updates use same-directory temporary files and atomic replacement. Concurrent first installs use one atomic credential claim.
 - Long-lived Plugin and optional REST credentials are read from the owner-only credential file. They are not placed in plist XML, process arguments, status, stdout, normal logs, or documentation. `FIGMA_ACCESS_TOKEN` is only an install-time ingestion path; it is not copied into launchd.
-- `service logs` redacts both current credentials defensively. Log files rotate above 1 MB and retain `.1` through `.3`.
+- `service logs` redacts both current credentials defensively. The installed service omits debug events, rotates its active log above 10 MB, and retains `.1` through `.3` for a roughly 40 MB total cap.
 
 ## LaunchAgent lifecycle
 
