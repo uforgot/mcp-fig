@@ -70,6 +70,7 @@ function savedConfig(credential = CREDENTIAL): BridgeConfig {
 function createUiHarness(
   options: {
     initialConfig?: BridgeConfig;
+    readOnly?: boolean;
     fetch?: (
       url: string,
       options: Record<string, unknown>,
@@ -128,7 +129,11 @@ function createUiHarness(
       pluginMessages.push(structuredClone(message));
       const requestId = String(message.requestId ?? "");
       if (message.type === "bridge-bootstrap") {
-        deliver({ type: "bridge-bootstrap", file: structuredClone(file) });
+        deliver({
+          type: "bridge-bootstrap",
+          file: structuredClone(file),
+          readOnly: options.readOnly,
+        });
       } else if (message.type === "bridge-config-get") {
         deliver({
           type: "bridge-config-result",
@@ -246,6 +251,25 @@ function submit(element: MockElement) {
 }
 
 describe("Figma Plugin UI pairing", () => {
+  it("advertises only read capabilities and shows Dev Mode read-only status", async () => {
+    const harness = createUiHarness({
+      initialConfig: savedConfig(),
+      readOnly: true,
+    });
+    await harness.flush(16);
+    const handshake = harness.calls.find((call) =>
+      call.url.endsWith("/v1/session/handshake"),
+    );
+    expect(JSON.parse(String(handshake?.options.body)).capabilities).toEqual([
+      "document.read",
+      "selection.read",
+      "node.read",
+    ]);
+    expect(harness.elements.get("#status").textContent).toBe(
+      "Connected · Read-only",
+    );
+  });
+
   it("exchanges a one-time code, persists the credential, and hides manual controls", async () => {
     const harness = createUiHarness();
     await harness.flush();

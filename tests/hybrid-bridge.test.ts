@@ -88,6 +88,19 @@ function preDispatchNotConnected(): McpFigError {
 }
 
 describe("HybridFigmaBridge", () => {
+  it("preserves a connected Dev Mode Plugin's read-only status", async () => {
+    const plugin = makeBridge({
+      status: async () => ({ ...pluginStatus, writeSource: "none" }),
+    });
+    const bridge = new HybridFigmaBridge(plugin);
+    await expect(bridge.status()).resolves.toMatchObject({
+      connected: true,
+      pluginConnected: true,
+      readSource: "desktop-plugin",
+      writeSource: "none",
+    });
+  });
+
   it("publishes the exact REST fallback capability allowlist", () => {
     expect(HYBRID_REST_CAPABILITY_TABLE).toEqual({
       bridgeMethods: [

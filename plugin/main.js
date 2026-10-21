@@ -4026,6 +4026,45 @@ const BRIDGE_UI_SIZES = {
   pairing: { width: 320, height: 280 },
   connected: { width: 240, height: 52 },
 };
+const DEV_MODE = figma.editorType === "dev";
+
+function supportsDevModeCommand(method, params) {
+  const actions = {
+    "node.text_range": ["read"],
+    "node.image": ["inspect"],
+    layout: ["inspect", "validate"],
+    component: [
+      "search",
+      "inspect",
+      "library_search",
+      "library_inspect",
+      "slots",
+    ],
+    instance: ["inspect"],
+    tokens: ["inspect"],
+    styles: ["inspect"],
+    visual: ["audit", "release_capture"],
+  };
+  return (
+    [
+      "document.get",
+      "document.summary",
+      "selection.get",
+      "changes.get",
+      "node.get",
+      "node.query",
+      "node.export",
+    ].includes(method) || actions[method]?.includes(params.action) === true
+  );
+}
+
+function publishBootstrap() {
+  figma.ui.postMessage({
+    type: "bridge-bootstrap",
+    file: fileIdentity(),
+    ...(DEV_MODE ? { readOnly: true } : {}),
+  });
+}
 
 figma.showUI(__html__, {
   ...BRIDGE_UI_SIZES.pairing,
@@ -4176,6 +4215,15 @@ async function execute(command) {
       true,
     );
   }
+  if (
+    DEV_MODE &&
+    !supportsDevModeCommand(command.method, command.params || {})
+  ) {
+    errors.fail(
+      "UNSUPPORTED_BY_BRIDGE",
+      "Figma Dev Mode is read-only. Run the bridge in Design mode with edit access to modify the document.",
+    );
+  }
   if (visual.captureBlocked(command.method, command.params || {}))
     errors.fail(
       "BUSY",
@@ -4238,7 +4286,7 @@ figma.ui.onmessage = async (message) => {
         : message.mode === "connected"
           ? BRIDGE_UI_SIZES.connected
           : null;
-    if (size) figma.ui.resize(size.width, size.height);
+    if (size && !DEV_MODE) figma.ui.resize(size.width, size.height);
     return;
   }
   if (
@@ -4250,7 +4298,7 @@ figma.ui.onmessage = async (message) => {
     return;
   }
   if (message?.type === "bridge-bootstrap") {
-    figma.ui.postMessage({ type: "bridge-bootstrap", file: fileIdentity() });
+    publishBootstrap();
     return;
   }
   if (message?.type !== "bridge-command" || !message.command) return;
@@ -4295,17 +4343,17 @@ figma.ui.onmessage = async (message) => {
   }
 };
 
-figma.ui.postMessage({ type: "bridge-bootstrap", file: fileIdentity() });
+publishBootstrap();
 
 figma.on("selectionchange", () => {
-  figma.ui.postMessage({ type: "bridge-bootstrap", file: fileIdentity() });
+  publishBootstrap();
 });
 
 async function initializeDocumentChangeTracking() {
   await figma.loadAllPagesAsync();
   figma.on("documentchange", (event) => {
     revision.recordExternalChange(event);
-    figma.ui.postMessage({ type: "bridge-bootstrap", file: fileIdentity() });
+    publishBootstrap();
   });
 }
 

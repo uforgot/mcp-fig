@@ -79,6 +79,7 @@
     const pairingPanel = document.querySelector("#pairing-panel");
     const connectedPanel = document.querySelector("#connected-panel");
     let file = null;
+    let readOnly = false;
     let controller = null;
     let bootstrapTimer;
     let reconnectAttempt = 0;
@@ -260,7 +261,7 @@
             sessionId,
             clientId: pluginClientId,
             file,
-            capabilities: CAPABILITIES,
+            capabilities: readOnly ? CAPABILITIES.filter((value) => value.endsWith(".read")) : CAPABILITIES,
             sentAt: new Date().toISOString(),
           }),
         });
@@ -287,8 +288,8 @@
           reconnectAttempt = 0;
           lastDisconnectReason = "none";
           showConnected();
-          setConnectionState("ready", "Connected", true);
-          statusNode.title = `Connected: ${file.name}`;
+          setConnectionState("ready", readOnly ? "Connected · Read-only" : "Connected", true);
+          statusNode.title = `Connected: ${file.name}${readOnly ? " (Dev Mode · Read-only)" : ""}`;
           backoff = 250;
 
           while (!signal.aborted) {
@@ -418,6 +419,7 @@
       if (!message) return;
       if (message.type === "bridge-bootstrap") {
         file = message.file;
+        readOnly = message.readOnly === true;
         if (bootstrapTimer) clearInterval(bootstrapTimer);
         if (refreshIdentity) void refreshIdentity().catch(() => undefined);
         maybeAutoConnect();

@@ -43,6 +43,12 @@ One Plugin UI processes its queue sequentially, so concurrent callers cannot con
 
 ## Mutation safety
 
+### Dev Mode inspection
+
+The Plugin manifest enables `editorType: ["figma", "dev"]` with the `inspect` capability. In Dev Mode, bootstrap messages include `readOnly: true`; the UI advertises only `document.read`, `selection.read`, and `node.read`. The coordinator permits domain inspection through `node.read` without requiring the domain's write capability. Mutations remain rejected before dispatch, and the Plugin independently checks an explicit read-method/action allowlist before execution. Design-mode capabilities and pairing are unchanged. No protocol version bump is needed: the bootstrap flag is internal and existing capability values are reused.
+
+The Dev Mode Inspect panel owns its dimensions, so UI resize requests are ignored there. Desktop capture preparation is not supported in Dev Mode; node export remains available. Automated coverage is not evidence of live developer-only account startup.
+
 - Every mutation requires an explicit `action`.
 - Multi-node actions require a non-empty `nodeIds` array.
 - Layout properties are intentionally absent from the generic node patch and belong to `figma_layout`.

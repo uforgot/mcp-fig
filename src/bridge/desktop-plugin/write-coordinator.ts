@@ -112,15 +112,22 @@ export function isReadOnlyRequest(method: string, params: unknown): boolean {
     ["audit", "release_capture"].includes(String(action))
   )
     return true;
-  return [
-    "inspect",
-    "search",
-    "validate",
-    "read",
-    "library_search",
-    "library_inspect",
-    "slots",
-  ].includes(String(action));
+  if (method === "node.text_range") return action === "read";
+  if (method === "node.image") return action === "inspect";
+  const domainReads: Record<string, string[]> = {
+    layout: ["inspect", "validate"],
+    component: [
+      "inspect",
+      "search",
+      "library_search",
+      "library_inspect",
+      "slots",
+    ],
+    instance: ["inspect"],
+    tokens: ["inspect"],
+    styles: ["inspect"],
+  };
+  return domainReads[method]?.includes(String(action)) === true;
 }
 
 function canonicalJson(value: unknown): string {
@@ -379,7 +386,15 @@ export class PluginWriteCoordinator {
       );
     }
     const capability = requiredCapability(method);
-    if (!session.handshake.capabilities.includes(capability)) {
+    const readOnly = isReadOnlyRequest(method, params);
+    const canInspectDomain =
+      readOnly &&
+      capability.endsWith(".write") &&
+      session.handshake.capabilities.includes("node.read");
+    if (
+      !session.handshake.capabilities.includes(capability) &&
+      !canInspectDomain
+    ) {
       throw new McpFigError(
         "UNSUPPORTED_BY_BRIDGE",
         `Paired Desktop Plugin does not advertise ${capability}.`,
@@ -393,7 +408,6 @@ export class PluginWriteCoordinator {
         },
       );
     }
-    const readOnly = isReadOnlyRequest(method, params);
     if (readOnly) {
       return this.#dispatchRequest(
         session,

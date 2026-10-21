@@ -202,6 +202,14 @@ node dist/index.js service status --json
 
 Success requires `service: "running"`, at least one Plugin session/file, and a non-null handshake time. Later Plugin launches reconnect from Figma `clientStorage`; the long-lived credential is not printed.
 
+## Dev Mode (developer access)
+
+The Live Bridge manifest supports both Figma Design and Dev Mode inspection. After updating this checkout and running `npm run build`, close the old Plugin and launch **MCP Fig Live Bridge** from Dev Mode's **Plugins** panel. If Figma has cached the old manifest, re-import `plugin/manifest.json` under **Plugins > Development > Import plugin from manifest**. Existing pairing is reused; pair normally if prompted.
+
+Dev Mode shows **Connected · Read-only** and advertises only read capabilities. Document/selection/node reads, node exports, text-range reads, image metadata, and supported layout/component/instance/variable/style inspection remain available. Document edits, imports, and Desktop screenshot preparation are rejected; use Design mode with edit access for authoring. This does not grant or bypass Figma file permissions. Live Dev Mode startup with a developer-only account still requires verification; automated tests use a simulated Plugin API and transport.
+
+See [Figma's Dev Mode Plugin documentation](https://developers.figma.com/docs/plugins/working-in-dev-mode/).
+
 ## Optional collaboration profile
 
 Figma file comments are exposed only when the collaboration profile is enabled. A Figma REST access token is required because comments are not available through the Desktop Plugin API. Reading requires `file_comments:read`; posting and replying require `file_comments:write`.

@@ -35,6 +35,7 @@ function startFakePlugin(
   baseUrl: string,
   token: string,
   fileKey = "file-live",
+  readOnly = false,
 ) {
   const aborter = new AbortController();
   aborters.push(aborter);
@@ -56,7 +57,13 @@ function startFakePlugin(
     ],
     sentAt: new Date().toISOString(),
   };
+  if (readOnly)
+    handshake.capabilities = ["document.read", "selection.read", "node.read"];
   let revision = 7;
+  let handshakeReady!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    handshakeReady = resolve;
+  });
 
   const loop = (async () => {
     await json(`${baseUrl}/v1/session/handshake`, {
@@ -69,6 +76,7 @@ function startFakePlugin(
       signal: aborter.signal,
     });
 
+    handshakeReady();
     while (!aborter.signal.aborted) {
       const response = await fetch(`${baseUrl}/v1/session/session-a/next`, {
         headers: { authorization: `Bearer ${token}` },
@@ -131,7 +139,7 @@ function startFakePlugin(
   })().catch((error: unknown) => {
     if (!aborter.signal.aborted) throw error;
   });
-  return { loop, aborter };
+  return { loop, aborter, ready };
 }
 
 async function call(
@@ -150,6 +158,46 @@ async function call(
 }
 
 describe("Desktop Plugin bridge", () => {
+  it("routes inspection through read-only sessions and rejects writes before dispatch", async () => {
+    const token = "dev-mode-test";
+    const host = new DesktopPluginBridgeHost({ token, port: 0 });
+    hosts.push(host);
+    const address = await host.listen();
+    const plugin = startFakePlugin(address.url, token, "file-live", true);
+    await plugin.ready;
+    expect(host.status()).toMatchObject({
+      connected: true,
+      readSource: "desktop-plugin",
+      writeSource: "none",
+    });
+    for (const method of [
+      "layout",
+      "component",
+      "instance",
+      "tokens",
+      "styles",
+    ]) {
+      await expect(
+        host.request("agent-dev", method, {
+          action: "inspect",
+          nodeIds: ["2:1"],
+        }),
+      ).resolves.toBeDefined();
+      await expect(
+        host.request("agent-dev", method, { action: "create" }),
+      ).rejects.toMatchObject({ code: "UNSUPPORTED_BY_BRIDGE" });
+    }
+    await expect(
+      host.request("agent-dev", "node.update", {
+        action: "inspect",
+        nodeIds: ["2:1"],
+        patch: { name: "No" },
+      }),
+    ).rejects.toMatchObject({ code: "UNSUPPORTED_BY_BRIDGE" });
+    plugin.aborter.abort();
+    await plugin.loop;
+  });
+
   it("rejects superseded same-file sessions instead of reviving stale routing", async () => {
     const token = "s".repeat(43);
     const host = new DesktopPluginBridgeHost({ token, port: 0 });

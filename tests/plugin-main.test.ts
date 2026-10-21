@@ -67,6 +67,7 @@ function createHarness(
     fileKey?: string | null;
     rootName?: string;
     rootPluginData?: Map<string, string>;
+    editorType?: "figma" | "dev";
   } = {},
 ) {
   const messages: Record<string, unknown>[] = [];
@@ -666,6 +667,7 @@ function createHarness(
   }
 
   const figma = {
+    editorType: options.editorType ?? "figma",
     fileKey: options.fileKey === undefined ? "test-file" : options.fileKey,
     root,
     currentPage: page,
@@ -965,6 +967,62 @@ function createHarness(
 }
 
 describe("Figma Plugin main bridge", () => {
+  it("reads and exports in Dev Mode without resizing the Inspect panel", async () => {
+    const { command, messages, figma, resizedUiSizes } = createHarness({
+      editorType: "dev",
+    });
+    expect(messages[0]).toMatchObject({
+      type: "bridge-bootstrap",
+      readOnly: true,
+    });
+    for (const [method, params] of [
+      ["document.get", {}],
+      ["document.summary", {}],
+      ["selection.get", {}],
+      ["node.get", { nodeIds: ["2:0"] }],
+      ["node.export", { nodeIds: ["2:0"], format: "PNG", scale: 1 }],
+      ["layout", { action: "inspect", nodeIds: ["2:0"] }],
+      ["tokens", { action: "inspect" }],
+      ["styles", { action: "inspect" }],
+    ] as Array<[string, Record<string, unknown>]>) {
+      expect(await command(method, params), method).toMatchObject({ ok: true });
+    }
+    await figma.ui.onmessage?.({ type: "bridge-ui-resize", mode: "connected" });
+    expect(resizedUiSizes).toEqual([]);
+  });
+
+  it.each([
+    ["node.create", { type: "RECTANGLE", parentId: "2:0" }],
+    [
+      "node.update",
+      { nodeIds: ["2:0"], patch: { name: "Changed" }, action: "inspect" },
+    ],
+    ["node.text_range", { action: "update" }],
+    ["node.image", { action: "import" }],
+    ["layout", { action: "repair", nodeIds: ["2:0"] }],
+    ["component", { action: "library_import" }],
+    ["instance", { action: "create" }],
+    ["tokens", { action: "collection_create" }],
+    ["styles", { action: "create" }],
+    ["visual", { action: "prepare_capture" }],
+  ])(
+    "rejects Dev Mode mutation %s before touching the document",
+    async (method, params) => {
+      const { command, frame } = createHarness({ editorType: "dev" });
+      expect(
+        await command(method as string, params as Record<string, unknown>),
+      ).toMatchObject({
+        ok: false,
+        revision: "1",
+        error: {
+          code: "UNSUPPORTED_BY_BRIDGE",
+          message: expect.stringContaining("read-only"),
+        },
+      });
+      expect(frame.name).toBe("Parent");
+    },
+  );
+
   it("starts compact and resizes only to known bridge UI modes", async () => {
     const { figma, shownUiSizes, resizedUiSizes } = createHarness();
 

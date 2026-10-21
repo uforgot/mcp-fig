@@ -172,7 +172,11 @@ export class DesktopPluginBridgeHost {
       fileName: session.handshake.file.name,
       revision: session.handshake.file.revision,
       readSource: "desktop-plugin",
-      writeSource: "desktop-plugin",
+      writeSource: session.handshake.capabilities.some((capability) =>
+        capability.endsWith(".write"),
+      )
+        ? "desktop-plugin"
+        : "none",
     };
   }
 

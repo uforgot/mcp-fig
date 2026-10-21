@@ -102,7 +102,9 @@ export class HybridFigmaBridge implements FigmaBridge {
       ...(sourceStatus?.fileName ? { fileName: sourceStatus.fileName } : {}),
       ...(sourceStatus?.revision ? { revision: sourceStatus.revision } : {}),
       readSource,
-      writeSource: pluginConnected ? "desktop-plugin" : "none",
+      writeSource: pluginConnected
+        ? (pluginStatus?.writeSource ?? "desktop-plugin")
+        : "none",
       pluginConnected,
       restAvailable,
       ...(!pluginConnected && restAvailable
