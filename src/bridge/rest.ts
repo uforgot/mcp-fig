@@ -562,6 +562,11 @@ export class RestFigmaBridge implements FigmaBridge {
                 component.name.toLowerCase().includes(query),
               )
             : components,
+          libraryCoverage: {
+            scope: "local_only",
+            fullCatalog: false,
+            reason: "PLUGIN_REQUIRED_FOR_LIBRARY_REFERENCES",
+          },
           ...this.#metadata(),
         };
       }

@@ -61,7 +61,7 @@ The production canaries in `scripts/live-plugin-canary.mjs`, `scripts/live-recon
 - Dev Mode inspection is enabled in the Live Bridge manifest. It advertises read-only capabilities and rejects edits/imports/capture preparation. Restart the Plugin after updating; re-import the manifest if Figma cached its old editor types. Developer-only account startup is not yet live-verified; see the README Dev Mode section.
 
 - Figma must be open with the development Plugin running in a safe file. launchd cannot force a development Plugin to remain active.
-- Enabled component-library inventory is unavailable through the Plugin API. Known-key import and already-imported component reuse are supported.
+- Full component-library catalog inventory is unavailable through the Plugin API. Core now reads library components referenced in the file (bounded scans with explicit coverage), discovers enabled variable-library metadata, and inspects accessible remote variable IDs without importing. The Plugin requires `teamlibrary` permission; relaunch/re-import after updating. Known-key import and already-imported component reuse are supported. Account-specific live linked-read verification remains pending.
 - Existing comment text cannot be edited through Figma's API. Comment deletion and Plugin annotations are not implemented.
 - Raw arbitrary execution is intentionally absent.
 - FigJam, Figma Slides, cloud canvas mutation relay, MCP Apps, version history, and blame are outside the replacement scope.

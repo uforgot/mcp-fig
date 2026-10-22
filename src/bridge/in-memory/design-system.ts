@@ -17,7 +17,7 @@ function componentRecords(root: FigmaNode): ComponentRecord[] {
   const records: ComponentRecord[] = [];
   if (root.type === "COMPONENT" || root.type === "COMPONENT_SET") {
     records.push({
-      source: "local",
+      source: root.componentSource ?? "local",
       kind: root.type,
       nodeId: root.id,
       name: root.name,
@@ -67,9 +67,42 @@ export class InMemoryDesignSystem {
         ? this.store.workingFile(input.fileKey, input.dryRun)
         : this.store.requireFile(input.fileKey);
     const local = componentRecords(file.document);
+    const instances: FigmaNode[] = [];
+    const visit = (node: FigmaNode): void => {
+      if (node.type === "INSTANCE") instances.push(node);
+      for (const child of node.children ?? []) visit(child);
+    };
+    visit(file.document);
+    const referenceOffset =
+      "referenceOffset" in input ? (input.referenceOffset ?? 0) : 0;
+    const batch = instances.slice(referenceOffset, referenceOffset + 500);
+    const referenced = file.libraryComponents.filter((component) =>
+      batch.some((instance) => instance.mainComponentKey === component.key),
+    );
+    const readable = [
+      ...local,
+      ...referenced.filter(
+        (component) => !local.some((item) => item.key === component.key),
+      ),
+    ];
+    const libraryCoverage = {
+      scope: "referenced_components_only",
+      fullCatalog: false,
+      referenceOffset,
+      totalInstances: instances.length,
+      scannedInstances: batch.length,
+      unavailableInstances: 0,
+      truncated: referenceOffset + batch.length < instances.length,
+      ...(referenceOffset + batch.length < instances.length
+        ? { nextReferenceOffset: referenceOffset + batch.length }
+        : {}),
+    };
 
     if (input.action === "search" || input.action === "library_search") {
-      const source = input.action === "search" ? local : file.libraryComponents;
+      const source =
+        input.action === "search"
+          ? readable
+          : readable.filter((component) => component.source === "library");
       const query = input.query?.toLowerCase();
       return {
         components: clone(
@@ -79,15 +112,18 @@ export class InMemoryDesignSystem {
               )
             : source,
         ),
+        libraryCoverage,
       };
     }
     if (input.action === "inspect" || input.action === "library_inspect") {
       const component =
         input.action === "library_inspect"
-          ? file.libraryComponents.find(
-              (candidate) => candidate.key === input.componentKey,
+          ? readable.find(
+              (candidate) =>
+                candidate.source === "library" &&
+                candidate.key === input.componentKey,
             )
-          : local.find(
+          : readable.find(
               (candidate) =>
                 candidate.nodeId === input.componentId ||
                 candidate.key === input.componentKey,
@@ -98,7 +134,7 @@ export class InMemoryDesignSystem {
           "Figma component was not found.",
         );
       }
-      return { component: clone(component) };
+      return { component: clone(component), libraryCoverage };
     }
     if (input.action === "library_import") {
       const component = file.libraryComponents.find(
@@ -530,13 +566,90 @@ export class InMemoryDesignSystem {
 
   async tokens(input: TokenActionInput): Promise<Record<string, unknown>> {
     const file =
-      input.action === "inspect"
-        ? this.store.requireFile(input.fileKey)
-        : this.store.workingFile(input.fileKey, input.dryRun);
-    if (input.action === "inspect") {
+      "dryRun" in input
+        ? this.store.workingFile(input.fileKey, input.dryRun)
+        : this.store.requireFile(input.fileKey);
+    if (
+      input.action === "library_search" ||
+      input.action === "library_inspect"
+    ) {
+      const inventory = file.libraryVariableCollections ?? [];
+      const query = input.query?.toLowerCase() ?? "";
+      const offset = input.offset ?? 0;
+      const limit = input.limit ?? 100;
+      if (input.action === "library_search") {
+        const collections = inventory.filter((item) =>
+          `${item.libraryName} ${item.name}`.toLowerCase().includes(query),
+        );
+        return {
+          collections: clone(
+            collections
+              .slice(offset, offset + limit)
+              .map(({ variables: _variables, ...collection }) => ({
+                source: "library",
+                ...collection,
+              })),
+          ),
+          metadataOnly: true,
+          total: collections.length,
+          offset,
+          ...(offset + limit < collections.length
+            ? { nextOffset: offset + limit }
+            : {}),
+        };
+      }
+      const collection = inventory.find(
+        (item) => item.key === input.collectionKey,
+      );
+      if (!collection)
+        throw new McpFigError(
+          "LIBRARY_SEARCH_UNAVAILABLE",
+          "Variable library is not available in the fixture.",
+          { details: { reason: "LIBRARY_ACCESS_OR_NETWORK" } },
+        );
+      const variables = collection.variables.filter((item) =>
+        item.name.toLowerCase().includes(query),
+      );
       return {
-        collections: clone(file.variableCollections),
-        variables: clone(file.variables),
+        collection: {
+          source: "library",
+          key: collection.key,
+          name: collection.name,
+          libraryName: collection.libraryName,
+        },
+        variables: clone(
+          variables.slice(offset, offset + limit).map((item) => ({
+            source: "library",
+            ...item,
+            collectionKey: collection.key,
+          })),
+        ),
+        metadataOnly: true,
+        total: variables.length,
+        offset,
+        ...(offset + limit < variables.length
+          ? { nextOffset: offset + limit }
+          : {}),
+      };
+    }
+    if (input.action === "inspect") {
+      const variables = input.variableIds
+        ? [...new Set(input.variableIds)].map((id) =>
+            this.#requireVariable(file, id),
+          )
+        : file.variables;
+      const collectionIds = new Set(
+        variables.map((variable) => variable.collectionId),
+      );
+      return {
+        collections: clone(
+          input.variableIds
+            ? file.variableCollections.filter((collection) =>
+                collectionIds.has(collection.id),
+              )
+            : file.variableCollections,
+        ),
+        variables: clone(variables),
       };
     }
     if (input.action === "library_import") {

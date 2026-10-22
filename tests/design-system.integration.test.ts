@@ -19,8 +19,11 @@ afterEach(async () => {
   await Promise.all(clients.splice(0).map((client) => client.close()));
 });
 
-async function createConnectedClient(profiles: ProfileName[] = ["core"]) {
-  const bridge = new InMemoryFigmaBridge([fixture], "fixture-file");
+async function createConnectedClient(
+  profiles: ProfileName[] = ["core"],
+  fileFixture = fixture,
+) {
+  const bridge = new InMemoryFigmaBridge([fileFixture], fileFixture.key);
   const server = createMcpServer(
     {
       version: "0.0.0-test",
@@ -198,8 +201,13 @@ describe("Component, instance, and token facade", () => {
     });
   });
 
-  it("keeps library components key-addressed and profile-gated", async () => {
-    const { client } = await createConnectedClient(["core", "libraries"]);
+  it("exposes referenced library reads in Core and keeps import profile-gated", async () => {
+    const { client, bridge } = await createConnectedClient();
+    await bridge.instance({
+      action: "create",
+      componentKey: "library-card-key",
+      parentId: "1:0",
+    });
     const result = await call(client, "figma_component", {
       action: "library_search",
       query: "card",
@@ -214,10 +222,20 @@ describe("Component, instance, and token facade", () => {
     ]);
 
     const { client: coreClient } = await createConnectedClient();
+    const read = await call(coreClient, "figma_component", {
+      action: "library_search",
+      query: "card",
+    });
+    expect(read.result.isError).not.toBe(true);
+    expect(read.payload.data.components).toEqual([]);
     const rejected = CallToolResultSchema.parse(
       await coreClient.callTool({
         name: "figma_component",
-        arguments: { action: "library_search", query: "card" },
+        arguments: {
+          action: "library_import",
+          componentKey: "library-card-key",
+          kind: "COMPONENT",
+        },
       }),
     );
     expect(rejected.isError).toBe(true);
@@ -225,6 +243,74 @@ describe("Component, instance, and token facade", () => {
       type: "text",
       text: expect.stringContaining("-32602"),
     });
+  });
+
+  it("discovers variable-library metadata through Core and reads selected variable IDs", async () => {
+    const { client } = await createConnectedClient(["core"], {
+      ...fixture,
+      libraryVariableCollections: [
+        {
+          key: "shared-colors",
+          name: "Colors",
+          libraryName: "Product UI",
+          variables: [
+            { key: "shared-brand", name: "Brand", resolvedType: "COLOR" },
+            { key: "shared-accent", name: "Accent", resolvedType: "COLOR" },
+          ],
+        },
+      ],
+    });
+    const collections = await call(client, "figma_tokens", {
+      action: "library_search",
+      query: "product",
+    });
+    expect(collections.payload.data).toMatchObject({
+      collections: [{ key: "shared-colors", libraryName: "Product UI" }],
+      metadataOnly: true,
+    });
+    const variables = await call(client, "figma_tokens", {
+      action: "library_inspect",
+      collectionKey: "shared-colors",
+      limit: 1,
+    });
+    expect(variables.payload.data).toMatchObject({
+      variables: [{ key: "shared-brand", resolvedType: "COLOR" }],
+      metadataOnly: true,
+      total: 2,
+      nextOffset: 1,
+    });
+    const next = await call(client, "figma_tokens", {
+      action: "library_inspect",
+      collectionKey: "shared-colors",
+      offset: variables.payload.data.nextOffset,
+    });
+    expect(next.payload.data.variables).toEqual([
+      expect.objectContaining({ key: "shared-accent" }),
+    ]);
+    const inspected = await call(client, "figma_tokens", {
+      action: "inspect",
+      variableIds: ["variable:brand"],
+    });
+    expect(inspected.payload.data.variables).toHaveLength(1);
+    expect(inspected.payload.data.variables[0]).toMatchObject({
+      id: "variable:brand",
+      valuesByMode: { "mode:light": "#0057FF" },
+    });
+    const missing = await call(client, "figma_tokens", {
+      action: "library_inspect",
+      collectionKey: "inaccessible",
+    });
+    expect(missing.payload.error.code).toBe("LIBRARY_SEARCH_UNAVAILABLE");
+    for (const args of [
+      { action: "library_search", limit: 201 },
+      { action: "library_inspect", collectionKey: "shared-colors", offset: -1 },
+      { action: "inspect", variableIds: [] },
+    ]) {
+      const invalid = CallToolResultSchema.parse(
+        await client.callTool({ name: "figma_tokens", arguments: args }),
+      );
+      expect(invalid.isError).toBe(true);
+    }
   });
 
   it("creates physical fixture slots and mutates their instance tree", async () => {

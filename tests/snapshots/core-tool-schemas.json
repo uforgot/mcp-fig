@@ -2,7 +2,7 @@
   {
     "name": "figma_component",
     "title": "Figma component",
-    "description": "Search, inspect, create, arrange, and manage local components; library actions are profile-gated and key-addressed.",
+    "description": "Search and inspect local and referenced library components. Library reads cover components used in this file, not a full library catalog. Author components; published-key import requires the libraries profile.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -47,11 +47,31 @@
             {
               "type": "string",
               "const": "slot_create"
+            },
+            {
+              "type": "string",
+              "const": "library_search"
+            },
+            {
+              "type": "string",
+              "const": "library_inspect"
             }
           ]
         },
         "query": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "referenceOffset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
         },
         "fileKey": {
           "type": "string",
@@ -90,8 +110,16 @@
           ]
         },
         "componentKey": {
-          "type": "string",
-          "minLength": 1
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
         },
         "expectedRevision": {
           "type": "string",
@@ -3742,7 +3770,7 @@
   {
     "name": "figma_tokens",
     "title": "Figma tokens",
-    "description": "Inspect variables and collections, apply values or aliases by mode, bind variables, and manage collections.",
+    "description": "Inspect local variables or explicit variableIds (including remote values). Discover enabled library collections with library_search and variable metadata with library_inspect; these reads never import. Apply values, bind variables, and manage collections.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3751,6 +3779,14 @@
             {
               "type": "string",
               "const": "inspect"
+            },
+            {
+              "type": "string",
+              "const": "library_search"
+            },
+            {
+              "type": "string",
+              "const": "library_inspect"
             },
             {
               "type": "string",
@@ -3786,7 +3822,58 @@
             }
           ]
         },
+        "variableIds": {
+          "minItems": 1,
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "fileKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "query": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          ]
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          ]
+        },
+        "collectionKey": {
           "type": "string",
           "minLength": 1
         },

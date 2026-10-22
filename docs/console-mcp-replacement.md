@@ -41,7 +41,7 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 | Profile/영역 | config에 존재 | 실제 등록 상태 |
 |---|---:|---|
 | `core` | yes | 아래 10개 facade가 항상 등록됨 |
-| `libraries` | yes | `figma_component` library actions와 `figma_styles.library_import`를 허용. import는 known key 전용이며 local write와 분리 |
+| `libraries` | yes | `figma_component.library_import`와 `figma_styles.library_import`를 허용. library read는 Core; import는 known key 전용이며 local write와 분리 |
 | `tokens` | yes | 새 등록 없음. `figma_tokens`는 이미 Core에 포함 |
 | `collaboration` | yes | optional `figma_collaboration` 등록. Figma REST를 통한 `comments`, `post`, `reply`를 제공 |
 | `history`, `slides`, `figjam`, `debug`, `advanced` | yes | **등록 tool/action 없음**. 목표 이름이며 capability evidence가 아님 |
@@ -55,9 +55,9 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 | `figma_selection` | `get`, `inspect` |
 | `figma_node` | `get`, `query`, `text_range_read`, `text_range_update`, `image_import`, `image_inspect`, `image_fill`, `export`, `create`, `update`, `move`, `resize`, `clone`, `delete` |
 | `figma_layout` | `inspect`, `apply`, `sizing`, `batch`, `validate`, `repair` |
-| `figma_component` | `search`, `inspect`, `create_set`, `arrange_set`, `set_description`, `property_add`, `property_update`, `property_delete`, `slots`, `slot_create`; `libraries` profile에서 `library_search`, `library_inspect`, `library_import` 추가 |
+| `figma_component` | `search`, `inspect`, referenced-only `library_search`, `library_inspect`, `create_set`, `arrange_set`, `set_description`, `property_add`, `property_update`, `property_delete`, `slots`, `slot_create`; `libraries` profile에서 `library_import` 추가 |
 | `figma_instance` | `inspect`, `create`, `swap`, `update`, `reset`, `slot_append`, `slot_reset` |
-| `figma_tokens` | `inspect`, `apply`, `library_import`, collection/variable create-update-delete, mode add-rename-remove, set value, alias, bind/unbind |
+| `figma_tokens` | `inspect` (explicit accessible remote IDs 포함), metadata-only `library_search`, `library_inspect`, `apply`, `library_import`, collection/variable create-update-delete, mode add-rename-remove, set value, alias, bind/unbind |
 | `figma_styles` | `inspect`, local `create`, `update`, `delete`; `libraries` profile에서 known-key `library_import` |
 | `figma_screenshot` | `capture` (`viewport`, `selection`, `node` focus scopes), bounded `audit` (`accessibility`, `design_system`, `layout`, `lint`) |
 | `figma_collaboration` (optional) | `comments`, `post`, `reply`; cloud file key와 Figma REST 권한 필요 |
@@ -78,7 +78,7 @@ Console MCP의 113개 tool 이름 자체를 복제하지 않는다. workflow를 
 | Node export artifact | component image, screenshot 계열 | `figma_node.export`와 owner-local artifact 저장 구현 | **complete** | P0 | `1157`에서 screenshot과 역할 분리 검증 | 실제 node를 PNG/JPG/SVG/PDF로 export하고 format/scale/payload 제한, 파일 signature, cleanup을 확인 |
 | Auto Layout authoring·validation·repair | 주로 `figma_execute`와 여러 node setter; first-class typed layout 없음 | `figma_layout` 6 actions, dry-run, atomic batch, deterministic validation/repair | **complete** | P0 | `1159` 최종 E2E | live frame에 apply → exact gap/padding/sizing readback → validate 0 issues → cleanup. invalid HUG/FILL fixture는 stable issue code로 탐지 |
 | Local component·variant·instance·slot | component set/property/slot/instance tools | local COMPONENT/COMPONENT_SET search/inspect, bounded set create, canonical variant/property readback, physical `ComponentNode.createSlot()`, instance inspect/create/display-key override/swap/reset/slot append-reset 구현 | **complete** | P0 | `1155` | live 4-variant set plus native SlotNode `Content#54:53`, append `1` → reset `0`, create/override/swap/default reset exact readback, cleanup 0. 세부 계약은 `docs/component-instance-library.md` |
-| Library component 검색·import | library components/by-key + instantiate/import | known published key `library_import` 구현. 같은 MCP process에서 exact `inspect`로 확인한 remote component는 key-addressed idempotent import로 재사용한다. Plugin API inventory 부재는 `LIBRARY_SEARCH_UNAVAILABLE`; definite rejection은 `LIBRARY_IMPORT_FAILED`, uncancellable timeout은 `UNKNOWN_OUTCOME/TIMEOUT_PENDING` | **complete** | P0 | `1155`, final live gate `1159` | enabled HDC library component `GNB / Desktop / KR` (`62:8488`, key `0e0878…f0428`)를 `core,libraries` runtime에서 exact inspect → `library_import`하고 `source: library`, `alreadyImported: true`, fallback 0 readback |
+| Library component 검색·import | library components/by-key + instantiate/import | known published key `library_import` 구현. 같은 MCP process에서 exact `inspect`로 확인한 remote component는 key-addressed idempotent import로 재사용한다. Core의 `library_search`는 referenced-only inventory와 coverage를 제공한다(full catalog 아님); definite import rejection은 `LIBRARY_IMPORT_FAILED`, uncancellable timeout은 `UNKNOWN_OUTCOME/TIMEOUT_PENDING` | **complete** | P0 | `1155`, final live gate `1159` | enabled HDC library component `GNB / Desktop / KR` (`62:8488`, key `0e0878…f0428`)를 `core,libraries` runtime에서 exact inspect → `library_import`하고 `source: library`, `alreadyImported: true`, fallback 0 readback |
 | Variables·modes·aliases·bindings | variable CRUD, mode, batch, token import/export | collection/variable CRUD, mode add/rename/remove, BOOLEAN/COLOR/FLOAT/STRING per-mode values, aliases, node bind/unbind, known-key library import. whole apply prevalidation으로 invalid alias cycle/type mismatch의 선행 mutation을 차단 | **complete** | P0 | `1156` | Light/Dark collection에서 CRUD/modes/alias/binding exact readback과 cleanup; alias cycle/type mismatch 차단. 세부 계약은 `docs/variables-styles.md` |
 | Local styles | get styles; 일부 raw execute | `figma_styles`: local paint/text/effect/grid inspect와 full create/update/delete. text font load, create cleanup, update rollback, destructive delete confirmation. published known-key import는 local write와 별도 action | **complete** | P0 | `1156` | 네 local style kind의 exact readback과 cleanup; library import/local mutation contract 분리. 세부 계약은 `docs/variables-styles.md` |
 | Viewport/selection screenshot | take/capture screenshot | `figma_screenshot.capture`: Plugin viewport/selection/node focus preparation 뒤 macOS CoreGraphics로 matching Figma Desktop window를 PNG capture. 0.25–1 scale, 8 MB hard cap, private artifact/quota, failure cleanup | **complete** | P0 | `1157` | viewport/selection/node schema, real Desktop screenshot, payload cap과 cleanup regression. 세부 계약은 `docs/visual-verification.md` |
@@ -201,7 +201,7 @@ Final replacement E2E 당시 automated result는 28 test files / 195 tests였고
 
 명시적 한계:
 
-- Figma Plugin API는 enabled component library inventory를 제공하지 않으므로 `library_search`는 의도적으로 unavailable이다. known-key import와 이미 import된 remote component의 idempotent reuse만 지원하며, fake/denied key의 `TIMEOUT_PENDING` truthfulness contract는 유지한다.
+- Figma Plugin API는 full component-library catalog를 제공하지 않는다. 현재 `library_search`는 파일에서 참조하는 component만 bounded scan하며 coverage/truncation을 명시한다. variable-library metadata discovery와 accessible remote variable ID read는 Core에서 지원한다. 새 linked-read 기능의 live account 검증은 아직 미완료이며, 기존 known-key import의 `TIMEOUT_PENDING` truthfulness contract는 유지한다.
 - node export와 desktop screenshot은 같은 proof가 아니다. export 구현만으로 visual verification을 `complete`로 보지 않는다.
 - `PROFILE_NAMES`에 이름이 있어도 `src/server.ts`가 tool/action을 등록하지 않으면 `missing`이다.
 - P0/P1은 usage telemetry 통계가 아니라 현재 backlog와 신빵의 명시된 design workflow를 바탕으로 확정한 product priority다.

@@ -428,6 +428,16 @@ export interface FigmaFileFixture {
   document: FigmaNode;
   selection?: string[];
   libraryComponents?: ComponentRecord[];
+  libraryVariableCollections?: Array<{
+    key: string;
+    name: string;
+    libraryName: string;
+    variables: Array<{
+      key: string;
+      name: string;
+      resolvedType: FigmaVariable["resolvedType"];
+    }>;
+  }>;
   variableCollections?: VariableCollection[];
   variables?: FigmaVariable[];
   styles?: FigmaStyleRecord[];
@@ -755,17 +765,29 @@ export interface LayoutSnapshot {
 }
 
 type ComponentAction =
-  | { action: "search"; query?: string; fileKey?: string }
+  | {
+      action: "search";
+      query?: string;
+      referenceOffset?: number;
+      fileKey?: string;
+    }
   | {
       action: "inspect";
       componentId?: string;
       componentKey?: string;
+      referenceOffset?: number;
       fileKey?: string;
     }
-  | { action: "library_search"; query?: string; fileKey?: string }
+  | {
+      action: "library_search";
+      query?: string;
+      referenceOffset?: number;
+      fileKey?: string;
+    }
   | {
       action: "library_inspect";
       componentKey: string;
+      referenceOffset?: number;
       fileKey?: string;
     }
   | {
@@ -928,7 +950,22 @@ export type TokenOperation =
     };
 
 type TokenAction =
-  | { action: "inspect"; fileKey?: string }
+  | { action: "inspect"; variableIds?: string[]; fileKey?: string }
+  | {
+      action: "library_search";
+      query?: string;
+      offset?: number;
+      limit?: number;
+      fileKey?: string;
+    }
+  | {
+      action: "library_inspect";
+      collectionKey: string;
+      query?: string;
+      offset?: number;
+      limit?: number;
+      fileKey?: string;
+    }
   | {
       action: "apply";
       operations: TokenOperation[];
@@ -985,7 +1022,10 @@ type TokenAction =
       fileKey?: string;
     };
 
-export type TokenActionInput = AddWriteControl<TokenAction, "inspect">;
+export type TokenActionInput = AddWriteControl<
+  TokenAction,
+  "inspect" | "library_search" | "library_inspect"
+>;
 
 export interface TextRangeStyle {
   fontName?: FontName;

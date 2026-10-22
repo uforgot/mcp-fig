@@ -97,48 +97,96 @@ function createComponentDomain({
     };
   }
 
+  async function readableComponents(referenceOffset = 0) {
+    const components = await localComponents();
+    const instances = figma.root.findAllWithCriteria({ types: ["INSTANCE"] });
+    const batch = instances.slice(referenceOffset, referenceOffset + 500);
+    const byId = new Map(components.map((node) => [node.id, node]));
+    let unavailable = 0;
+    // Limit concurrent remote resolutions and disclose the bounded scan.
+    for (let start = 0; start < batch.length; start += 8) {
+      await Promise.all(
+        batch.slice(start, start + 8).map(async (instance) => {
+          try {
+            const main = await instance.getMainComponentAsync();
+            if (!main) {
+              unavailable += 1;
+              return;
+            }
+            if (main.remote) {
+              byId.set(main.id, main);
+              if (main.parent?.type === "COMPONENT_SET")
+                byId.set(main.parent.id, main.parent);
+            }
+          } catch {
+            unavailable += 1;
+          }
+        }),
+      );
+    }
+    countSceneTraversal(components.length + batch.length);
+    const next = referenceOffset + batch.length;
+    return {
+      nodes: [...byId.values()],
+      libraryCoverage: {
+        scope: "referenced_components_only",
+        fullCatalog: false,
+        totalInstances: instances.length,
+        referenceOffset,
+        scannedInstances: batch.length,
+        unavailableInstances: unavailable,
+        truncated: next < instances.length,
+        ...(next < instances.length ? { nextReferenceOffset: next } : {}),
+      },
+    };
+  }
+
   async function componentCommand(input) {
-    if (input.action === "search") {
+    if (input.action === "search" || input.action === "library_search") {
       const query = (input.query || "").toLowerCase();
       const inventory = await revisionCached(
-        "component.inventory",
+        `component.inventory:${input.referenceOffset || 0}`,
         async () => {
-          const components = await localComponents();
-          countSceneTraversal(components.length);
-          return components.map(componentRecord);
+          const { nodes, libraryCoverage } = await readableComponents(
+            input.referenceOffset,
+          );
+          return { components: nodes.map(componentRecord), libraryCoverage };
         },
       );
       return {
-        components: inventory.filter((component) =>
-          component.name.toLowerCase().includes(query),
+        components: inventory.components.filter(
+          (component) =>
+            (input.action !== "library_search" ||
+              component.source === "library") &&
+            component.name.toLowerCase().includes(query),
         ),
+        libraryCoverage: inventory.libraryCoverage,
       };
     }
-    if (input.action === "inspect") {
+    if (input.action === "inspect" || input.action === "library_inspect") {
       let node;
+      let libraryCoverage;
       if (input.componentId) node = await nodeById(input.componentId);
       else {
-        const components = await localComponents();
-        countSceneTraversal(components.length);
-        node = components.find((item) => item.key === input.componentKey);
+        const inventory = await readableComponents(input.referenceOffset);
+        libraryCoverage = inventory.libraryCoverage;
+        node = inventory.nodes.find((item) => item.key === input.componentKey);
       }
-      if (node?.type !== "COMPONENT" && node?.type !== "COMPONENT_SET")
-        fail("NODE_NOT_FOUND", "Component or component set was not found.");
+      if (
+        (node?.type !== "COMPONENT" && node?.type !== "COMPONENT_SET") ||
+        (input.action === "library_inspect" && !node.remote)
+      )
+        fail(
+          "NODE_NOT_FOUND",
+          "Component was not found in the file or scanned library references. Full library catalog browsing is not available; inspect a used instance's mainComponentId or open the source library file.",
+          false,
+          { libraryCoverage },
+        );
       return {
         component: componentRecord(node),
         node: await serializeNode(node, true),
+        ...(libraryCoverage ? { libraryCoverage } : {}),
       };
-    }
-    if (
-      input.action === "library_search" ||
-      input.action === "library_inspect"
-    ) {
-      fail(
-        "LIBRARY_SEARCH_UNAVAILABLE",
-        "Figma Plugin API cannot enumerate component libraries. Use a published key with library_import.",
-        false,
-        { reason: "NO_COMPONENT_LIBRARY_INVENTORY_API" },
-      );
     }
     if (input.action === "library_import") {
       if (input.dryRun)

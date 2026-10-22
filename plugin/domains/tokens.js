@@ -11,6 +11,8 @@ function createTokensDomain({
   function serializeCollection(collection) {
     return {
       id: collection.id,
+      source: collection.remote ? "library" : "local",
+      ...(collection.key ? { key: collection.key } : {}),
       name: collection.name,
       defaultModeId: collection.defaultModeId,
       modes: collection.modes.map((mode) => ({
@@ -170,7 +172,121 @@ function createTokensDomain({
   }
 
   async function tokensCommand(input) {
+    if (
+      input.action === "library_search" ||
+      input.action === "library_inspect"
+    ) {
+      if (!figma.teamLibrary?.getAvailableLibraryVariableCollectionsAsync)
+        fail(
+          "LIBRARY_SEARCH_UNAVAILABLE",
+          "Library variable discovery requires the updated Plugin with teamlibrary permission.",
+          false,
+          { reason: "TEAM_LIBRARY_API_UNAVAILABLE" },
+        );
+      let collections;
+      let variables;
+      try {
+        collections =
+          await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
+        if (input.action === "library_inspect")
+          variables =
+            await figma.teamLibrary.getVariablesInLibraryCollectionAsync(
+              input.collectionKey,
+            );
+      } catch {
+        fail(
+          "LIBRARY_SEARCH_UNAVAILABLE",
+          "Could not read the enabled variable library. Check library enablement, account access, network, and the Plugin's teamlibrary permission.",
+          false,
+          { reason: "LIBRARY_ACCESS_OR_NETWORK" },
+        );
+      }
+      const query = (input.query || "").toLowerCase();
+      const offset = input.offset || 0;
+      const limit = input.limit || 100;
+      if (input.action === "library_search") {
+        const filtered = collections.filter((item) =>
+          `${item.libraryName} ${item.name}`.toLowerCase().includes(query),
+        );
+        return {
+          collections: filtered.slice(offset, offset + limit).map((item) => ({
+            source: "library",
+            key: item.key,
+            name: item.name,
+            libraryName: item.libraryName,
+          })),
+          total: filtered.length,
+          offset,
+          ...(offset + limit < filtered.length
+            ? { nextOffset: offset + limit }
+            : {}),
+          metadataOnly: true,
+        };
+      }
+      const collection = collections.find(
+        (item) => item.key === input.collectionKey,
+      );
+      const filtered = variables.filter((item) =>
+        item.name.toLowerCase().includes(query),
+      );
+      return {
+        collection: collection
+          ? {
+              source: "library",
+              key: collection.key,
+              name: collection.name,
+              libraryName: collection.libraryName,
+            }
+          : { source: "library", key: input.collectionKey },
+        variables: filtered.slice(offset, offset + limit).map((item) => ({
+          source: "library",
+          key: item.key,
+          name: item.name,
+          resolvedType: item.resolvedType,
+          collectionKey: input.collectionKey,
+        })),
+        total: filtered.length,
+        offset,
+        ...(offset + limit < filtered.length
+          ? { nextOffset: offset + limit }
+          : {}),
+        metadataOnly: true,
+        valuesUnavailableReason:
+          "Library discovery exposes metadata only. Use inspect with accessible variableIds for values; library_import is an explicit mutation and is unavailable in Dev Mode.",
+      };
+    }
     if (input.action === "inspect") {
+      if (input.variableIds) {
+        const variables = await Promise.all(
+          [...new Set(input.variableIds)].map(async (id) => {
+            const variable = await figma.variables.getVariableByIdAsync(id);
+            if (!variable)
+              fail(
+                "NODE_NOT_FOUND",
+                `Variable ${id} was not found or is not accessible.`,
+              );
+            return variable;
+          }),
+        );
+        const collections = await Promise.all(
+          [...new Set(variables.map((item) => item.variableCollectionId))].map(
+            async (id) => {
+              const collection =
+                await figma.variables.getVariableCollectionByIdAsync(id);
+              if (!collection)
+                fail(
+                  "NODE_NOT_FOUND",
+                  `Variable collection ${id} was not found or is not accessible.`,
+                );
+              return collection;
+            },
+          ),
+        );
+        return {
+          collections: collections.map(serializeCollection),
+          variables: variables.map(serializeVariable),
+        };
+      }
       return revisionCached("tokens.inventory", async () => {
         const { collections, variables } = await inventory();
         return {

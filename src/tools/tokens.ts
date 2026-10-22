@@ -86,7 +86,32 @@ const operation = z.discriminatedUnion("op", [
 ]);
 
 const inputSchema = z.union([
-  z.object({ action: z.literal("inspect"), fileKey }).strict(),
+  z
+    .object({
+      action: z.literal("inspect"),
+      variableIds: z.array(z.string().min(1)).min(1).max(200).optional(),
+      fileKey,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("library_search"),
+      query: z.string().optional(),
+      offset: z.number().int().nonnegative().optional(),
+      limit: z.number().int().min(1).max(200).optional(),
+      fileKey,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("library_inspect"),
+      collectionKey: z.string().min(1),
+      query: z.string().optional(),
+      offset: z.number().int().nonnegative().optional(),
+      limit: z.number().int().min(1).max(200).optional(),
+      fileKey,
+    })
+    .strict(),
   z
     .object({
       action: z.literal("apply"),
@@ -184,7 +209,7 @@ export function registerTokensTool(
     {
       title: "Figma tokens",
       description:
-        "Inspect variables and collections, apply values or aliases by mode, bind variables, and manage collections.",
+        "Inspect local variables or explicit variableIds (including remote values). Discover enabled library collections with library_search and variable metadata with library_inspect; these reads never import. Apply values, bind variables, and manage collections.",
       inputSchema: exposeMcpInputSchema(inputSchema),
       annotations: {
         readOnlyHint: false,

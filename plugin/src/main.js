@@ -17,7 +17,7 @@ function supportsDevModeCommand(method, params) {
       "slots",
     ],
     instance: ["inspect"],
-    tokens: ["inspect"],
+    tokens: ["inspect", "library_search", "library_inspect"],
     styles: ["inspect"],
     visual: ["audit", "release_capture"],
   };

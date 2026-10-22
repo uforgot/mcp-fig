@@ -15,7 +15,7 @@ MCP Fig replaces the owner's routine Figma Console MCP workflow with ten typed c
 - a reviewed production-style page converted into reusable components, nested/root Auto Layout, and a separate 390px mobile design;
 - zero Figma Console MCP, raw-execute, or browser mutation fallback during the replacement and reviewed-page dogfood gates.
 
-The replacement does not claim Figma API parity. Raw arbitrary execution, FigJam, Slides, enabled-library inventory, comment edit/delete, Plugin annotations, version history, and console streaming are either intentionally excluded or still limited. See [the replacement capability matrix](docs/console-mcp-replacement.md).
+The replacement does not claim Figma API parity. Raw arbitrary execution, FigJam, Slides, full component-library catalogs, comment edit/delete, Plugin annotations, version history, and console streaming are either intentionally excluded or still limited. Enabled variable-library metadata and components referenced in the current file are readable. See [the replacement capability matrix](docs/console-mcp-replacement.md).
 
 ## Install with an AI agent
 
@@ -209,6 +209,19 @@ The Live Bridge manifest supports both Figma Design and Dev Mode inspection. Aft
 Dev Mode shows **Connected · Read-only** and advertises only read capabilities. Document/selection/node reads, node exports, text-range reads, image metadata, and supported layout/component/instance/variable/style inspection remain available. Document edits, imports, and Desktop screenshot preparation are rejected; use Design mode with edit access for authoring. This does not grant or bypass Figma file permissions. Live Dev Mode startup with a developer-only account still requires verification; automated tests use a simulated Plugin API and transport.
 
 See [Figma's Dev Mode Plugin documentation](https://developers.figma.com/docs/plugins/working-in-dev-mode/).
+
+## Linked-library reads
+
+These actions are available in the default **Core** profile in both Design and Dev Mode. They require a connected, updated Live Bridge Plugin; REST fallback cannot discover library references or variable libraries.
+
+- `figma_component.search` includes local components and remote main components referenced by instances in this file. `library_search` filters that result to library components; `library_inspect` reads a referenced published key. Inspecting an instance also returns `mainComponentId`, which can be passed directly to `figma_component.inspect`.
+- Component results report `libraryCoverage.scope: referenced_components_only`, `fullCatalog: false`, and inaccessible-reference counts. Each call resolves at most 500 instances with eight concurrent lookups. If `nextReferenceOffset` is returned, repeat with that `referenceOffset` and merge components by key/ID. This is not a catalog of every component in enabled libraries; open the source library file to search components not used here.
+- `figma_tokens.library_search` lists enabled library variable collections (`key`, `name`, `libraryName`). `library_inspect` takes a `collectionKey` and lists variable keys, names, and types. Both accept `query`, `offset`, and `limit` (default 100, maximum 200), and return `nextOffset` when more results exist.
+- Library variable discovery is **metadata only**: Figma does not return values or modes from this API. For variables already accessible by ID, use `figma_tokens.inspect` with `variableIds` (1–200), including IDs from node `boundVariables`, to read values and collection modes without importing. Without `variableIds`, `inspect` retains its local-inventory behavior.
+
+No read action imports assets or enables libraries. Libraries must be enabled manually in Figma; discovery requires the Plugin manifest's `teamlibrary` permission. After pulling and building an update, re-import `plugin/manifest.json` if Figma cached the older permissions, restart the MCP client, and relaunch the Plugin. Known-key imports remain explicit mutations and are blocked in Dev Mode; component import still requires the `libraries` profile.
+
+Example requests: “List the variable libraries enabled in this file,” “Inspect variables in collection key …,” and “Find library components already used in this file.” Automated coverage is not proof of live account-specific access.
 
 ## Optional collaboration profile
 

@@ -124,7 +124,7 @@ export function isReadOnlyRequest(method: string, params: unknown): boolean {
       "slots",
     ],
     instance: ["inspect"],
-    tokens: ["inspect"],
+    tokens: ["inspect", "library_search", "library_inspect"],
     styles: ["inspect"],
   };
   return domainReads[method]?.includes(String(action)) === true;

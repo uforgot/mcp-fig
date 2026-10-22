@@ -11,6 +11,7 @@ import { writeControlSchema } from "./write-control.js";
 
 const fileKey = z.string().min(1).optional();
 const dryRun = z.boolean().default(false);
+const referenceOffset = z.number().int().nonnegative().optional();
 const slotSettings = z
   .object({
     stretchChildOnInsert: z.boolean().optional(),
@@ -68,6 +69,7 @@ const coreSchemas = [
     .object({
       action: z.literal("search"),
       query: z.string().optional(),
+      referenceOffset,
       fileKey,
     })
     .strict(),
@@ -76,6 +78,7 @@ const coreSchemas = [
       action: z.literal("inspect"),
       componentId: z.string().min(1).optional(),
       componentKey: z.string().min(1).optional(),
+      referenceOffset,
       fileKey,
     })
     .strict()
@@ -172,13 +175,11 @@ const coreSchemas = [
       fileKey,
     })
     .strict(),
-] as const;
-
-const librarySchemas = [
   z
     .object({
       action: z.literal("library_search"),
       query: z.string().optional(),
+      referenceOffset,
       fileKey,
     })
     .strict(),
@@ -186,9 +187,13 @@ const librarySchemas = [
     .object({
       action: z.literal("library_inspect"),
       componentKey: z.string().min(1),
+      referenceOffset,
       fileKey,
     })
     .strict(),
+] as const;
+
+const librarySchemas = [
   z
     .object({
       action: z.literal("library_import"),
@@ -225,7 +230,7 @@ export function registerComponentTool(
     {
       title: "Figma component",
       description:
-        "Search, inspect, create, arrange, and manage local components; library actions are profile-gated and key-addressed.",
+        "Search and inspect local and referenced library components. Library reads cover components used in this file, not a full library catalog. Author components; published-key import requires the libraries profile.",
       inputSchema: exposeMcpInputSchema(inputSchema),
       annotations: {
         readOnlyHint: false,

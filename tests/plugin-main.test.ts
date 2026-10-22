@@ -68,6 +68,7 @@ function createHarness(
     rootName?: string;
     rootPluginData?: Map<string, string>;
     editorType?: "figma" | "dev";
+    libraryError?: boolean;
   } = {},
 ) {
   const messages: Record<string, unknown>[] = [];
@@ -671,6 +672,26 @@ function createHarness(
     fileKey: options.fileKey === undefined ? "test-file" : options.fileKey,
     root,
     currentPage: page,
+    teamLibrary: {
+      async getAvailableLibraryVariableCollectionsAsync() {
+        if (options.libraryError) throw new Error("library access denied");
+        return [
+          { key: "library-colors", name: "Colors", libraryName: "Product UI" },
+          {
+            key: "library-spacing",
+            name: "Spacing",
+            libraryName: "Product UI",
+          },
+        ];
+      },
+      async getVariablesInLibraryCollectionAsync(key: string) {
+        if (key !== "library-colors") throw new Error("library access denied");
+        return [
+          { key: "library-brand", name: "Brand", resolvedType: "COLOR" },
+          { key: "library-accent", name: "Accent", resolvedType: "COLOR" },
+        ];
+      },
+    },
     mixed: Symbol("mixed"),
     viewport: {
       bounds: { x: 0, y: 0, width: 1200, height: 800 },
@@ -949,6 +970,7 @@ function createHarness(
     child,
     text,
     component,
+    remoteComponent,
     instance,
     handlers,
     messages,
@@ -967,6 +989,291 @@ function createHarness(
 }
 
 describe("Figma Plugin main bridge", () => {
+  it.each(["figma", "dev"] as const)(
+    "reads referenced components without importing in %s mode",
+    async (editorType) => {
+      const { command, figma, component, remoteComponent, instance } =
+        createHarness({ editorType });
+      const parent: MockNode = {
+        id: "remote:set",
+        type: "COMPONENT_SET",
+        name: "Library cards",
+        key: "library-set-key",
+        remote: true,
+        children: [],
+        componentPropertyDefinitions: {},
+      };
+      remoteComponent.parent = parent;
+      instance.mainComponentRef = remoteComponent;
+      // Remote main components need not be in the document tree.
+      figma.root.findAllWithCriteria = ({ types }: { types: string[] }) =>
+        types.includes("INSTANCE") ? [instance, instance] : [component];
+      const imported = vi.spyOn(figma, "importComponentByKeyAsync");
+      const searched = await command("component", {
+        action: "search",
+        query: "card",
+      });
+      expect(searched).toMatchObject({
+        ok: true,
+        data: {
+          components: [
+            expect.objectContaining({ key: "library-card-key" }),
+            expect.objectContaining({ key: "library-set-key" }),
+          ],
+          libraryCoverage: {
+            fullCatalog: false,
+            scannedInstances: 2,
+            unavailableInstances: 0,
+          },
+        },
+      });
+      const library = await command("component", {
+        action: "library_search",
+        query: "CARD",
+      });
+      expect(library).toMatchObject({
+        ok: true,
+        data: {
+          components: [
+            expect.objectContaining({ source: "library" }),
+            expect.objectContaining({ kind: "COMPONENT_SET" }),
+          ],
+        },
+      });
+      await expect(
+        command("component", {
+          action: "inspect",
+          componentKey: "library-card-key",
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        data: {
+          component: {
+            key: "library-card-key",
+            properties: { "Label#library:card": { type: "TEXT" } },
+          },
+        },
+      });
+      await expect(
+        command("component", {
+          action: "library_inspect",
+          componentKey: "library-set-key",
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        data: { component: { kind: "COMPONENT_SET", key: "library-set-key" } },
+      });
+      await expect(
+        command("component", {
+          action: "library_inspect",
+          componentKey: "not-used",
+        }),
+      ).resolves.toMatchObject({
+        ok: false,
+        error: { code: "NODE_NOT_FOUND" },
+      });
+      expect(imported).not.toHaveBeenCalled();
+    },
+  );
+
+  it("bounds library reference scans and reports inaccessible instances", async () => {
+    const { command, figma, instance, remoteComponent } = createHarness();
+    instance.mainComponentRef = remoteComponent;
+    const unavailable = {
+      ...instance,
+      async getMainComponentAsync() {
+        throw new Error("permission denied");
+      },
+    };
+    const missing = {
+      ...instance,
+      async getMainComponentAsync() {
+        return null;
+      },
+    };
+    figma.root.findAllWithCriteria = ({ types }: { types: string[] }) =>
+      types.includes("INSTANCE")
+        ? [...Array(499).fill(instance), unavailable, missing]
+        : [];
+    await expect(
+      command("component", { action: "library_search" }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: {
+        components: [expect.objectContaining({ key: "library-card-key" })],
+        libraryCoverage: {
+          scannedInstances: 500,
+          unavailableInstances: 1,
+          truncated: true,
+          nextReferenceOffset: 500,
+        },
+      },
+    });
+    await expect(
+      command("component", { action: "library_search", referenceOffset: 500 }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: {
+        components: [],
+        libraryCoverage: {
+          scannedInstances: 1,
+          unavailableInstances: 1,
+          truncated: false,
+        },
+      },
+    });
+  });
+
+  it.each(["figma", "dev"] as const)(
+    "discovers variable libraries without importing in %s mode",
+    async (editorType) => {
+      const { command, figma } = createHarness({ editorType });
+      const imported = vi.spyOn(figma.variables, "importVariableByKeyAsync");
+      await expect(
+        command("tokens", {
+          action: "library_search",
+          query: "product",
+          limit: 1,
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        data: {
+          collections: [
+            {
+              source: "library",
+              key: "library-colors",
+              libraryName: "Product UI",
+            },
+          ],
+          metadataOnly: true,
+          total: 2,
+          nextOffset: 1,
+        },
+      });
+      await expect(
+        command("tokens", { action: "library_search", offset: 1, limit: 1 }),
+      ).resolves.toMatchObject({
+        ok: true,
+        data: { collections: [{ key: "library-spacing" }], offset: 1 },
+      });
+      const result = (await command("tokens", {
+        action: "library_inspect",
+        collectionKey: "library-colors",
+        query: "brand",
+      })) as unknown as MockPluginResult;
+      expect(result).toMatchObject({
+        ok: true,
+        data: {
+          variables: [
+            {
+              key: "library-brand",
+              name: "Brand",
+              resolvedType: "COLOR",
+              collectionKey: "library-colors",
+            },
+          ],
+          metadataOnly: true,
+          total: 1,
+        },
+      });
+      expect(result.data.variables).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ valuesByMode: expect.anything() }),
+        ]),
+      );
+      await expect(
+        command("tokens", {
+          action: "library_inspect",
+          collectionKey: "denied",
+        }),
+      ).resolves.toMatchObject({
+        ok: false,
+        error: {
+          code: "LIBRARY_SEARCH_UNAVAILABLE",
+          details: { reason: "LIBRARY_ACCESS_OR_NETWORK" },
+        },
+      });
+      expect(imported).not.toHaveBeenCalled();
+      if (editorType === "dev")
+        await expect(
+          command("tokens", {
+            action: "library_import",
+            variableKey: "library-brand",
+          }),
+        ).resolves.toMatchObject({
+          ok: false,
+          error: { code: "UNSUPPORTED_BY_BRIDGE" },
+        });
+    },
+  );
+
+  it("reports variable-library access failures rather than an empty inventory", async () => {
+    const { command, figma } = createHarness({ libraryError: true });
+    await expect(
+      command("tokens", { action: "library_search" }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "LIBRARY_SEARCH_UNAVAILABLE",
+        details: { reason: "LIBRARY_ACCESS_OR_NETWORK" },
+      },
+    });
+    Object.defineProperty(figma, "teamLibrary", { value: undefined });
+    await expect(
+      command("tokens", { action: "library_search" }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "LIBRARY_SEARCH_UNAVAILABLE",
+        details: { reason: "TEAM_LIBRARY_API_UNAVAILABLE" },
+      },
+    });
+  });
+
+  it("reads accessible remote variable values by ID in Dev Mode without imports", async () => {
+    const { command, figma } = createHarness({ editorType: "dev" });
+    const collection =
+      figma.variables.createVariableCollection("Shared colors");
+    Object.assign(collection, { remote: true, key: "remote-collection-key" });
+    const variable = figma.variables.createVariable(
+      "Brand",
+      collection,
+      "COLOR",
+    );
+    Object.assign(variable, { remote: true });
+    variable.setValueForMode(collection.defaultModeId, {
+      r: 1,
+      g: 0,
+      b: 0,
+      a: 1,
+    });
+    const imported = vi.spyOn(figma.variables, "importVariableByKeyAsync");
+    await expect(
+      command("tokens", {
+        action: "inspect",
+        variableIds: [variable.id, variable.id],
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: {
+        collections: [{ source: "library", key: "remote-collection-key" }],
+        variables: [
+          {
+            source: "library",
+            id: variable.id,
+            valuesByMode: {
+              [collection.defaultModeId]: { r: 1, g: 0, b: 0, a: 1 },
+            },
+          },
+        ],
+      },
+    });
+    await expect(
+      command("tokens", { action: "inspect", variableIds: ["not-accessible"] }),
+    ).resolves.toMatchObject({ ok: false, error: { code: "NODE_NOT_FOUND" } });
+    expect(imported).not.toHaveBeenCalled();
+  });
+
   it("reads and exports in Dev Mode without resizing the Inspect panel", async () => {
     const { command, messages, figma, resizedUiSizes } = createHarness({
       editorType: "dev",
@@ -2755,7 +3062,7 @@ describe("Figma Plugin main bridge", () => {
     ]);
   });
 
-  it("uses real slot nodes and returns structured library limitations", async () => {
+  it("uses real slot nodes and reads referenced library components", async () => {
     const { command } = createHarness();
     await expect(
       command("instance", {
@@ -2781,8 +3088,19 @@ describe("Figma Plugin main bridge", () => {
     await expect(
       command("component", { action: "library_search", query: "card" }),
     ).resolves.toMatchObject({
-      ok: false,
-      error: { code: "LIBRARY_SEARCH_UNAVAILABLE" },
+      ok: true,
+      data: {
+        components: [
+          expect.objectContaining({
+            source: "library",
+            key: "library-card-key",
+          }),
+        ],
+        libraryCoverage: {
+          fullCatalog: false,
+          scope: "referenced_components_only",
+        },
+      },
     });
     await expect(
       command("component", {

@@ -1,10 +1,10 @@
 # Component, instance, slot, and library contract
 
-This contract extends the existing `figma_component` and `figma_instance` facades. It does not add top-level MCP tools or imply that the Figma Plugin API can enumerate team libraries.
+This contract extends the existing `figma_component` and `figma_instance` facades. It does not add top-level MCP tools or imply that the Figma Plugin API can enumerate a full component-library catalog.
 
 ## Local components and component sets
 
-`figma_component.search` and `inspect` read both `COMPONENT` and `COMPONENT_SET` nodes after `loadAllPagesAsync()`. Records expose `kind`, local/library source, node ID, key, description, and canonical property definitions.
+`figma_component.search` and `inspect` read both `COMPONENT` and `COMPONENT_SET` nodes after `loadAllPagesAsync()`, including remote main components resolved from document instances and their available parent sets. Records expose `kind`, local/library source, node ID, key, description, and canonical property definitions.
 
 `create_set` accepts 1–8 axes, 1–20 unique non-empty values per axis, and at most 100 Cartesian variants. The Plugin creates all variants, calls `combineAsVariants`, and removes the set or every created variant if a later step fails. Variant children cannot read `componentPropertyDefinitions` directly in Figma; readback falls back to their parent component set definitions.
 
@@ -33,17 +33,17 @@ Instances created from that component materialize the descendant `SlotNode`. Run
 
 ## Libraries and explicit API limits
 
-The `libraries` profile exposes `library_search`, `library_inspect`, and `library_import` inside `figma_component`.
+Core exposes `library_search` and `library_inspect` inside `figma_component`; the optional `libraries` profile adds `library_import`.
 
-Figma Plugin API has no component-library inventory/search API. Therefore `library_search` and `library_inspect` return `LIBRARY_SEARCH_UNAVAILABLE` with `reason: NO_COMPONENT_LIBRARY_INVENTORY_API`; fixture inventory is not presented as live cloud support.
+Figma Plugin API has no full component-library inventory/search API. `library_search` instead returns library components referenced in the current file, deduplicated by node ID, and `library_inspect` resolves a readable referenced key. Neither imports anything. Unknown/unreferenced keys return `NODE_NOT_FOUND`, not a pretend cloud inventory. Results include `libraryCoverage` with `scope: referenced_components_only`, `fullCatalog: false`, the scan offset, total/scanned/unavailable instance counts, and truncation. A scan resolves at most 500 instances in batches of eight. Follow `nextReferenceOffset` using `referenceOffset` on search/inspect; inspecting a used instance's `mainComponentId` directly avoids the inventory scan. Full unused-library browsing still requires opening the source library file. Reads are allowed in Dev Mode; imports are not.
 
 `library_import` accepts a known published key and explicit `COMPONENT` or `COMPONENT_SET` kind. It uses `importComponentByKeyAsync` or `importComponentSetByKeyAsync` and returns the imported record/node. A definite rejection returns `LIBRARY_IMPORT_FAILED` with `reason: PLAN_ACCESS_OR_KEY`. The Figma import promise is not cancellable: when the four-second observation bound expires, the operation may still finish later, so the result is `UNKNOWN_OUTCOME` with `reason: TIMEOUT_PENDING`, not a false definite failure. The API does not reveal which of key, plan, access, or enabled-library state caused a generic rejection.
 
 ## Fixture versus Plugin live behavior
 
-The in-memory fixture provides deterministic library inventory/key import and models `slot_create` as a physical `SLOT` child cloned into local instances, so schema and workflow composition can be tested offline. It cannot prove account plan, library enablement, network access, Figma-generated property key suffixes/rename timing, actual SlotNode materialization, or API latency.
+The in-memory fixture limits library search to component keys referenced by document instances (plus remote nodes already present), while retaining a fixture key inventory for explicit imports. It models `slot_create` as a physical `SLOT` child cloned into local instances. These tests cannot prove account plan, library enablement, network access, Figma-generated property key suffixes/rename timing, actual SlotNode materialization, or API latency.
 
-The 2026-07-27 persistent Desktop Plugin canary on `local:0:0` confirmed:
+The historical 2026-07-27 persistent Desktop Plugin canary on `local:0:0` (before referenced-library reads were added) confirmed:
 
 - a disposable `COMPONENT_SET` with 2 axes and 4 variants;
 - local set search/inspect with `kind: COMPONENT_SET`;

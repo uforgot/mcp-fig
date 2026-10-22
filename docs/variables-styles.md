@@ -14,7 +14,9 @@ This document is the item `1156` contract for design-system variables and local 
 
 | Action | Scope |
 |---|---|
-| `inspect` | canonical local collections, modes, variables, and per-mode values |
+| `inspect` | canonical local inventory by default; explicit accessible `variableIds` also read remote values and collection modes |
+| `library_search` | enabled variable-library collection metadata; query/offset/limit; Core read, no import |
+| `library_inspect` | variable key/name/type metadata in a `collectionKey`; query/offset/limit; no values or modes |
 | `collection_create` / `collection_update` / `collection_delete` | local collection CRUD; delete requires dry-run confirmation |
 | `variable_create` / `variable_update` / `variable_delete` | local variable CRUD; delete requires dry-run confirmation |
 | `apply` | bounded mode/value/alias/bind operations after whole-batch prevalidation |
@@ -31,6 +33,8 @@ This document is the item `1156` contract for design-system variables and local 
 - aliases → `{type:"VARIABLE_ALIAS",id:<variable id>}` and the target must have the same `resolvedType`
 
 Collection modes are always serialized as `{id,name}` even though the native Plugin API calls the ID field `modeId`.
+
+Library discovery uses `figma.teamLibrary` and requires the `teamlibrary` manifest permission plus manually enabled libraries. Discovery returns `metadataOnly: true`; it never imports variables or bypasses account access. Reads are allowed in Dev Mode, whereas `library_import` remains a mutation. Use IDs from node `boundVariables` with `inspect.variableIds` for accessible remote values. Library API errors are explicit `LIBRARY_SEARCH_UNAVAILABLE` failures, not empty inventories. REST fallback does not implement these Plugin reads.
 
 ### Validation and mutation semantics
 

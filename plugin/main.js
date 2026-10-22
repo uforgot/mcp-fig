@@ -2115,48 +2115,96 @@ function createComponentDomain({
     };
   }
 
+  async function readableComponents(referenceOffset = 0) {
+    const components = await localComponents();
+    const instances = figma.root.findAllWithCriteria({ types: ["INSTANCE"] });
+    const batch = instances.slice(referenceOffset, referenceOffset + 500);
+    const byId = new Map(components.map((node) => [node.id, node]));
+    let unavailable = 0;
+    // Limit concurrent remote resolutions and disclose the bounded scan.
+    for (let start = 0; start < batch.length; start += 8) {
+      await Promise.all(
+        batch.slice(start, start + 8).map(async (instance) => {
+          try {
+            const main = await instance.getMainComponentAsync();
+            if (!main) {
+              unavailable += 1;
+              return;
+            }
+            if (main.remote) {
+              byId.set(main.id, main);
+              if (main.parent?.type === "COMPONENT_SET")
+                byId.set(main.parent.id, main.parent);
+            }
+          } catch {
+            unavailable += 1;
+          }
+        }),
+      );
+    }
+    countSceneTraversal(components.length + batch.length);
+    const next = referenceOffset + batch.length;
+    return {
+      nodes: [...byId.values()],
+      libraryCoverage: {
+        scope: "referenced_components_only",
+        fullCatalog: false,
+        totalInstances: instances.length,
+        referenceOffset,
+        scannedInstances: batch.length,
+        unavailableInstances: unavailable,
+        truncated: next < instances.length,
+        ...(next < instances.length ? { nextReferenceOffset: next } : {}),
+      },
+    };
+  }
+
   async function componentCommand(input) {
-    if (input.action === "search") {
+    if (input.action === "search" || input.action === "library_search") {
       const query = (input.query || "").toLowerCase();
       const inventory = await revisionCached(
-        "component.inventory",
+        `component.inventory:${input.referenceOffset || 0}`,
         async () => {
-          const components = await localComponents();
-          countSceneTraversal(components.length);
-          return components.map(componentRecord);
+          const { nodes, libraryCoverage } = await readableComponents(
+            input.referenceOffset,
+          );
+          return { components: nodes.map(componentRecord), libraryCoverage };
         },
       );
       return {
-        components: inventory.filter((component) =>
-          component.name.toLowerCase().includes(query),
+        components: inventory.components.filter(
+          (component) =>
+            (input.action !== "library_search" ||
+              component.source === "library") &&
+            component.name.toLowerCase().includes(query),
         ),
+        libraryCoverage: inventory.libraryCoverage,
       };
     }
-    if (input.action === "inspect") {
+    if (input.action === "inspect" || input.action === "library_inspect") {
       let node;
+      let libraryCoverage;
       if (input.componentId) node = await nodeById(input.componentId);
       else {
-        const components = await localComponents();
-        countSceneTraversal(components.length);
-        node = components.find((item) => item.key === input.componentKey);
+        const inventory = await readableComponents(input.referenceOffset);
+        libraryCoverage = inventory.libraryCoverage;
+        node = inventory.nodes.find((item) => item.key === input.componentKey);
       }
-      if (node?.type !== "COMPONENT" && node?.type !== "COMPONENT_SET")
-        fail("NODE_NOT_FOUND", "Component or component set was not found.");
+      if (
+        (node?.type !== "COMPONENT" && node?.type !== "COMPONENT_SET") ||
+        (input.action === "library_inspect" && !node.remote)
+      )
+        fail(
+          "NODE_NOT_FOUND",
+          "Component was not found in the file or scanned library references. Full library catalog browsing is not available; inspect a used instance's mainComponentId or open the source library file.",
+          false,
+          { libraryCoverage },
+        );
       return {
         component: componentRecord(node),
         node: await serializeNode(node, true),
+        ...(libraryCoverage ? { libraryCoverage } : {}),
       };
-    }
-    if (
-      input.action === "library_search" ||
-      input.action === "library_inspect"
-    ) {
-      fail(
-        "LIBRARY_SEARCH_UNAVAILABLE",
-        "Figma Plugin API cannot enumerate component libraries. Use a published key with library_import.",
-        false,
-        { reason: "NO_COMPONENT_LIBRARY_INVENTORY_API" },
-      );
     }
     if (input.action === "library_import") {
       if (input.dryRun)
@@ -2758,6 +2806,8 @@ function createTokensDomain({
   function serializeCollection(collection) {
     return {
       id: collection.id,
+      source: collection.remote ? "library" : "local",
+      ...(collection.key ? { key: collection.key } : {}),
       name: collection.name,
       defaultModeId: collection.defaultModeId,
       modes: collection.modes.map((mode) => ({
@@ -2917,7 +2967,121 @@ function createTokensDomain({
   }
 
   async function tokensCommand(input) {
+    if (
+      input.action === "library_search" ||
+      input.action === "library_inspect"
+    ) {
+      if (!figma.teamLibrary?.getAvailableLibraryVariableCollectionsAsync)
+        fail(
+          "LIBRARY_SEARCH_UNAVAILABLE",
+          "Library variable discovery requires the updated Plugin with teamlibrary permission.",
+          false,
+          { reason: "TEAM_LIBRARY_API_UNAVAILABLE" },
+        );
+      let collections;
+      let variables;
+      try {
+        collections =
+          await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
+        if (input.action === "library_inspect")
+          variables =
+            await figma.teamLibrary.getVariablesInLibraryCollectionAsync(
+              input.collectionKey,
+            );
+      } catch {
+        fail(
+          "LIBRARY_SEARCH_UNAVAILABLE",
+          "Could not read the enabled variable library. Check library enablement, account access, network, and the Plugin's teamlibrary permission.",
+          false,
+          { reason: "LIBRARY_ACCESS_OR_NETWORK" },
+        );
+      }
+      const query = (input.query || "").toLowerCase();
+      const offset = input.offset || 0;
+      const limit = input.limit || 100;
+      if (input.action === "library_search") {
+        const filtered = collections.filter((item) =>
+          `${item.libraryName} ${item.name}`.toLowerCase().includes(query),
+        );
+        return {
+          collections: filtered.slice(offset, offset + limit).map((item) => ({
+            source: "library",
+            key: item.key,
+            name: item.name,
+            libraryName: item.libraryName,
+          })),
+          total: filtered.length,
+          offset,
+          ...(offset + limit < filtered.length
+            ? { nextOffset: offset + limit }
+            : {}),
+          metadataOnly: true,
+        };
+      }
+      const collection = collections.find(
+        (item) => item.key === input.collectionKey,
+      );
+      const filtered = variables.filter((item) =>
+        item.name.toLowerCase().includes(query),
+      );
+      return {
+        collection: collection
+          ? {
+              source: "library",
+              key: collection.key,
+              name: collection.name,
+              libraryName: collection.libraryName,
+            }
+          : { source: "library", key: input.collectionKey },
+        variables: filtered.slice(offset, offset + limit).map((item) => ({
+          source: "library",
+          key: item.key,
+          name: item.name,
+          resolvedType: item.resolvedType,
+          collectionKey: input.collectionKey,
+        })),
+        total: filtered.length,
+        offset,
+        ...(offset + limit < filtered.length
+          ? { nextOffset: offset + limit }
+          : {}),
+        metadataOnly: true,
+        valuesUnavailableReason:
+          "Library discovery exposes metadata only. Use inspect with accessible variableIds for values; library_import is an explicit mutation and is unavailable in Dev Mode.",
+      };
+    }
     if (input.action === "inspect") {
+      if (input.variableIds) {
+        const variables = await Promise.all(
+          [...new Set(input.variableIds)].map(async (id) => {
+            const variable = await figma.variables.getVariableByIdAsync(id);
+            if (!variable)
+              fail(
+                "NODE_NOT_FOUND",
+                `Variable ${id} was not found or is not accessible.`,
+              );
+            return variable;
+          }),
+        );
+        const collections = await Promise.all(
+          [...new Set(variables.map((item) => item.variableCollectionId))].map(
+            async (id) => {
+              const collection =
+                await figma.variables.getVariableCollectionByIdAsync(id);
+              if (!collection)
+                fail(
+                  "NODE_NOT_FOUND",
+                  `Variable collection ${id} was not found or is not accessible.`,
+                );
+              return collection;
+            },
+          ),
+        );
+        return {
+          collections: collections.map(serializeCollection),
+          variables: variables.map(serializeVariable),
+        };
+      }
       return revisionCached("tokens.inventory", async () => {
         const { collections, variables } = await inventory();
         return {
@@ -4041,7 +4205,7 @@ function supportsDevModeCommand(method, params) {
       "slots",
     ],
     instance: ["inspect"],
-    tokens: ["inspect"],
+    tokens: ["inspect", "library_search", "library_inspect"],
     styles: ["inspect"],
     visual: ["audit", "release_capture"],
   };

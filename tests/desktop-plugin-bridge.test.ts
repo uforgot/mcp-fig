@@ -253,6 +253,14 @@ describe("Desktop Plugin bridge", () => {
     );
   });
 
+  it("classifies variable library discovery and explicit inspection as reads", () => {
+    for (const action of ["inspect", "library_search", "library_inspect"])
+      expect(isReadOnlyRequest("tokens", { action })).toBe(true);
+    expect(isReadOnlyRequest("tokens", { action: "library_import" })).toBe(
+      false,
+    );
+  });
+
   it("queues visual capture preparation and keeps audit/release read-only", () => {
     expect(isReadOnlyRequest("visual", { action: "prepare_capture" })).toBe(
       false,
