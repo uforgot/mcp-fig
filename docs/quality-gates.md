@@ -5,12 +5,20 @@ Use the smallest gate that proves the changed boundary, then run the full static
 ## Full gate
 
 ```bash
+npm ci
+npm audit --audit-level=moderate
 npm run typecheck && npm test && npm run lint && npm run build
 npm run smoke
 npm run smoke:plugin
+python3 scripts/verify-api-design.py
+python3 scripts/verify-tool-audit.py
+npm run snapshots:update
+git diff --exit-code -- tests/snapshots
 ```
 
 `npm test` includes generated Plugin drift checking. `npm run smoke` exercises the built stdio server. `npm run smoke:plugin` uses a deterministic fake Plugin transport and checks process cleanup.
+
+Match `.github/workflows/ci.yml` before publication, including the dependency audit and generated-snapshot check. Local test success is not a GitHub CI pass; verify the pushed commit's actual run. When audit fails, update the affected dependencies and lockfile within compatible versions, then rerun the gates; do not lower the audit threshold or hide the failure.
 
 ## Minimum gate by change class
 
